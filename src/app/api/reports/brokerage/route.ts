@@ -11,7 +11,9 @@ export async function GET(request: NextRequest) {
     }
 
     const userRole = session.user.role as Role
-    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+    const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
+    const isEquityDealer = userRole === 'EQUITY_DEALER'
+    if (!isAdmin && !isEquityDealer) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
@@ -19,11 +21,16 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
 
-    // Get all active equity dealers
-    const equityDealers = await prisma.employee.findMany({
-      where: { role: 'EQUITY_DEALER', isActive: true },
-      select: { id: true, name: true },
-    })
+    // Admins see all equity dealers; equity dealers see only themselves
+    const equityDealers = isAdmin
+      ? await prisma.employee.findMany({
+          where: { role: 'EQUITY_DEALER', isActive: true },
+          select: { id: true, name: true },
+        })
+      : await prisma.employee.findMany({
+          where: { id: session.user.id },
+          select: { id: true, name: true },
+        })
 
     // Build 12 months for the year
     const months: Array<{ label: string; start: Date; end: Date }> = []

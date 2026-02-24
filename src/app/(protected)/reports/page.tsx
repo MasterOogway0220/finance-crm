@@ -16,7 +16,7 @@ const EQUITY_REPORTS = [
 ]
 
 const MF_REPORTS = [
-  { title: 'My Client Report', desc: 'Your client engagement summary', icon: Users, color: 'text-purple-600 bg-purple-50', href: '/reports/brokerage' },
+  { title: 'My Clients', desc: 'Your client list and engagement summary', icon: Users, color: 'text-purple-600 bg-purple-50', href: '/mf/clients' },
   { title: 'My Task Report', desc: 'Your task completion history', icon: CheckSquare, color: 'text-blue-600 bg-blue-50', href: '/reports/tasks' },
 ]
 
