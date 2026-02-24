@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Role } from '@prisma/client'
 
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
 export async function GET(request: NextRequest) {
   try {
     const session = await auth()
@@ -17,83 +19,62 @@ export async function GET(request: NextRequest) {
 
     const userRole = session.user.role as Role
 
-    // Determine scope
-    let employeeIds: string[]
+    const where: Record<string, unknown> = {
+      createdAt: { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59, 999) },
+    }
 
     if (userRole === 'BACK_OFFICE' || userRole === 'EQUITY_DEALER' || userRole === 'MF_DEALER') {
-      // Non-admin roles can only see their own data
-      employeeIds = [session.user.id]
+      where.assignedToId = session.user.id
     } else if (employeeIdParam) {
-      employeeIds = [employeeIdParam]
-    } else {
-      // Admins see all employees
-      const allEmployees = await prisma.employee.findMany({
-        where: { isActive: true },
-        select: { id: true },
-      })
-      employeeIds = allEmployees.map((e) => e.id)
+      where.assignedToId = employeeIdParam
     }
 
-    const yearStart = new Date(year, 0, 1)
-    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
-
-    // Fetch all tasks for the year for the scoped employees
     const tasks = await prisma.task.findMany({
-      where: {
-        assignedToId: { in: employeeIds },
-        createdAt: { gte: yearStart, lte: yearEnd },
-      },
-      select: {
-        id: true,
-        status: true,
-        completedAt: true,
-        deadline: true,
-        createdAt: true,
-        assignedToId: true,
-        assignedTo: { select: { id: true, name: true } },
-      },
+      where,
+      select: { id: true, status: true, createdAt: true },
     })
 
-    // Build monthly breakdown per employee
-    type MonthlyEntry = {
-      employeeId: string
-      employeeName: string
-      month: number
-      completed: number
-      pending: number
-      expired: number
+    // Aggregate by month
+    const monthMap = new Map<number, { completed: number; pending: number; expired: number }>()
+    for (let m = 0; m < 12; m++) {
+      monthMap.set(m, { completed: 0, pending: 0, expired: 0 })
     }
 
-    const breakdown = new Map<string, MonthlyEntry>()
-
     for (const task of tasks) {
-      const taskMonth = task.createdAt.getMonth() + 1
-      const key = `${task.assignedToId}-${taskMonth}`
-
-      if (!breakdown.has(key)) {
-        breakdown.set(key, {
-          employeeId: task.assignedToId,
-          employeeName: task.assignedTo.name,
-          month: taskMonth,
-          completed: 0,
-          pending: 0,
-          expired: 0,
-        })
-      }
-
-      const entry = breakdown.get(key)!
+      const m = task.createdAt.getMonth()
+      const entry = monthMap.get(m)!
       if (task.status === 'COMPLETED') entry.completed++
       else if (task.status === 'PENDING') entry.pending++
       else if (task.status === 'EXPIRED') entry.expired++
     }
 
-    const result = Array.from(breakdown.values()).sort(
-      (a, b) => a.month - b.month || a.employeeName.localeCompare(b.employeeName)
-    )
+    const monthly = Array.from(monthMap.entries()).map(([m, counts]) => {
+      const total = counts.completed + counts.pending + counts.expired
+      return {
+        month: MONTH_LABELS[m],
+        completed: counts.completed,
+        pending: counts.pending,
+        expired: counts.expired,
+        total,
+        completionRate: total > 0 ? (counts.completed / total) * 100 : 0,
+      }
+    })
+
+    const totalCompleted = monthly.reduce((s, r) => s + r.completed, 0)
+    const totalPending = monthly.reduce((s, r) => s + r.pending, 0)
+    const totalExpired = monthly.reduce((s, r) => s + r.expired, 0)
+    const totalAll = totalCompleted + totalPending + totalExpired
+
+    const summary = {
+      totalCompleted,
+      totalPending,
+      totalExpired,
+      completionRate: totalAll > 0 ? (totalCompleted / totalAll) * 100 : 0,
+    }
 
     return NextResponse.json({
       success: true,
-      data: { year, breakdown: result },
+      data: { monthly, summary },
     })
   } catch (error) {
     console.error('[GET /api/reports/tasks]', error)

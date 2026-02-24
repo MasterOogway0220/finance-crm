@@ -1,7 +1,6 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentMonthRange } from '@/lib/utils'
 import { Role } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -18,101 +17,66 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const now = new Date()
-    const month = parseInt(searchParams.get('month') ?? String(now.getMonth() + 1))
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
-    const operatorIdParam = searchParams.get('operatorId')
 
-    // Fetch archived monthly data
-    const archiveWhere: Record<string, unknown> = {
-      entityType: 'BROKERAGE',
-    }
-
-    if (operatorIdParam) {
-      archiveWhere.entityId = operatorIdParam
-    }
-
-    const archives = await prisma.monthlyArchive.findMany({
-      where: archiveWhere,
-      orderBy: [{ year: 'asc' }, { month: 'asc' }],
+    // Get all active equity dealers
+    const equityDealers = await prisma.employee.findMany({
+      where: { role: 'EQUITY_DEALER', isActive: true },
+      select: { id: true, name: true },
     })
 
-    // Also get live current month data
-    const { start: curStart, end: curEnd } = getCurrentMonthRange()
-
-    const liveDetailsWhere: Record<string, unknown> = {
-      brokerage: { uploadDate: { gte: curStart, lte: curEnd } },
+    // Build 12 months for the year
+    const months: Array<{ label: string; start: Date; end: Date }> = []
+    for (let m = 0; m < 12; m++) {
+      const start = new Date(year, m, 1)
+      const end = new Date(year, m + 1, 0, 23, 59, 59, 999)
+      const label = start.toLocaleString('default', { month: 'short', year: '2-digit' })
+      months.push({ label, start, end })
     }
-    if (operatorIdParam) liveDetailsWhere.operatorId = operatorIdParam
+    const monthLabels = months.map((m) => m.label)
+    const operatorNames = equityDealers.map((e) => e.name)
 
-    const liveDetails = await prisma.brokerageDetail.findMany({
-      where: liveDetailsWhere,
-      select: { operatorId: true, amount: true },
-    })
-
-    // Aggregate live data per operator
-    const liveByOperator = new Map<string, number>()
-    for (const d of liveDetails) {
-      liveByOperator.set(d.operatorId, (liveByOperator.get(d.operatorId) ?? 0) + d.amount)
-    }
-
-    // Build operator×month matrix
-    // Archives contain { operatorId, operatorName, amount } per (month, year, entityType, entityId)
-    type MatrixEntry = { month: number; year: number; operatorId: string; operatorName: string; amount: number }
-    const matrix: MatrixEntry[] = []
-
-    for (const archive of archives) {
-      const data = archive.data as { operatorId?: string; operatorName?: string; amount?: number }
-      matrix.push({
-        month: archive.month,
-        year: archive.year,
-        operatorId: archive.entityId,
-        operatorName: data.operatorName ?? '',
-        amount: data.amount ?? 0,
-      })
-    }
-
-    // Add current month live data
-    const currentMonthNum = now.getMonth() + 1
-    const currentYear = now.getFullYear()
-
-    for (const [opId, amount] of liveByOperator.entries()) {
-      // Check if not already in matrix from archives
-      const exists = matrix.find(
-        (m) => m.month === currentMonthNum && m.year === currentYear && m.operatorId === opId
-      )
-      if (!exists) {
-        const operator = await prisma.employee.findUnique({
-          where: { id: opId },
-          select: { name: true },
-        })
-        matrix.push({
-          month: currentMonthNum,
-          year: currentYear,
-          operatorId: opId,
-          operatorName: operator?.name ?? opId,
-          amount,
-        })
+    // Initialize matrix
+    const matrix: Record<string, Record<string, number>> = {}
+    for (const op of equityDealers) {
+      matrix[op.name] = {}
+      for (const m of months) {
+        matrix[op.name][m.label] = 0
       }
     }
 
-    // Monthly breakdown (sum across all operators per month/year)
-    const monthlyBreakdown = new Map<string, number>()
-    for (const entry of matrix) {
-      const key = `${entry.year}-${String(entry.month).padStart(2, '0')}`
-      monthlyBreakdown.set(key, (monthlyBreakdown.get(key) ?? 0) + entry.amount)
-    }
+    // Query brokerage details for the year
+    const yearStart = new Date(year, 0, 1)
+    const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
 
-    const monthlyBreakdownArr = Array.from(monthlyBreakdown.entries())
-      .map(([period, total]) => ({ period, total }))
-      .sort((a, b) => a.period.localeCompare(b.period))
+    const details = await prisma.brokerageDetail.findMany({
+      where: {
+        operatorId: { in: equityDealers.map((e) => e.id) },
+        brokerage: { uploadDate: { gte: yearStart, lte: yearEnd } },
+      },
+      select: {
+        operatorId: true,
+        amount: true,
+        brokerage: { select: { uploadDate: true } },
+      },
+    })
+
+    // Fill matrix
+    const opIdToName = new Map(equityDealers.map((e) => [e.id, e.name]))
+    for (const detail of details) {
+      const opName = opIdToName.get(detail.operatorId)
+      if (!opName) continue
+      const uploadDate = new Date(detail.brokerage.uploadDate)
+      const monthIdx = uploadDate.getMonth()
+      const monthLabel = months[monthIdx].label
+      if (matrix[opName]) {
+        matrix[opName][monthLabel] = (matrix[opName][monthLabel] ?? 0) + detail.amount
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      data: {
-        monthlyBreakdown: monthlyBreakdownArr,
-        matrix,
-        filters: { month, year, operatorId: operatorIdParam },
-      },
+      data: { matrix, months: monthLabels, operators: operatorNames },
     })
   } catch (error) {
     console.error('[GET /api/reports/brokerage]', error)

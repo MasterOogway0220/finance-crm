@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           assignedTo: { select: { id: true, name: true, department: true } },
-          assignedBy: { select: { id: true, name: true } },
+          assignedBy: { select: { id: true, name: true, department: true } },
           _count: { select: { comments: true } },
         },
         orderBy: { createdAt: 'desc' },
