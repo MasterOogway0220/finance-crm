@@ -43,7 +43,7 @@ export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
           ].join(' ')}
         >
-          <Sidebar />
+          <Sidebar onClose={closeSidebar} />
         </div>
 
         {/* ------------------------------------------------------------------ */}

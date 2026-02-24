@@ -48,8 +48,8 @@ export default function SettingsPage() {
   return (
     <div className="p-6 space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-sm text-gray-500">Manage your account preferences</p>
+        <h1 className="text-2xl font-bold text-gray-900">My Account</h1>
+        <p className="text-sm text-gray-500">View your profile and manage your password</p>
       </div>
 
       <Tabs defaultValue="profile">

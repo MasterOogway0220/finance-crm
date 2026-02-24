@@ -13,16 +13,11 @@ import {
   ClipboardList,
   BarChart3,
   Database,
-  Settings,
   ChevronDown,
   ChevronRight,
   LogOut,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 interface NavItem {
   label: string
@@ -30,10 +25,6 @@ interface NavItem {
   icon: React.ElementType
   children?: NavItem[]
 }
-
-// ---------------------------------------------------------------------------
-// Role-based nav config
-// ---------------------------------------------------------------------------
 
 const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -50,7 +41,6 @@ const ADMIN_NAV: NavItem[] = [
       { label: 'Client Master', href: '/masters/clients', icon: Database },
     ],
   },
-  { label: 'Settings', href: '/settings', icon: Settings },
 ]
 
 const EQUITY_DEALER_NAV: NavItem[] = [
@@ -60,7 +50,6 @@ const EQUITY_DEALER_NAV: NavItem[] = [
   { label: 'My Tasks', href: '/equity/tasks', icon: CheckSquare },
   { label: 'Assign Task', href: '/tasks/assign', icon: ClipboardList },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
-  { label: 'Settings', href: '/settings', icon: Settings },
 ]
 
 const MF_DEALER_NAV: NavItem[] = [
@@ -69,7 +58,6 @@ const MF_DEALER_NAV: NavItem[] = [
   { label: 'My Tasks', href: '/mf/tasks', icon: CheckSquare },
   { label: 'Assign Task', href: '/tasks/assign', icon: ClipboardList },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
-  { label: 'Settings', href: '/settings', icon: Settings },
 ]
 
 const BACK_OFFICE_NAV: NavItem[] = [
@@ -94,17 +82,14 @@ function getNavItems(role: string): NavItem[] {
   }
 }
 
-// ---------------------------------------------------------------------------
-// NavLink – single item
-// ---------------------------------------------------------------------------
-
 interface NavLinkProps {
   item: NavItem
   pathname: string
   depth?: number
+  onClose?: () => void
 }
 
-function NavLink({ item, pathname, depth = 0 }: NavLinkProps) {
+function NavLink({ item, pathname, depth = 0, onClose }: NavLinkProps) {
   const isActive = item.href ? pathname === item.href || pathname.startsWith(item.href + '/') : false
   const Icon = item.icon
 
@@ -113,6 +98,7 @@ function NavLink({ item, pathname, depth = 0 }: NavLinkProps) {
   return (
     <Link
       href={item.href}
+      onClick={onClose}
       className={cn(
         'relative flex items-center gap-3 py-2.5 text-sm transition-colors',
         depth === 0 ? 'px-4' : 'px-4 pl-8',
@@ -121,7 +107,6 @@ function NavLink({ item, pathname, depth = 0 }: NavLinkProps) {
           : 'text-slate-300 hover:bg-slate-800 hover:text-white',
       )}
     >
-      {/* Active left indicator bar */}
       {isActive && (
         <span className="absolute left-0 top-0 h-full w-1 rounded-r bg-blue-500" />
       )}
@@ -131,16 +116,13 @@ function NavLink({ item, pathname, depth = 0 }: NavLinkProps) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// ExpandableNavItem – Masters group
-// ---------------------------------------------------------------------------
-
 interface ExpandableNavItemProps {
   item: NavItem
   pathname: string
+  onClose?: () => void
 }
 
-function ExpandableNavItem({ item, pathname }: ExpandableNavItemProps) {
+function ExpandableNavItem({ item, pathname, onClose }: ExpandableNavItemProps) {
   const hasActiveChild = item.children?.some(
     (child) => child.href && (pathname === child.href || pathname.startsWith(child.href + '/')),
   )
@@ -174,7 +156,7 @@ function ExpandableNavItem({ item, pathname }: ExpandableNavItemProps) {
       {open && item.children && (
         <div className="py-0.5">
           {item.children.map((child) => (
-            <NavLink key={child.label} item={child} pathname={pathname} depth={1} />
+            <NavLink key={child.label} item={child} pathname={pathname} depth={1} onClose={onClose} />
           ))}
         </div>
       )}
@@ -182,11 +164,11 @@ function ExpandableNavItem({ item, pathname }: ExpandableNavItemProps) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Sidebar
-// ---------------------------------------------------------------------------
+interface SidebarProps {
+  onClose?: () => void
+}
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }: SidebarProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
   const role = session?.user?.role ?? ''
@@ -201,27 +183,24 @@ export default function Sidebar() {
       className="fixed left-0 top-0 z-30 flex h-screen w-64 flex-col"
       style={{ backgroundColor: '#0f172a' }}
     >
-      {/* Logo area */}
+      {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-6 w-6 text-blue-400 shrink-0" />
-          <div>
-            <p className="text-xl font-bold leading-none text-white">FinanceCRM</p>
-            <p className="mt-0.5 text-xs text-slate-400">Financial CRM</p>
-          </div>
+        <TrendingUp className="h-6 w-6 text-blue-400 shrink-0" />
+        <div>
+          <p className="text-xl font-bold leading-none text-white">FinanceCRM</p>
+          <p className="mt-0.5 text-xs text-slate-400">Financial CRM</p>
         </div>
       </div>
 
-      {/* Divider */}
       <div className="mx-4 h-px bg-slate-700" />
 
-      {/* Nav items */}
+      {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-2">
         {navItems.map((item) =>
           item.children ? (
-            <ExpandableNavItem key={item.label} item={item} pathname={pathname} />
+            <ExpandableNavItem key={item.label} item={item} pathname={pathname} onClose={onClose} />
           ) : (
-            <NavLink key={item.label} item={item} pathname={pathname} />
+            <NavLink key={item.label} item={item} pathname={pathname} onClose={onClose} />
           ),
         )}
       </nav>
@@ -229,18 +208,15 @@ export default function Sidebar() {
       {/* User section */}
       <div className="border-t border-slate-700 p-4">
         <div className="flex items-center gap-3">
-          {/* Avatar */}
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
             {initials}
           </div>
-          {/* Info */}
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-white">{userName}</p>
             {designation && (
               <p className="truncate text-xs text-slate-400">{designation}</p>
             )}
           </div>
-          {/* Sign out */}
           <button
             type="button"
             title="Sign out"

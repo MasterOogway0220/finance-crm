@@ -10,10 +10,8 @@ import {
   CheckSquare,
   IndianRupee,
   Info,
-  Settings,
   LogOut,
-  User,
-  TrendingUp,
+  KeyRound,
   Check,
 } from 'lucide-react'
 import {
@@ -222,21 +220,15 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
                 {initials}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuLabel className="font-normal">
-                <p className="text-sm font-medium text-gray-900">{userName}</p>
-                {session?.user?.email && (
-                  <p className="text-xs text-gray-500 truncate">{session.user.email}</p>
-                )}
+                <p className="text-sm font-semibold text-gray-900">{userName}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{session?.user?.designation ?? session?.user?.role?.replace(/_/g, ' ')}</p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push('/settings')}>
-                <User className="mr-2 h-4 w-4" />
-                Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push('/settings')}>
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
+                <KeyRound className="mr-2 h-4 w-4 text-gray-500" />
+                Change Password
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
