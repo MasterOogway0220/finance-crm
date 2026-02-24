@@ -54,6 +54,13 @@ export function getCurrentMonthRange(): { start: Date; end: Date } {
   return { start, end }
 }
 
+export function getLastMonthRange(): { start: Date; end: Date } {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)
+  return { start, end }
+}
+
 export function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate()
 }
