@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { UserPlus, Pencil, Search, X } from 'lucide-react'
+import { UserPlus, Pencil, Search, X, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 
@@ -47,6 +47,8 @@ export default function EmployeeMasterPage() {
   const [showForm, setShowForm] = useState(false)
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -98,6 +100,24 @@ export default function EmployeeMasterPage() {
       }
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/employees/${deleteTarget.id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        toast.success(`${deleteTarget.name} deleted`)
+        setDeleteTarget(null)
+        fetchEmployees()
+      } else {
+        toast.error(data.error || 'Failed to delete')
+      }
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -220,15 +240,46 @@ export default function EmployeeMasterPage() {
                   <Switch checked={emp.isActive} onCheckedChange={() => toggleActive(emp)} />
                 </td>
                 <td className="px-4 py-3">
-                  <Button size="sm" variant="outline" onClick={() => openEdit(emp)} className="gap-1 h-7 text-xs">
-                    <Pencil className="h-3 w-3" />Edit
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button size="sm" variant="outline" onClick={() => openEdit(emp)} className="gap-1 h-7 text-xs">
+                      <Pencil className="h-3 w-3" />Edit
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(emp)} className="gap-1 h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50">
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Employee</DialogTitle>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to permanently delete <strong>{deleteTarget.name}</strong>?
+                This cannot be undone.
+              </p>
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                Employees with assigned clients, tasks, or brokerage data cannot be deleted. Deactivate them instead using the toggle.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+                <Button variant="destructive" className="flex-1" onClick={handleDelete} disabled={deleting}>
+                  {deleting ? 'Deleting…' : 'Delete'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>

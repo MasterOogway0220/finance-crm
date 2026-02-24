@@ -139,29 +139,46 @@ export async function DELETE(
 
     const { id } = await params
 
-    const existing = await prisma.employee.findUnique({ where: { id } })
+    if (id === session.user.id) {
+      return NextResponse.json({ success: false, error: 'You cannot delete your own account' }, { status: 400 })
+    }
+
+    const existing = await prisma.employee.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            assignedClients: true,
+            tasksReceived: true,
+            tasksAssigned: true,
+            brokerageUploads: true,
+          },
+        },
+      },
+    })
+
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Employee not found' }, { status: 404 })
     }
 
-    if (id === session.user.id) {
-      return NextResponse.json({ success: false, error: 'Cannot deactivate your own account' }, { status: 400 })
+    const { _count } = existing
+    if (_count.assignedClients > 0 || _count.tasksReceived > 0 || _count.tasksAssigned > 0 || _count.brokerageUploads > 0) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete employee with assigned clients, tasks, or brokerage data. Deactivate them instead.' },
+        { status: 400 }
+      )
     }
 
-    const employee = await prisma.employee.update({
-      where: { id },
-      data: { isActive: false },
-      select: { id: true, name: true, isActive: true },
-    })
+    await prisma.employee.delete({ where: { id } })
 
     await logActivity({
       userId: session.user.id,
-      action: 'DEACTIVATE',
+      action: 'DELETE',
       module: 'EMPLOYEES',
-      details: `Deactivated employee: ${existing.name} (${id})`,
+      details: `Deleted employee: ${existing.name} (${existing.email})`,
     })
 
-    return NextResponse.json({ success: true, data: employee })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[DELETE /api/employees/[id]]', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })

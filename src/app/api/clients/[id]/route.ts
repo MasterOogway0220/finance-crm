@@ -5,6 +5,55 @@ import { logActivity } from '@/lib/activity-log'
 import { clientUpdateSchema } from '@/lib/validations'
 import { Role } from '@prisma/client'
 
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userRole = session.user.role as Role
+    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { id } = await params
+
+    const existing = await prisma.client.findUnique({
+      where: { id },
+      include: { _count: { select: { brokerageDetails: true } } },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ success: false, error: 'Client not found' }, { status: 404 })
+    }
+
+    if (existing._count.brokerageDetails > 0) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete client with brokerage history' },
+        { status: 400 }
+      )
+    }
+
+    await prisma.client.delete({ where: { id } })
+
+    await logActivity({
+      userId: session.user.id,
+      action: 'DELETE',
+      module: 'CLIENTS',
+      details: `Deleted client: ${existing.clientCode} - ${existing.firstName} ${existing.lastName}`,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('[DELETE /api/clients/[id]]', error)
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -38,6 +38,11 @@ export const employeeSchema = z.object({
 })
 
 export const clientUpdateSchema = z.object({
+  firstName: z.string().min(1).optional(),
+  middleName: z.string().optional(),
+  lastName: z.string().min(1).optional(),
+  phone: z.string().length(10).regex(/^\d{10}$/).optional(),
+  operatorId: z.string().optional(),
   status: z.enum(['TRADED', 'NOT_TRADED']).optional(),
   remark: z.enum(['SUCCESSFULLY_TRADED', 'NOT_TRADED', 'NO_FUNDS_FOR_TRADING', 'DID_NOT_ANSWER', 'SELF_TRADING']).optional(),
   mfStatus: z.enum(['ACTIVE', 'INACTIVE']).optional(),
