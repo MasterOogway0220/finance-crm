@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { SessionProvider } from 'next-auth/react'
 import { Toaster } from 'sonner'
 import Sidebar from '@/components/layout/sidebar'
@@ -12,6 +13,12 @@ interface ProtectedLayoutProps {
 
 export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const pathname = usePathname()
+
+  // Close sidebar on any route change (reliable on mobile)
+  useEffect(() => {
+    setIsSidebarOpen(false)
+  }, [pathname])
 
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev)
   const closeSidebar = () => setIsSidebarOpen(false)
