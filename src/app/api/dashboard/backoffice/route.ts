@@ -61,13 +61,14 @@ export async function GET(request: NextRequest) {
       prisma.task.findMany({
         where: {
           assignedToId: employeeId,
-          createdAt: { gte: filterStart, lte: filterEnd },
+          status: 'PENDING',
+          deadline: { gte: filterStart, lte: filterEnd },
         },
         include: {
           assignedTo: { select: { id: true, name: true, department: true } },
           assignedBy: { select: { id: true, name: true, department: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { deadline: 'asc' },
       }),
     ])
 
