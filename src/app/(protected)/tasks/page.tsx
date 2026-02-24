@@ -41,6 +41,7 @@ export default function AdminTasksPage() {
   const [tasks, setTasks] = useState<TaskWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('all')
+  const [priority, setPriority] = useState('all')
   const [dept, setDept] = useState('all')
   const [search, setSearch] = useState('')
   const [selectedTask, setSelectedTask] = useState<TaskWithRelations | null>(null)
@@ -49,20 +50,21 @@ export default function AdminTasksPage() {
     setLoading(true)
     const params = new URLSearchParams()
     if (status !== 'all') params.set('status', status)
+    if (priority !== 'all') params.set('priority', priority)
     if (dept !== 'all') params.set('department', dept)
     if (search) params.set('search', search)
     fetch(`/api/tasks?${params}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setTasks(d.data.tasks || []) })
       .finally(() => setLoading(false))
-  }, [status, dept, search])
+  }, [status, priority, dept, search])
 
   useEffect(() => {
     const timer = setTimeout(fetchTasks, 300)
     return () => clearTimeout(timer)
   }, [fetchTasks])
 
-  const hasFilters = status !== 'all' || dept !== 'all' || search !== ''
+  const hasFilters = status !== 'all' || priority !== 'all' || dept !== 'all' || search !== ''
 
   return (
     <div className="p-6 space-y-4">
@@ -89,6 +91,15 @@ export default function AdminTasksPage() {
               <SelectItem value="EXPIRED">Expired</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={priority} onValueChange={setPriority}>
+            <SelectTrigger className="w-32 h-9 text-sm"><SelectValue placeholder="Priority" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Priority</SelectItem>
+              <SelectItem value="HIGH">High</SelectItem>
+              <SelectItem value="MEDIUM">Medium</SelectItem>
+              <SelectItem value="LOW">Low</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={dept} onValueChange={setDept}>
             <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="Department" /></SelectTrigger>
             <SelectContent>
@@ -100,7 +111,7 @@ export default function AdminTasksPage() {
             </SelectContent>
           </Select>
           {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setStatus('all'); setDept('all') }} className="h-9 gap-1.5 text-gray-500 hover:text-gray-800">
+            <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setStatus('all'); setPriority('all'); setDept('all') }} className="h-9 gap-1.5 text-gray-500 hover:text-gray-800">
               <X className="h-3.5 w-3.5" />Clear
             </Button>
           )}
