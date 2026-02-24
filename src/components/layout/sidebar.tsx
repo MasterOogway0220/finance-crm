@@ -176,7 +176,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
 
   return (
     <aside
-      className="fixed left-0 top-0 z-30 flex h-screen w-64 flex-col"
+      className="flex h-full w-64 flex-col"
       style={{ backgroundColor: '#0f172a' }}
     >
       {/* Logo */}
