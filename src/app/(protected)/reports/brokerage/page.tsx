@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/utils'
-import { Download } from 'lucide-react'
+import { Download, ArrowLeft } from 'lucide-react'
+import Link from 'next/link'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
@@ -52,9 +53,16 @@ export default function BrokerageReportPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Brokerage Report</h1>
-          <p className="text-sm text-gray-500">Monthly operator performance</p>
+        <div className="flex items-center gap-3">
+          <Link href="/reports">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-gray-500 hover:text-gray-800 -ml-2">
+              <ArrowLeft className="h-4 w-4" />Back
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Brokerage Report</h1>
+            <p className="text-sm text-gray-500">Monthly operator performance</p>
+          </div>
         </div>
         <div className="flex gap-2 items-center">
           <Select value={year} onValueChange={setYear}>

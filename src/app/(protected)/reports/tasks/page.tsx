@@ -5,8 +5,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Download } from 'lucide-react'
+import { Download, ArrowLeft } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import Link from 'next/link'
 
 const YEARS = ['2024', '2025', '2026']
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -48,9 +49,16 @@ export default function TasksReportPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Task Report</h1>
-          <p className="text-sm text-gray-500">Task completion performance</p>
+        <div className="flex items-center gap-3">
+          <Link href="/reports">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-gray-500 hover:text-gray-800 -ml-2">
+              <ArrowLeft className="h-4 w-4" />Back
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Task Report</h1>
+            <p className="text-sm text-gray-500">Task completion performance</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Select value={year} onValueChange={setYear}>
