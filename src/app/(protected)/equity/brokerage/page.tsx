@@ -23,7 +23,7 @@ export default function EquityBrokeragePage() {
     setLoading(true)
     fetch(`/api/brokerage/daily?month=${month}&year=${year}`)
       .then((r) => r.json())
-      .then((d) => { if (d.success) setData(d.data) })
+      .then((d) => { if (d.success) setData(d.data.daily) })
       .finally(() => setLoading(false))
   }, [month, year])
 

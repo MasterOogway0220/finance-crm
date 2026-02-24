@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
       .filter((u) => u.details.length > 0)
       .map((u) => ({
         date: u.uploadDate.toISOString().split('T')[0],
+        day: new Date(u.uploadDate).getDate(),
         amount: u.details.reduce((sum, d) => sum + d.amount, 0),
       }))
 
