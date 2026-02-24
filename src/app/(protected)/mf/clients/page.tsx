@@ -9,7 +9,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Search, Download, CalendarIcon, Users } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatDate, cn } from '@/lib/utils'
+import { formatDate, getInitials, cn } from '@/lib/utils'
 import { ClientWithOperator } from '@/types'
 
 const STATUS_OPTIONS = [
@@ -82,44 +82,46 @@ export default function MFClientsPage() {
         <p className="text-sm text-gray-500">Manage your mutual fund clients</p>
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative flex-1 min-w-48 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search clients..." className="pl-9 h-9" />
+      <div className="bg-white rounded-lg border border-gray-200 p-3">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search clients…" className="pl-9 h-9 text-sm" />
+          </div>
+          <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
+            <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={remark} onValueChange={(v) => { setRemark(v); setPage(1) }}>
+            <SelectTrigger className="w-48 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{REMARK_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={() => window.open(`/api/clients/export?department=MUTUAL_FUND`, '_blank')} className="ml-auto gap-1.5">
+            <Download className="h-3.5 w-3.5" />Export CSV
+          </Button>
         </div>
-        <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
-          <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={remark} onValueChange={(v) => { setRemark(v); setPage(1) }}>
-          <SelectTrigger className="w-44 h-9 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>{REMARK_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
-        </Select>
-        <Button size="sm" variant="outline" onClick={() => window.open(`/api/clients/export?department=MUTUAL_FUND`, '_blank')} className="ml-auto gap-1.5">
-          <Download className="h-3.5 w-3.5" />Export CSV
-        </Button>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-3 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Code</th>
-              <th className="px-3 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Name</th>
-              <th className="px-3 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Contact</th>
-              <th className="px-3 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</th>
-              <th className="px-3 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Remark</th>
-              <th className="px-3 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Follow-up</th>
-              <th className="px-3 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[150px]">Notes</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Code</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Contact</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Remark</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Follow-up</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[150px]">Notes</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}><td colSpan={7} className="px-3 py-2"><Skeleton className="h-8 w-full" /></td></tr>
+                <tr key={i}><td colSpan={7} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
               ))
             ) : clients.length === 0 ? (
-              <tr><td colSpan={7} className="px-3 py-12 text-center text-gray-400">
+              <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">
                 <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No clients found</p>
               </td></tr>
@@ -149,11 +151,18 @@ function MFClientRow({ client, onUpdate }: { client: ClientWithOperator; onUpdat
   const [followUp, setFollowUp] = useState<Date | undefined>(client.followUpDate ? new Date(client.followUpDate) : undefined)
 
   return (
-    <tr className={cn('border-b border-gray-100 hover:bg-blue-50 transition-colors', client.mfStatus === 'ACTIVE' ? 'bg-green-50' : 'bg-white')}>
-      <td className="px-3 py-2 font-mono text-xs font-medium text-gray-700">{client.clientCode}</td>
-      <td className="px-3 py-2 text-gray-800 font-medium">{[client.firstName, client.middleName, client.lastName].filter(Boolean).join(' ')}</td>
-      <td className="px-3 py-2 text-xs"><a href={`tel:${client.phone}`} className="hover:text-blue-600">{client.phone}</a></td>
-      <td className="px-3 py-2">
+    <tr className={cn('border-b border-gray-100 hover:bg-gray-50 transition-colors', client.mfStatus === 'ACTIVE' ? 'bg-green-50' : 'bg-white')}>
+      <td className="px-4 py-3 font-mono text-xs font-medium text-gray-700">{client.clientCode}</td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center text-xs font-medium flex-shrink-0">
+            {getInitials([client.firstName, client.lastName].join(' '))}
+          </div>
+          <span className="font-medium text-gray-800">{[client.firstName, client.middleName, client.lastName].filter(Boolean).join(' ')}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-xs"><a href={`tel:${client.phone}`} className="text-gray-600 hover:text-blue-600">{client.phone}</a></td>
+      <td className="px-4 py-3">
         <Select value={client.mfStatus} onValueChange={(v) => onUpdate(client.id, { mfStatus: v })}>
           <SelectTrigger className={cn('h-7 text-xs w-24', client.mfStatus === 'ACTIVE' ? 'border-green-400 text-green-700' : 'border-gray-300')}><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -162,7 +171,7 @@ function MFClientRow({ client, onUpdate }: { client: ClientWithOperator; onUpdat
           </SelectContent>
         </Select>
       </td>
-      <td className="px-3 py-2">
+      <td className="px-4 py-3">
         <Select value={client.mfRemark} onValueChange={(v) => onUpdate(client.id, { mfRemark: v })}>
           <SelectTrigger className="h-7 text-xs w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -174,7 +183,7 @@ function MFClientRow({ client, onUpdate }: { client: ClientWithOperator; onUpdat
           </SelectContent>
         </Select>
       </td>
-      <td className="px-3 py-2">
+      <td className="px-4 py-3">
         <Popover>
           <PopoverTrigger asChild>
             <button className={cn('flex items-center gap-1 text-xs', followUp ? 'text-blue-600 font-medium' : 'text-gray-400 hover:text-blue-500')}>
@@ -187,7 +196,7 @@ function MFClientRow({ client, onUpdate }: { client: ClientWithOperator; onUpdat
           </PopoverContent>
         </Popover>
       </td>
-      <td className="px-3 py-2">
+      <td className="px-4 py-3">
         {editingNotes ? (
           <input
             value={notes}
