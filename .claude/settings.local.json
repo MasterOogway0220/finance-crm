@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd:*)",
+      "Bash(powershell:*)",
+      "Bash(cd /e/freelance/finance-crm && npm run dev 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && npm run db:seed 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && npx ts-node --compiler-options \"{\\\\\"module\\\\\":\\\\\"CommonJS\\\\\"}\" prisma/seed.ts 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && npx prisma db push 2>&1)",
+      "Bash(node:*)",
+      "Bash(cd /e/freelance/finance-crm && npm run build 2>&1)"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tail:*)",
+      "Bash(cd E:/freelance/finance-crm && npx prisma init --datasource-provider mysql 2>&1)",
+      "Bash(ls E:/freelance/finance-crm/src/app/\\\\\\(protected\\\\\\)/ && ls E:/freelance/finance-crm/src/app/\\\\\\(auth\\\\\\)/ 2>/dev/null && ls E:/freelance/finance-crm/src/components/layout/ 2>/dev/null)",
+      "Bash(ls:*)",
+      "Bash(head:*)",
+      "Bash(cd E:/freelance/finance-crm && npx tsc --noEmit 2>&1)",
+      "Bash(cd E:/freelance/finance-crm && npm run build 2>&1)",
+      "Bash(cd E:/freelance/finance-crm && npx prisma generate 2>&1)",
+      "Bash(npm show @prisma/adapter-mysql version 2>&1 && npm show @prisma/adapter-libsql version 2>&1)",
+      "Bash(cd:*)",
+      "Bash(mysql:*)",
+      "Bash(where mysql 2>&1 && where mysqladmin 2>&1)"
+    ]
+  }
+}

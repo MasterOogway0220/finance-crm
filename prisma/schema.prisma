@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  EQUITY_DEALER
+  MF_DEALER
+  BACK_OFFICE
+}
+
+enum Department {
+  EQUITY
+  MUTUAL_FUND
+  BACK_OFFICE
+  ADMIN
+}
+
+enum TaskStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+}
+
+enum TaskPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ClientStatus {
+  TRADED
+  NOT_TRADED
+}
+
+enum ClientRemark {
+  SUCCESSFULLY_TRADED
+  NOT_TRADED
+  NO_FUNDS_FOR_TRADING
+  DID_NOT_ANSWER
+  SELF_TRADING
+}
+
+enum MFClientStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MFClientRemark {
+  INVESTMENT_DONE
+  INTERESTED
+  NOT_INTERESTED
+  DID_NOT_ANSWER
+  FOLLOW_UP_REQUIRED
+}
+
+model Employee {
+  id            String      @id @default(cuid())
+  name          String
+  email         String      @unique
+  phone         String
+  password      String
+  department    Department
+  designation   String
+  role          Role
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  assignedClients    Client[]          @relation("OperatorClients")
+  tasksReceived      Task[]            @relation("TaskAssignee")
+  tasksAssigned      Task[]            @relation("TaskAssigner")
+  taskComments       TaskComment[]
+  notifications      Notification[]
+  activityLogs       ActivityLog[]
+  brokerageUploads   BrokerageUpload[]
+
+  @@index([department])
+  @@index([role])
+}
+
+model Client {
+  id              String          @id @default(cuid())
+  clientCode      String          @unique
+  firstName       String
+  middleName      String?
+  lastName        String
+  phone           String
+  department      Department
+  operatorId      String
+  operator        Employee        @relation("OperatorClients", fields: [operatorId], references: [id])
+
+  status          ClientStatus    @default(NOT_TRADED)
+  remark          ClientRemark    @default(DID_NOT_ANSWER)
+
+  mfStatus        MFClientStatus  @default(INACTIVE)
+  mfRemark        MFClientRemark  @default(DID_NOT_ANSWER)
+
+  notes           String?         @db.Text
+  followUpDate    DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  brokerageDetails BrokerageDetail[]
+
+  @@index([operatorId])
+  @@index([clientCode])
+  @@index([department])
+  @@index([status])
+}
+
+model Task {
+  id              String        @id @default(cuid())
+  title           String
+  description     String        @db.Text
+  assignedToId    String
+  assignedTo      Employee      @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  assignedById    String
+  assignedBy      Employee      @relation("TaskAssigner", fields: [assignedById], references: [id])
+  startDate       DateTime      @default(now())
+  deadline        DateTime
+  status          TaskStatus    @default(PENDING)
+  priority        TaskPriority  @default(MEDIUM)
+  completedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  comments        TaskComment[]
+
+  @@index([assignedToId])
+  @@index([assignedById])
+  @@index([status])
+  @@index([deadline])
+}
+
+model TaskComment {
+  id          String    @id @default(cuid())
+  taskId      String
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      Employee  @relation(fields: [authorId], references: [id])
+  content     String    @db.Text
+  createdAt   DateTime  @default(now())
+
+  @@index([taskId])
+}
+
+model BrokerageUpload {
+  id            String    @id @default(cuid())
+  uploadDate    DateTime
+  uploadedById  String
+  uploadedBy    Employee  @relation(fields: [uploadedById], references: [id])
+  totalAmount   Float     @default(0)
+  fileName      String
+  createdAt     DateTime  @default(now())
+
+  details       BrokerageDetail[]
+
+  @@unique([uploadDate])
+  @@index([uploadDate])
+}
+
+model BrokerageDetail {
+  id              String          @id @default(cuid())
+  brokerageId     String
+  brokerage       BrokerageUpload @relation(fields: [brokerageId], references: [id], onDelete: Cascade)
+  clientCode      String
+  clientId        String?
+  client          Client?         @relation(fields: [clientId], references: [id])
+  operatorId      String
+  amount          Float
+  createdAt       DateTime        @default(now())
+
+  @@unique([brokerageId, clientCode])
+  @@index([operatorId])
+  @@index([brokerageId])
+}
+
+model MonthlyArchive {
+  id          String    @id @default(cuid())
+  month       Int
+  year        Int
+  entityType  String
+  entityId    String    @default("")
+  data        Json
+  createdAt   DateTime  @default(now())
+
+  @@unique([month, year, entityType, entityId])
+  @@index([month, year])
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  user        Employee  @relation(fields: [userId], references: [id])
+  type        String
+  title       String
+  message     String    @db.Text
+  isRead      Boolean   @default(false)
+  link        String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model ActivityLog {
+  id          String    @id @default(cuid())
+  userId      String
+  user        Employee  @relation(fields: [userId], references: [id])
+  action      String
+  module      String
+  details     String?   @db.Text
+  ipAddress   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([module])
+  @@index([createdAt])
+}

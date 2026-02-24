@@ -1,0 +1,6 @@
+TASK ASSINGMENT TAB (DETAILS TO BE FILLED WHEN A PERSON ASSIGNS TASKS).
+1)  assignee  name , department ( Give drop down for both, first select department and then the other drop down should show employee names of that department).
+2) assing to : name and department.
+3) text box for task.
+4) deadline ( note the start / current date should be automatic)
+5) assign  button.
