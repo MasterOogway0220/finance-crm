@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { UserPlus, Pencil, Search } from 'lucide-react'
+import { UserPlus, Pencil, Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 
@@ -41,6 +41,9 @@ export default function EmployeeMasterPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [dept, setDept] = useState('all')
+  const [role, setRole] = useState('all')
+  const [activeFilter, setActiveFilter] = useState('all')
   const [showForm, setShowForm] = useState(false)
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -54,11 +57,14 @@ export default function EmployeeMasterPage() {
     setLoading(true)
     const params = new URLSearchParams()
     if (search) params.set('search', search)
+    if (dept !== 'all') params.set('department', dept)
+    if (role !== 'all') params.set('role', role)
+    if (activeFilter !== 'all') params.set('isActive', activeFilter)
     fetch(`/api/employees?${params}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setEmployees(d.data) })
       .finally(() => setLoading(false))
-  }, [search])
+  }, [search, dept, role, activeFilter])
 
   useEffect(() => {
     const t = setTimeout(fetchEmployees, 300)
@@ -121,9 +127,56 @@ export default function EmployeeMasterPage() {
         </Button>
       </div>
 
-      <div className="relative max-w-xs">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employees..." className="pl-9 h-9" />
+      <div className="bg-white rounded-lg border border-gray-200 p-3">
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* Search */}
+          <div className="relative flex-1 min-w-44">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, email or phone…" className="pl-9 h-9 text-sm" />
+          </div>
+
+          {/* Department */}
+          <Select value={dept} onValueChange={setDept}>
+            <SelectTrigger className="w-38 h-9 text-sm"><SelectValue placeholder="Department" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Departments</SelectItem>
+              <SelectItem value="EQUITY">Equity</SelectItem>
+              <SelectItem value="MUTUAL_FUND">Mutual Fund</SelectItem>
+              <SelectItem value="BACK_OFFICE">Back Office</SelectItem>
+              <SelectItem value="ADMIN">Admin</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Role */}
+          <Select value={role} onValueChange={setRole}>
+            <SelectTrigger className="w-36 h-9 text-sm"><SelectValue placeholder="Role" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+              <SelectItem value="ADMIN">Admin</SelectItem>
+              <SelectItem value="EQUITY_DEALER">Equity Dealer</SelectItem>
+              <SelectItem value="MF_DEALER">MF Dealer</SelectItem>
+              <SelectItem value="BACK_OFFICE">Back Office</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Active / Inactive */}
+          <Select value={activeFilter} onValueChange={setActiveFilter}>
+            <SelectTrigger className="w-32 h-9 text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="true">Active</SelectItem>
+              <SelectItem value="false">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Clear */}
+          {(search || dept !== 'all' || role !== 'all' || activeFilter !== 'all') && (
+            <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setDept('all'); setRole('all'); setActiveFilter('all') }} className="h-9 gap-1.5 text-gray-500 hover:text-gray-800">
+              <X className="h-3.5 w-3.5" />Clear
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -140,6 +193,8 @@ export default function EmployeeMasterPage() {
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}><td colSpan={8} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
               ))
+            ) : employees.length === 0 ? (
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">No employees found</td></tr>
             ) : employees.map((emp) => (
               <tr key={emp.id} className="border-b border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-3">
