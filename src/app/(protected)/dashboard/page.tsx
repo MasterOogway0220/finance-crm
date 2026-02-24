@@ -133,9 +133,9 @@ export default function AdminDashboardPage() {
           </div>
           <div className="lg:col-span-2">
             <TaskPieChart
-              pending={data.taskStats.pending}
-              completed={data.taskStats.completed}
-              expired={data.taskStats.expired}
+              pending={data.taskStats?.pending ?? 0}
+              completed={data.taskStats?.completed ?? 0}
+              expired={data.taskStats?.expired ?? 0}
             />
           </div>
         </div>
