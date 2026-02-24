@@ -4,13 +4,12 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { UserPlus, Search, ArrowRightLeft, X, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatDate } from '@/lib/utils'
+import { formatDate, getInitials } from '@/lib/utils'
 import { ClientWithOperator } from '@/types'
 
 interface Employee { id: string; name: string; department: string }
@@ -230,33 +229,40 @@ export default function ClientMasterPage() {
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
+          <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               {['Code', 'Name', 'Phone', 'Department', 'Operator', 'Status', 'Added', 'Actions'].map(h => (
-                <th key={h} className="px-3 py-3 text-left font-semibold text-gray-600 text-xs uppercase">{h}</th>
+                <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading
               ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}><td colSpan={8} className="px-3 py-2"><Skeleton className="h-8 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={8} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
                 ))
               : clients.length === 0
-              ? <tr><td colSpan={8} className="px-3 py-10 text-center text-sm text-gray-400">No clients found{hasActiveFilters ? ' for the selected filters' : ''}</td></tr>
+              ? <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">No clients found{hasActiveFilters ? ' for the selected filters' : ''}</td></tr>
               : clients.map(c => (
                   <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-3 py-2.5 font-mono text-xs font-medium text-gray-700">{c.clientCode}</td>
-                    <td className="px-3 py-2.5 font-medium text-gray-800">{[c.firstName, c.middleName, c.lastName].filter(Boolean).join(' ')}</td>
-                    <td className="px-3 py-2.5 text-gray-600 text-xs">{c.phone}</td>
-                    <td className="px-3 py-2.5">
-                      <Badge variant="outline" className={c.department === 'EQUITY' ? 'border-blue-300 text-blue-700' : 'border-green-300 text-green-700'}>
-                        {c.department === 'EQUITY' ? 'Equity' : 'MF'}
-                      </Badge>
+                    <td className="px-4 py-3 font-mono text-xs font-medium text-gray-700">{c.clientCode}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0 text-white ${c.department === 'EQUITY' ? 'bg-blue-600' : 'bg-green-600'}`}>
+                          {getInitials([c.firstName, c.lastName].join(' '))}
+                        </div>
+                        <span className="font-medium text-gray-800">{[c.firstName, c.middleName, c.lastName].filter(Boolean).join(' ')}</span>
+                      </div>
                     </td>
-                    <td className="px-3 py-2.5 text-gray-600 text-xs">{c.operator.name}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    <td className="px-4 py-3 text-gray-600 text-xs">{c.phone}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${c.department === 'EQUITY' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                        {c.department === 'EQUITY' ? 'Equity' : 'Mutual Fund'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 text-xs">{c.operator.name}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                         c.department === 'EQUITY'
                           ? c.status === 'TRADED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
                           : c.mfStatus === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
@@ -264,10 +270,10 @@ export default function ClientMasterPage() {
                         {c.department === 'EQUITY' ? c.status.replace('_', ' ') : c.mfStatus}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-gray-500 text-xs">{formatDate(c.createdAt)}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(c)} className="h-7 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                    <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(c.createdAt)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" variant="outline" onClick={() => openEdit(c)} className="h-7 text-xs gap-1">
                           <Pencil className="h-3 w-3" />Edit
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => openTransfer(c)} className="h-7 text-xs gap-1 text-gray-600 hover:bg-gray-100">
