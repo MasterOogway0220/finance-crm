@@ -52,26 +52,24 @@ export default function BrokerageReportPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/reports">
-            <Button variant="ghost" size="sm" className="gap-1.5 text-gray-500 hover:text-gray-800 -ml-2">
-              <ArrowLeft className="h-4 w-4" />Back
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Brokerage Report</h1>
-            <p className="text-sm text-gray-500">Monthly operator performance</p>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Brokerage Report</h1>
+          <p className="text-sm text-gray-500">Monthly operator performance</p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={year} onValueChange={setYear}>
             <SelectTrigger className="w-24 h-9"><SelectValue /></SelectTrigger>
             <SelectContent>{YEARS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={handleExport} className="gap-1.5">
+          <Button size="sm" variant="outline" onClick={handleExport} className="gap-1.5 h-9">
             <Download className="h-3.5 w-3.5" />Export Excel
           </Button>
+          <Link href="/reports">
+            <Button size="sm" variant="secondary" className="gap-1.5 h-9">
+              <ArrowLeft className="h-3.5 w-3.5" />Back to Reports
+            </Button>
+          </Link>
         </div>
       </div>
 
