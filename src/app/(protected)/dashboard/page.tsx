@@ -1,15 +1,12 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   Users, Briefcase, IndianRupee, TrendingUp, Clock, AlertTriangle,
-  Upload, ClipboardList, UserPlus, BarChart3
 } from 'lucide-react'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { BrokerageChart } from '@/components/dashboard/brokerage-chart'
 import { TaskPieChart } from '@/components/dashboard/task-pie-chart'
 import { OperatorTable } from '@/components/dashboard/operator-table'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDateLong, getDaysInMonth } from '@/lib/utils'
 
@@ -42,7 +39,6 @@ interface DashboardData {
 }
 
 export default function AdminDashboardPage() {
-  const router = useRouter()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const today = new Date()
@@ -153,28 +149,6 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-lg font-semibold text-gray-800 mb-3">Quick Actions</h2>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline" onClick={() => router.push('/brokerage/upload')} className="gap-2">
-            <Upload className="h-4 w-4" />
-            Upload Brokerage
-          </Button>
-          <Button variant="outline" onClick={() => router.push('/tasks/assign')} className="gap-2">
-            <ClipboardList className="h-4 w-4" />
-            Assign Task
-          </Button>
-          <Button variant="outline" onClick={() => router.push('/masters/clients/new')} className="gap-2">
-            <UserPlus className="h-4 w-4" />
-            Add New Client
-          </Button>
-          <Button variant="outline" onClick={() => router.push('/reports')} className="gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Generate Report
-          </Button>
-        </div>
-      </div>
     </div>
   )
 }

@@ -10,7 +10,6 @@ import {
   Users,
   IndianRupee,
   CheckSquare,
-  ClipboardList,
   BarChart3,
   Database,
   ChevronDown,
@@ -31,7 +30,6 @@ const ADMIN_NAV: NavItem[] = [
   { label: 'All Clients', href: '/clients', icon: Users },
   { label: 'Brokerage', href: '/brokerage', icon: IndianRupee },
   { label: 'Tasks', href: '/tasks', icon: CheckSquare },
-  { label: 'Assign Task', href: '/tasks/assign', icon: ClipboardList },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
   {
     label: 'Masters',
@@ -48,7 +46,6 @@ const EQUITY_DEALER_NAV: NavItem[] = [
   { label: 'My Clients', href: '/equity/clients', icon: Users },
   { label: 'My Brokerage', href: '/equity/brokerage', icon: IndianRupee },
   { label: 'My Tasks', href: '/equity/tasks', icon: CheckSquare },
-  { label: 'Assign Task', href: '/tasks/assign', icon: ClipboardList },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 
@@ -56,7 +53,6 @@ const MF_DEALER_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/mf/dashboard', icon: LayoutDashboard },
   { label: 'My Clients', href: '/mf/clients', icon: Users },
   { label: 'My Tasks', href: '/mf/tasks', icon: CheckSquare },
-  { label: 'Assign Task', href: '/tasks/assign', icon: ClipboardList },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 

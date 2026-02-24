@@ -6,8 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Search, X } from 'lucide-react'
+import { Search, X, ClipboardList } from 'lucide-react'
 import { formatDate, getDaysRemaining, getInitials } from '@/lib/utils'
+import Link from 'next/link'
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING:   'bg-amber-100 text-amber-700',
@@ -73,6 +74,11 @@ export default function AdminTasksPage() {
           <h1 className="text-2xl font-bold text-gray-900">All Tasks</h1>
           <p className="text-sm text-gray-500">Manage and monitor all tasks across departments</p>
         </div>
+        <Link href="/tasks/assign">
+          <Button className="gap-2">
+            <ClipboardList className="h-4 w-4" />Assign Task
+          </Button>
+        </Link>
       </div>
 
       {/* Filters */}

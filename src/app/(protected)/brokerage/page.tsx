@@ -4,6 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, getDaysInMonth } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { Upload } from 'lucide-react'
+import Link from 'next/link'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
@@ -62,7 +64,7 @@ export default function BrokeragePage() {
           <h1 className="text-2xl font-bold text-gray-900">Brokerage Dashboard</h1>
           <p className="text-sm text-gray-500">Equity brokerage performance</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <Select value={month} onValueChange={setMonth}>
             <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>{MONTHS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
@@ -71,6 +73,11 @@ export default function BrokeragePage() {
             <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
           </Select>
+          <Link href="/brokerage/upload">
+            <Button className="gap-2 h-9">
+              <Upload className="h-4 w-4" />Upload Brokerage
+            </Button>
+          </Link>
         </div>
       </div>
 

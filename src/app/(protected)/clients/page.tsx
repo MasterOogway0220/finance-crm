@@ -4,9 +4,10 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Search, Users } from 'lucide-react'
+import { Search, Users, UserPlus } from 'lucide-react'
 import { formatDate, getInitials, cn } from '@/lib/utils'
 import { ClientWithOperator } from '@/types'
+import Link from 'next/link'
 
 export default function AllClientsPage() {
   const [clients, setClients] = useState<ClientWithOperator[]>([])
@@ -38,9 +39,16 @@ export default function AllClientsPage() {
 
   return (
     <div className="p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">All Clients</h1>
-        <p className="text-sm text-gray-500">All clients across all operators</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">All Clients</h1>
+          <p className="text-sm text-gray-500">All clients across all operators</p>
+        </div>
+        <Link href="/masters/clients/new">
+          <Button className="gap-2">
+            <UserPlus className="h-4 w-4" />New Client
+          </Button>
+        </Link>
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-3">
