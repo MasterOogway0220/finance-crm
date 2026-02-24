@@ -131,8 +131,8 @@ export async function POST(request: NextRequest) {
         priority: data.priority as TaskPriority,
       },
       include: {
-        assignedTo: { select: { id: true, name: true } },
-        assignedBy: { select: { id: true, name: true } },
+        assignedTo: { select: { id: true, name: true, department: true } },
+        assignedBy: { select: { id: true, name: true, department: true } },
       },
     })
 

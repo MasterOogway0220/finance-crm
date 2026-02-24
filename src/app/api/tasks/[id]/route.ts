@@ -30,7 +30,7 @@ export async function GET(
       where: { id },
       include: {
         assignedTo: { select: { id: true, name: true, department: true, designation: true } },
-        assignedBy: { select: { id: true, name: true } },
+        assignedBy: { select: { id: true, name: true, department: true } },
         comments: {
           include: {
             author: { select: { id: true, name: true } },
@@ -84,8 +84,8 @@ export async function PATCH(
     const existing = await prisma.task.findUnique({
       where: { id },
       include: {
-        assignedTo: { select: { id: true, name: true } },
-        assignedBy: { select: { id: true, name: true } },
+        assignedTo: { select: { id: true, name: true, department: true } },
+        assignedBy: { select: { id: true, name: true, department: true } },
       },
     })
 
@@ -112,8 +112,8 @@ export async function PATCH(
       where: { id },
       data: updateData,
       include: {
-        assignedTo: { select: { id: true, name: true } },
-        assignedBy: { select: { id: true, name: true } },
+        assignedTo: { select: { id: true, name: true, department: true } },
+        assignedBy: { select: { id: true, name: true, department: true } },
       },
     })
 

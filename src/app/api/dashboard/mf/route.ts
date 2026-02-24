@@ -41,7 +41,8 @@ export async function GET(request: NextRequest) {
           orderBy: { createdAt: 'desc' },
           take: 5,
           include: {
-            assignedBy: { select: { id: true, name: true } },
+            assignedTo: { select: { id: true, name: true, department: true } },
+            assignedBy: { select: { id: true, name: true, department: true } },
           },
         }),
       ])

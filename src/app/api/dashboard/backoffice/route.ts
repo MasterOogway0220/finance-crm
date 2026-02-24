@@ -64,7 +64,8 @@ export async function GET(request: NextRequest) {
           createdAt: { gte: filterStart, lte: filterEnd },
         },
         include: {
-          assignedBy: { select: { id: true, name: true } },
+          assignedTo: { select: { id: true, name: true, department: true } },
+          assignedBy: { select: { id: true, name: true, department: true } },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
       data: {
         pendingTasks,
         completedTasksThisMonth,
-        tasks: filteredTasks,
+        filteredTasks,
         filter,
       },
     })

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     const { start, end } = getCurrentMonthRange()
 
-    const [totalClients, tradedClients, pendingTasks, completedTasksThisMonth, recentTasks] =
+    const [totalClients, tradedClients, pendingTasks, completedTasksThisMonth, recentTasks, uploads] =
       await Promise.all([
         prisma.client.count({ where: { operatorId } }),
         prisma.client.count({ where: { operatorId, status: 'TRADED' } }),
@@ -37,33 +37,32 @@ export async function GET(request: NextRequest) {
           orderBy: { createdAt: 'desc' },
           take: 5,
           include: {
-            assignedBy: { select: { id: true, name: true } },
+            assignedTo: { select: { id: true, name: true, department: true } },
+            assignedBy: { select: { id: true, name: true, department: true } },
           },
+        }),
+        prisma.brokerageUpload.findMany({
+          where: { uploadDate: { gte: start, lte: end } },
+          include: {
+            details: {
+              where: { operatorId },
+              select: { amount: true },
+            },
+          },
+          orderBy: { uploadDate: 'asc' },
         }),
       ])
 
     const notTraded = totalClients - tradedClients
 
-    // Daily brokerage for current month
-    const uploads = await prisma.brokerageUpload.findMany({
-      where: {
-        uploadDate: { gte: start, lte: end },
-      },
-      include: {
-        details: {
-          where: { operatorId },
-          select: { amount: true },
-        },
-      },
-      orderBy: { uploadDate: 'asc' },
-    })
-
     const dailyBrokerage = uploads
       .filter((u) => u.details.length > 0)
       .map((u) => ({
-        date: u.uploadDate.toISOString().split('T')[0],
+        day: new Date(u.uploadDate).getDate(),
         amount: u.details.reduce((sum, d) => sum + d.amount, 0),
       }))
+
+    const mtdBrokerage = dailyBrokerage.reduce((sum, d) => sum + d.amount, 0)
 
     return NextResponse.json({
       success: true,
@@ -75,6 +74,7 @@ export async function GET(request: NextRequest) {
         completedTasksThisMonth,
         recentTasks,
         dailyBrokerage,
+        mtdBrokerage,
       },
     })
   } catch (error) {
