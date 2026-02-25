@@ -2,27 +2,20 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Users, TrendingUp, TrendingDown, Clock, CheckCircle } from 'lucide-react'
+import { Users, TrendingUp, TrendingDown, Percent, IndianRupee } from 'lucide-react'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { TaskCard } from '@/components/tasks/task-card'
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal'
 import { TaskWithRelations } from '@/types'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDateLong } from '@/lib/utils'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
-} from 'recharts'
 
 interface EquityDashData {
   totalClients: number
   tradedClients: number
   notTraded: number
-  pendingTasks: number
-  completedTasksThisMonth: number
-  recentTasks: TaskWithRelations[]
-  dailyBrokerage: Array<{ day: number; amount: number }>
   mtdBrokerage: number
+  recentTasks: TaskWithRelations[]
 }
 
 export default function EquityDashboardPage() {
@@ -56,21 +49,18 @@ export default function EquityDashboardPage() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-lg" />)}
         </div>
       ) : data && (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
             <KpiCard title="Total Clients" value={data.totalClients} subtitle="Assigned to you" icon={Users} accent="blue" />
             <KpiCard title="Traded Clients" value={data.tradedClients} subtitle="Active trading" icon={TrendingUp} accent="green" />
             <KpiCard title="Not Traded" value={data.notTraded} subtitle="Pending activation" icon={TrendingDown} accent="red" />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
-            <KpiCard title="Pending Tasks" value={data.pendingTasks} subtitle="Assigned to you" icon={Clock} accent="amber"
-              actionLabel="View tasks" onAction={() => router.push('/equity/tasks')} />
-            <KpiCard title="Completed Tasks" value={data.completedTasksThisMonth} subtitle="This month" icon={CheckCircle} accent="green" />
+            <KpiCard title="% Traded" value={data.totalClients > 0 ? ((data.tradedClients / data.totalClients) * 100).toFixed(1) + '%' : '0%'} subtitle="Traded ratio" icon={Percent} accent="amber" />
+            <KpiCard title="Total Brokerage" value={formatCurrency(data.mtdBrokerage)} subtitle="This month" icon={IndianRupee} accent="green" />
           </div>
 
           {/* My Tasks Preview */}
@@ -95,32 +85,6 @@ export default function EquityDashboardPage() {
               View All Tasks →
             </button>
           </div>
-
-          {/* Daily Brokerage Chart */}
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold text-gray-700">
-                  My Daily Brokerage — {today.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                </CardTitle>
-                <div className="text-right">
-                  <p className="text-xs text-gray-500">MTD Total</p>
-                  <p className="text-lg font-bold text-green-700">{formatCurrency(data.mtdBrokerage)}</p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data.dailyBrokerage} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number | undefined) => [formatCurrency(v ?? 0), 'Brokerage']} />
-                  <Bar dataKey="amount" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
         </>
       )}
 

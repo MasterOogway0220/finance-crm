@@ -20,18 +20,10 @@ export async function GET(request: NextRequest) {
 
     const { start, end } = getCurrentMonthRange()
 
-    const [totalClients, tradedClients, pendingTasks, completedTasksThisMonth, recentTasks, uploads] =
+    const [totalClients, tradedClients, recentTasks, uploads] =
       await Promise.all([
         prisma.client.count({ where: { operatorId } }),
         prisma.client.count({ where: { operatorId, status: 'TRADED' } }),
-        prisma.task.count({ where: { assignedToId: operatorId, status: 'PENDING' } }),
-        prisma.task.count({
-          where: {
-            assignedToId: operatorId,
-            status: 'COMPLETED',
-            completedAt: { gte: start, lte: end },
-          },
-        }),
         prisma.task.findMany({
           where: { assignedToId: operatorId },
           orderBy: { createdAt: 'desc' },
@@ -49,20 +41,15 @@ export async function GET(request: NextRequest) {
               select: { amount: true },
             },
           },
-          orderBy: { uploadDate: 'asc' },
         }),
       ])
 
     const notTraded = totalClients - tradedClients
 
-    const dailyBrokerage = uploads
-      .filter((u) => u.details.length > 0)
-      .map((u) => ({
-        day: new Date(u.uploadDate).getDate(),
-        amount: u.details.reduce((sum, d) => sum + d.amount, 0),
-      }))
-
-    const mtdBrokerage = dailyBrokerage.reduce((sum, d) => sum + d.amount, 0)
+    const mtdBrokerage = uploads.reduce(
+      (sum, u) => sum + u.details.reduce((s, d) => s + d.amount, 0),
+      0
+    )
 
     return NextResponse.json({
       success: true,
@@ -70,11 +57,8 @@ export async function GET(request: NextRequest) {
         totalClients,
         tradedClients,
         notTraded,
-        pendingTasks,
-        completedTasksThisMonth,
-        recentTasks,
-        dailyBrokerage,
         mtdBrokerage,
+        recentTasks,
       },
     })
   } catch (error) {
