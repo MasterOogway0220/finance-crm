@@ -78,7 +78,7 @@ export default function AddClientPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <ClientCodeInput
               value={clientCode}
-              onChange={(v) => { setClientCode(v); setClientCodeError('') }}
+              onChange={(v) => { setClientCode(v); setValue('clientCode', v); setClientCodeError('') }}
               error={clientCodeError}
             />
 

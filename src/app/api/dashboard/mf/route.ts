@@ -1,7 +1,6 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentMonthRange } from '@/lib/utils'
 import { Role } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -20,31 +19,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
-    const employeeId = session.user.id
-    const { start, end } = getCurrentMonthRange()
-
-    const [totalClients, activeClients, inactiveClients, pendingTasks, completedTasksThisMonth, recentTasks] =
+    const [totalClients, activeClients, inactiveClients] =
       await Promise.all([
         prisma.client.count({ where: { department: 'MUTUAL_FUND' } }),
         prisma.client.count({ where: { department: 'MUTUAL_FUND', mfStatus: 'ACTIVE' } }),
         prisma.client.count({ where: { department: 'MUTUAL_FUND', mfStatus: 'INACTIVE' } }),
-        prisma.task.count({ where: { assignedToId: employeeId, status: 'PENDING' } }),
-        prisma.task.count({
-          where: {
-            assignedToId: employeeId,
-            status: 'COMPLETED',
-            completedAt: { gte: start, lte: end },
-          },
-        }),
-        prisma.task.findMany({
-          where: { assignedToId: employeeId },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-          include: {
-            assignedTo: { select: { id: true, name: true, department: true } },
-            assignedBy: { select: { id: true, name: true, department: true } },
-          },
-        }),
       ])
 
     return NextResponse.json({
@@ -53,9 +32,6 @@ export async function GET(request: NextRequest) {
         totalClients,
         activeClients,
         inactiveClients,
-        pendingTasks,
-        completedTasksThisMonth,
-        recentTasks,
       },
     })
   } catch (error) {

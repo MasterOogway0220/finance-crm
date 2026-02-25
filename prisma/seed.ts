@@ -19,7 +19,7 @@ async function main() {
         password: hashedPassword,
         department: Department.EQUITY,
         designation: 'Director',
-        role: Role.SUPER_ADMIN,
+        role: Role.EQUITY_DEALER,
       },
     }),
     prisma.employee.upsert({
@@ -32,7 +32,7 @@ async function main() {
         password: hashedPassword,
         department: Department.EQUITY,
         designation: 'Director',
-        role: Role.ADMIN,
+        role: Role.EQUITY_DEALER,
       },
     }),
     prisma.employee.upsert({
@@ -150,8 +150,8 @@ async function main() {
         phone: '9730072211',
         password: hashedPassword,
         department: Department.BACK_OFFICE,
-        designation: 'Back Office',
-        role: Role.BACK_OFFICE,
+        designation: 'Admin',
+        role: Role.ADMIN,
       },
     }),
     prisma.employee.upsert({
@@ -205,10 +205,10 @@ async function main() {
   const kedarM = await prisma.employee.findUnique({ where: { email: 'kedarmulyeo1@gmail.com' } })
   const gayatri = await prisma.employee.findUnique({ where: { email: 'gayatri.ghadi123@gmail.com' } })
   const rishita = await prisma.employee.findUnique({ where: { email: 'risha.tawade@yahoo.co.in' } })
-  const superAdmin = await prisma.employee.findUnique({ where: { email: 'kedaroak_13@rediffmail.com' } })
+  const admin = await prisma.employee.findUnique({ where: { email: 'vishakha.kul.work@gmail.com' } })
   const backOffice1 = await prisma.employee.findUnique({ where: { email: 'akshita15work@gmail.com' } })
 
-  if (!reshma || !karan || !vinit || !shweta || !kedarM || !gayatri || !rishita || !superAdmin || !backOffice1) {
+  if (!reshma || !karan || !vinit || !shweta || !kedarM || !gayatri || !rishita || !admin || !backOffice1) {
     throw new Error('Required employees not found')
   }
 
@@ -284,7 +284,7 @@ async function main() {
       title: 'Follow up with inactive equity clients',
       description: 'Call all clients with DID_NOT_ANSWER status and update their trading status. Focus on clients who have not traded this month.',
       assignedToId: reshma.id,
-      assignedById: superAdmin.id,
+      assignedById: admin.id,
       deadline: nextWeek,
       status: TaskStatus.PENDING,
       priority: TaskPriority.HIGH,
@@ -293,7 +293,7 @@ async function main() {
       title: 'Reconcile brokerage data for January',
       description: 'Cross-check all brokerage entries for January with the SNAP ERP system and report discrepancies.',
       assignedToId: backOffice1.id,
-      assignedById: superAdmin.id,
+      assignedById: admin.id,
       deadline: tomorrow,
       status: TaskStatus.PENDING,
       priority: TaskPriority.HIGH,
@@ -302,7 +302,7 @@ async function main() {
       title: 'Update client KYC documents',
       description: 'Collect and upload updated KYC documents for all clients whose documents expire this quarter.',
       assignedToId: karan.id,
-      assignedById: superAdmin.id,
+      assignedById: admin.id,
       deadline: nextWeek,
       status: TaskStatus.PENDING,
       priority: TaskPriority.MEDIUM,
@@ -311,7 +311,7 @@ async function main() {
       title: 'Monthly MF performance report',
       description: 'Prepare the monthly mutual fund performance report for all active clients and share with the admin team.',
       assignedToId: gayatri.id,
-      assignedById: superAdmin.id,
+      assignedById: admin.id,
       deadline: tomorrow,
       status: TaskStatus.COMPLETED,
       priority: TaskPriority.MEDIUM,
@@ -321,7 +321,7 @@ async function main() {
       title: 'Process pending client transfers',
       description: 'Process the backlog of client transfer requests that were submitted last week.',
       assignedToId: backOffice1.id,
-      assignedById: superAdmin.id,
+      assignedById: admin.id,
       deadline: yesterday,
       status: TaskStatus.EXPIRED,
       priority: TaskPriority.LOW,

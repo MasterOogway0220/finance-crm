@@ -20,19 +20,10 @@ export async function GET(request: NextRequest) {
 
     const { start, end } = getCurrentMonthRange()
 
-    const [totalClients, tradedClients, recentTasks, uploads] =
+    const [totalClients, tradedClients, uploads] =
       await Promise.all([
         prisma.client.count({ where: { operatorId } }),
         prisma.client.count({ where: { operatorId, status: 'TRADED' } }),
-        prisma.task.findMany({
-          where: { assignedToId: operatorId },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-          include: {
-            assignedTo: { select: { id: true, name: true, department: true } },
-            assignedBy: { select: { id: true, name: true, department: true } },
-          },
-        }),
         prisma.brokerageUpload.findMany({
           where: { uploadDate: { gte: start, lte: end } },
           include: {
@@ -58,7 +49,6 @@ export async function GET(request: NextRequest) {
         tradedClients,
         notTraded,
         mtdBrokerage,
-        recentTasks,
       },
     })
   } catch (error) {

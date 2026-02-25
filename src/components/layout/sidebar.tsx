@@ -45,14 +45,12 @@ const EQUITY_DEALER_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/equity/dashboard', icon: LayoutDashboard },
   { label: 'My Clients', href: '/equity/clients', icon: Users },
   { label: 'My Brokerage', href: '/equity/brokerage', icon: IndianRupee },
-  { label: 'My Tasks', href: '/equity/tasks', icon: CheckSquare },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 
 const MF_DEALER_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/mf/dashboard', icon: LayoutDashboard },
   { label: 'My Clients', href: '/mf/clients', icon: Users },
-  { label: 'My Tasks', href: '/mf/tasks', icon: CheckSquare },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 
