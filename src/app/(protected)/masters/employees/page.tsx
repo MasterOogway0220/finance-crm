@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { UserPlus, Pencil, Search, X, Trash2 } from 'lucide-react'
+import { UserPlus, Pencil, Search, X, Trash2, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 
@@ -49,6 +49,7 @@ export default function EmployeeMasterPage() {
   const [submitting, setSubmitting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -73,11 +74,11 @@ export default function EmployeeMasterPage() {
     return () => clearTimeout(t)
   }, [fetchEmployees])
 
-  const openAdd = () => { reset({ isActive: true }); setEditEmployee(null); setShowForm(true) }
+  const openAdd = () => { reset({ isActive: true }); setEditEmployee(null); setShowPassword(false); setShowForm(true) }
   const openEdit = (e: Employee) => {
     setEditEmployee(e)
     reset({ name: e.name, email: e.email, phone: e.phone, department: e.department as FormData['department'], designation: e.designation, role: e.role as FormData['role'], isActive: e.isActive, password: '' })
-    setShowForm(true)
+    setShowPassword(false); setShowForm(true)
   }
 
   const onSubmit = async (data: FormData) => {
@@ -328,7 +329,12 @@ export default function EmployeeMasterPage() {
 
             <div className="space-y-1.5">
               <Label>{editEmployee ? 'New Password (leave blank to keep)' : 'Password *'}</Label>
-              <Input {...register('password')} type="password" placeholder="Min 8 characters" className={errors.password ? 'border-red-500' : ''} />
+              <div className="relative">
+                <Input {...register('password')} type={showPassword ? 'text' : 'password'} placeholder="Min 8 characters" className={`pr-10 ${errors.password ? 'border-red-500' : ''}`} />
+                <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
             </div>
 
