@@ -19,11 +19,17 @@ export async function GET(request: NextRequest) {
     const userRole = getEffectiveRole(session.user)
 
     // Determine which operatorId to use
+    const isEquityDealer =
+      session.user.role === 'EQUITY_DEALER' || session.user.secondaryRole === 'EQUITY_DEALER'
+
     let operatorId: string
     if (userRole === 'EQUITY_DEALER') {
       operatorId = session.user.id
     } else if (operatorIdParam) {
       operatorId = operatorIdParam
+    } else if (isEquityDealer) {
+      // Dual-role user in admin view — show their own dealer data
+      operatorId = session.user.id
     } else {
       return NextResponse.json({ success: false, error: 'operatorId is required' }, { status: 400 })
     }
