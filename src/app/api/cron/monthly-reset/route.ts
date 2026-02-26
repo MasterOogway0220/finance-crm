@@ -19,6 +19,15 @@ async function runMonthlyReset() {
   const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth()
   const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
 
+  // Idempotency guard: skip if already run for this month
+  const alreadyRun = await prisma.monthlyArchive.findFirst({
+    where: { month: prevMonth, year: prevYear },
+    select: { id: true },
+  })
+  if (alreadyRun) {
+    return { skipped: true, reason: `Already run for ${prevMonth}/${prevYear}` }
+  }
+
   // Build date range for previous month
   const prevMonthStart = new Date(prevYear, prevMonth - 1, 1)
   const prevMonthEnd = new Date(prevYear, prevMonth, 0, 23, 59, 59, 999)
