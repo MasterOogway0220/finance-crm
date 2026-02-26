@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
 
     const details = await prisma.brokerageDetail.findMany({
       where: {
+        clientId: { not: null },
         operatorId: { in: equityDealers.map((e) => e.id) },
         brokerage: { uploadDate: { gte: yearStart, lte: yearEnd } },
       },

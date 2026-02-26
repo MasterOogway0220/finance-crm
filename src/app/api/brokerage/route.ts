@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     const uploads = await prisma.brokerageUpload.findMany({
       where: { uploadDate: { gte: monthStart, lte: monthEnd } },
       include: {
-        details: { select: { operatorId: true, amount: true } },
+        details: { where: { clientId: { not: null } }, select: { operatorId: true, amount: true } },
       },
     })
 
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
           months.map((m) =>
             prisma.brokerageDetail.aggregate({
               _sum: { amount: true },
-              where: { operatorId: op.id, brokerage: { uploadDate: { gte: m.start, lte: m.end } } },
+              where: { clientId: { not: null }, operatorId: op.id, brokerage: { uploadDate: { gte: m.start, lte: m.end } } },
             })
           )
         )

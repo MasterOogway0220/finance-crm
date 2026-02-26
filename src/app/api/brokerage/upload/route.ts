@@ -111,6 +111,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Reject upload if any codes are unmapped — prevents orphan BrokerageDetail records
+    if (unmappedCodes.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `${unmappedCodes.length} client code(s) not found in the system. Add these clients first, then re-upload.`,
+          data: { unmappedCodes, mappedCount: details.length },
+        },
+        { status: 422 }
+      )
+    }
+
     const totalAmount = details.reduce((sum, d) => sum + d.amount, 0)
 
     // If date already has an upload, delete it and re-create

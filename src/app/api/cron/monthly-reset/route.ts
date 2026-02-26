@@ -43,6 +43,7 @@ async function runMonthlyReset() {
     const brokerageSum = await prisma.brokerageDetail.aggregate({
       _sum: { amount: true },
       where: {
+        clientId: { not: null },
         operatorId: op.id,
         brokerage: { uploadDate: { gte: prevMonthStart, lte: prevMonthEnd } },
       },
