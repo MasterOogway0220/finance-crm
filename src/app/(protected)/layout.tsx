@@ -6,6 +6,7 @@ import { SessionProvider } from 'next-auth/react'
 import { Toaster } from 'sonner'
 import Sidebar from '@/components/layout/sidebar'
 import TopBar from '@/components/layout/topbar'
+import InactivityGuard from '@/components/auth/inactivity-guard'
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -61,6 +62,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
         </div>
 
         <Toaster position="top-right" richColors closeButton />
+        <InactivityGuard />
       </div>
     </SessionProvider>
   )
