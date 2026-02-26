@@ -88,7 +88,11 @@ export async function POST(request: NextRequest) {
     // Pre-fetch operator ids
     const operatorIdsInCSV = [...new Set(parseResult.data.map((r) => normaliseRow(r).operatorId).filter(Boolean))]
     const existingOperators = await prisma.employee.findMany({
-      where: { id: { in: operatorIdsInCSV } },
+      where: {
+        id: { in: operatorIdsInCSV },
+        role: { in: ['EQUITY_DEALER', 'MF_DEALER'] },
+        isActive: true,
+      },
       select: { id: true },
     })
     const validOperatorIds = new Set(existingOperators.map((e) => e.id))
@@ -109,7 +113,7 @@ export async function POST(request: NextRequest) {
         errors.push('Department must be EQUITY or MUTUAL_FUND')
       }
       if (!norm.operatorId) errors.push('Operator ID is required')
-      else if (!validOperatorIds.has(norm.operatorId)) errors.push('Operator not found')
+      else if (!validOperatorIds.has(norm.operatorId)) errors.push('Operator not found or not an active dealer')
 
       if (errors.length > 0) {
         invalidRows.push({ row: i + 2, data: norm, errors })
