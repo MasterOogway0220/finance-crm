@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth'
+import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Role } from '@prisma/client'
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = session.user.role as Role
+    const userRole = getEffectiveRole(session.user)
     if (
       userRole !== 'MF_DEALER' &&
       userRole !== 'SUPER_ADMIN' &&

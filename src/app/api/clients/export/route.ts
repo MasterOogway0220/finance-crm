@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth'
+import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Department, Role } from '@prisma/client'
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const operatorIdParam = searchParams.get('operatorId')
     const department = searchParams.get('department') as Department | null
-    const userRole = session.user.role as Role
+    const userRole = getEffectiveRole(session.user)
 
     const where: Record<string, unknown> = {}
 

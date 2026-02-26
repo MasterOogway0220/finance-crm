@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth'
+import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
@@ -23,7 +23,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { clientIds, status, remark, mfStatus, mfRemark } = parsed.data
-    const userRole = session.user.role as Role
+    const userRole = getEffectiveRole(session.user)
 
     // For EQUITY_DEALER: verify all clientIds belong to their operator account
     if (userRole === 'EQUITY_DEALER') {

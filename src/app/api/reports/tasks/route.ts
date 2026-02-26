@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth'
+import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Role } from '@prisma/client'
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
     const employeeIdParam = searchParams.get('employeeId')
 
-    const userRole = session.user.role as Role
+    const userRole = getEffectiveRole(session.user)
 
     const where: Record<string, unknown> = {
       createdAt: { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59, 999) },

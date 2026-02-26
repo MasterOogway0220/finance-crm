@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth'
+import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentMonthRange } from '@/lib/utils'
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = session.user.role as Role
+    const userRole = getEffectiveRole(session.user)
     if (
       userRole !== 'BACK_OFFICE' &&
       userRole !== 'SUPER_ADMIN' &&
