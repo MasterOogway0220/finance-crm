@@ -17,7 +17,7 @@ import { getInitials } from '@/lib/utils'
 
 interface Employee {
   id: string; name: string; email: string; phone: string
-  department: string; designation: string; role: string; isActive: boolean
+  department: string; designation: string; role: string; secondaryRole: string | null; isActive: boolean
 }
 
 const DEPT_COLORS: Record<string, string> = {
@@ -25,12 +25,15 @@ const DEPT_COLORS: Record<string, string> = {
   BACK_OFFICE: 'bg-purple-100 text-purple-700', ADMIN: 'bg-orange-100 text-orange-700',
 }
 
+const ROLE_OPTIONS = ['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE'] as const
+
 const schema = z.object({
   name: z.string().min(1), email: z.string().email(),
   phone: z.string().length(10).regex(/^\d{10}$/),
   department: z.enum(['EQUITY', 'MUTUAL_FUND', 'BACK_OFFICE', 'ADMIN']),
   designation: z.string().min(1),
   role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']),
+  secondaryRole: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']).nullable().optional(),
   password: z.string().min(8).optional().or(z.literal('')),
   isActive: z.boolean(),
 })
@@ -77,7 +80,7 @@ export default function EmployeeMasterPage() {
   const openAdd = () => { reset({ isActive: true }); setEditEmployee(null); setShowPassword(false); setShowForm(true) }
   const openEdit = (e: Employee) => {
     setEditEmployee(e)
-    reset({ name: e.name, email: e.email, phone: e.phone, department: e.department as FormData['department'], designation: e.designation, role: e.role as FormData['role'], isActive: e.isActive, password: '' })
+    reset({ name: e.name, email: e.email, phone: e.phone, department: e.department as FormData['department'], designation: e.designation, role: e.role as FormData['role'], secondaryRole: (e.secondaryRole as FormData['secondaryRole']) ?? null, isActive: e.isActive, password: '' })
     setShowPassword(false); setShowForm(true)
   }
 
@@ -204,18 +207,18 @@ export default function EmployeeMasterPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {['Name', 'Phone', 'Email', 'Department', 'Designation', 'Role', 'Status', 'Actions'].map((h) => (
-                <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
+              {['Name', 'Phone', 'Email', 'Department', 'Designation', 'Role', 'Secondary Role', 'Status', 'Actions'].map((h) => (
+                <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}><td colSpan={8} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
+                <tr key={i}><td colSpan={9} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
               ))
             ) : employees.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">No employees found</td></tr>
+              <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">No employees found</td></tr>
             ) : employees.map((emp) => (
               <tr key={emp.id} className="border-b border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-3">
@@ -235,7 +238,14 @@ export default function EmployeeMasterPage() {
                 </td>
                 <td className="px-4 py-3 text-gray-600">{emp.designation}</td>
                 <td className="px-4 py-3">
-                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{emp.role.replace('_', ' ')}</span>
+                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded whitespace-nowrap">{emp.role.replace(/_/g, ' ')}</span>
+                </td>
+                <td className="px-4 py-3">
+                  {emp.secondaryRole ? (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded whitespace-nowrap">{emp.secondaryRole.replace(/_/g, ' ')}</span>
+                  ) : (
+                    <span className="text-xs text-gray-300">—</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <Switch checked={emp.isActive} onCheckedChange={() => toggleActive(emp)} />
@@ -316,15 +326,32 @@ export default function EmployeeMasterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Role</Label>
+              <Label>Primary Role</Label>
               <Select onValueChange={(v) => setValue('role', v as FormData['role'])} defaultValue={editEmployee?.role}>
                 <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
                 <SelectContent>
-                  {['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE'].map((r) => (
-                    <SelectItem key={r} value={r}>{r.replace('_', ' ')}</SelectItem>
+                  {ROLE_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={r}>{r.replace(/_/g, ' ')}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Secondary Role <span className="text-gray-400 font-normal text-xs">(optional — for dual-role employees)</span></Label>
+              <Select
+                onValueChange={(v) => setValue('secondaryRole', v === 'none' ? null : v as FormData['secondaryRole'])}
+                defaultValue={editEmployee?.secondaryRole ?? 'none'}
+              >
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {ROLE_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={r}>{r.replace(/_/g, ' ')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400">Allows this employee to switch between two roles without separate accounts.</p>
             </div>
 
             <div className="space-y-1.5">

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { TaskWithRelations, TaskCommentItem } from '@/types'
 import { formatDate, getDaysRemaining } from '@/lib/utils'
+import { format } from 'date-fns'
 import { TaskComments } from './task-comments'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -104,14 +105,15 @@ export function TaskDetailModal({ task, open, onClose, onTaskCompleted, canCompl
               </div>
               <div>
                 <span className="text-gray-500 text-xs uppercase tracking-wide">Deadline</span>
-                <p className="font-medium text-gray-800">{formatDate(task.deadline)}</p>
+                <p className="font-medium text-gray-800">{format(new Date(task.deadline), 'd MMM yyyy')}</p>
+                <p className="text-xs text-gray-500">Expires at {format(new Date(task.deadline), 'h:mm a')}</p>
               </div>
               <div>
-                <span className="text-gray-500 text-xs uppercase tracking-wide">Days to Expiry</span>
+                <span className="text-gray-500 text-xs uppercase tracking-wide">Time to Expiry</span>
                 <p className={cn('font-medium', daysLeft < 0 ? 'text-red-600' : daysLeft === 0 ? 'text-orange-500' : daysLeft <= 3 ? 'text-amber-600' : 'text-green-600')}>
                   {task.status === 'COMPLETED' ? 'Completed' :
                    daysLeft < 0 ? `Expired by ${Math.abs(daysLeft)} days` :
-                   daysLeft === 0 ? 'Due today' :
+                   daysLeft === 0 ? 'Today at 5:30 PM' :
                    `${daysLeft} days remaining`}
                 </p>
               </div>

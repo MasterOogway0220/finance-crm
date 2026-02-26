@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
@@ -17,6 +17,7 @@ import {
   LogOut,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
+import { useActiveRoleStore } from '@/stores/active-role-store'
 
 interface NavItem {
   label: string
@@ -165,8 +166,17 @@ interface SidebarProps {
 export default function Sidebar({ onClose }: SidebarProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
-  const role = session?.user?.role ?? ''
-  const navItems = getNavItems(role)
+  const { activeRole, initForUser } = useActiveRoleStore()
+
+  // Initialise the store for this user whenever the session loads
+  useEffect(() => {
+    if (session?.user?.id && session.user.role) {
+      initForUser(session.user.id, session.user.role)
+    }
+  }, [session?.user?.id, session?.user?.role, initForUser])
+
+  const effectiveRole = activeRole || session?.user?.role || ''
+  const navItems = getNavItems(effectiveRole)
 
   const userName = session?.user?.name ?? 'User'
   const designation = session?.user?.designation ?? ''

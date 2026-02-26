@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
         department: true,
         designation: true,
         role: true,
+        secondaryRole: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,

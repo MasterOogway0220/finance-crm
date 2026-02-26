@@ -13,6 +13,7 @@ import {
   LogOut,
   KeyRound,
   Check,
+  RefreshCw,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -25,6 +26,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn, getInitials, formatTimeAgo } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notification-store'
+import { useActiveRoleStore, getDashboardForRole, ROLE_LABELS } from '@/stores/active-role-store'
 import type { NotificationItem } from '@/types'
 import CommandSearch from '@/components/layout/command-search'
 
@@ -135,9 +137,20 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   const router = useRouter()
   const { notifications, unreadCount, fetchNotifications, markAsRead, markAllRead } =
     useNotificationStore()
+  const { activeRole, setActiveRole } = useActiveRoleStore()
   const [notifOpen, setNotifOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const primaryRole = session?.user?.role
+  const secondaryRole = session?.user?.secondaryRole
+  const effectiveRole = activeRole || primaryRole || ''
+  const hasDualRole = !!secondaryRole
+
+  const handleSwitchRole = (role: string) => {
+    setActiveRole(role)
+    router.push(getDashboardForRole(role))
+  }
 
   // Initial fetch + 30s polling
   useEffect(() => {
@@ -179,6 +192,41 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
           >
             <Search className="h-5 w-5" />
           </button>
+
+          {/* Role Switcher — only for dual-role employees */}
+          {hasDualRole && primaryRole && secondaryRole && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  {ROLE_LABELS[effectiveRole] ?? effectiveRole}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel className="text-xs text-gray-500 font-normal">
+                  Switch active role
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => handleSwitchRole(primaryRole)}
+                  className={cn(effectiveRole === primaryRole && 'bg-blue-50 text-blue-700 font-medium')}
+                >
+                  <span className="flex-1">{ROLE_LABELS[primaryRole]}</span>
+                  {effectiveRole === primaryRole && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleSwitchRole(secondaryRole)}
+                  className={cn(effectiveRole === secondaryRole && 'bg-blue-50 text-blue-700 font-medium')}
+                >
+                  <span className="flex-1">{ROLE_LABELS[secondaryRole]}</span>
+                  {effectiveRole === secondaryRole && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Notifications */}
           <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>

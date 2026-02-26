@@ -33,6 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: employee.email,
           name: employee.name,
           role: employee.role,
+          secondaryRole: employee.secondaryRole ?? null,
           department: employee.department,
           designation: employee.designation,
         }
@@ -44,6 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id
         token.role = (user as { role: Role }).role
+        token.secondaryRole = (user as { secondaryRole: Role | null }).secondaryRole ?? null
         token.department = (user as { department: Department }).department
         token.designation = (user as { designation: string }).designation
       }
@@ -53,6 +55,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token) {
         session.user.id = token.id as string
         session.user.role = token.role as Role
+        session.user.secondaryRole = (token.secondaryRole as Role | null) ?? null
         session.user.department = token.department as Department
         session.user.designation = token.designation as string
       }

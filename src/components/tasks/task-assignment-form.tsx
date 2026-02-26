@@ -70,8 +70,7 @@ export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
 
   const onSubmit = async (data: FormData) => {
     if (!deadline) { setDeadlineError('Deadline is required'); return }
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    if (deadline < today) { setDeadlineError('Deadline cannot be in the past'); return }
+    if (deadline < new Date()) { setDeadlineError('Deadline cannot be in the past'); return }
     setDeadlineError('')
     setIsSubmitting(true)
     try {
@@ -175,17 +174,29 @@ export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4 text-gray-400" />
-                  {deadline ? format(deadline, 'd MMM yyyy') : 'Pick a date'}
+                  {deadline ? format(deadline, 'd MMM yyyy, h:mm a') : 'Pick a date'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
                   selected={deadline}
-                  onSelect={setDeadline}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  onSelect={(date) => {
+                    if (!date) { setDeadline(undefined); return }
+                    const d = new Date(date)
+                    d.setHours(17, 30, 0, 0)
+                    setDeadline(d)
+                  }}
+                  disabled={(date) => {
+                    const d = new Date(date)
+                    d.setHours(17, 30, 0, 0)
+                    return d < new Date()
+                  }}
                   initialFocus
                 />
+                <div className="px-3 py-2 border-t bg-gray-50 text-xs text-gray-500 text-center">
+                  Tasks expire at <span className="font-semibold text-gray-700">5:30 PM</span> on the deadline date
+                </div>
               </PopoverContent>
             </Popover>
             {deadlineError && <p className="text-xs text-red-500">{deadlineError}</p>}

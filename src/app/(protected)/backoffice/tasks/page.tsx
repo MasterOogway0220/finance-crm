@@ -48,7 +48,7 @@ function BackofficeTasksContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const tabParam = searchParams.get('tab') || 'pending'
-  const [tab, setTab] = useState<'pending' | 'completed'>(tabParam as 'pending' | 'completed')
+  const [tab, setTab] = useState<'pending' | 'completed' | 'expired'>(tabParam as 'pending' | 'completed' | 'expired')
   const [dept, setDept] = useState('all')
   const [priority, setPriority] = useState('all')
   const [tasks, setTasks] = useState<TaskWithRelations[]>([])
@@ -70,7 +70,7 @@ function BackofficeTasksContent() {
   useEffect(() => { fetchTasks() }, [fetchTasks])
 
   const handleTabChange = (value: string) => {
-    setTab(value as 'pending' | 'completed')
+    setTab(value as 'pending' | 'completed' | 'expired')
     router.replace(`/backoffice/tasks?tab=${value}`, { scroll: false })
   }
 
@@ -88,6 +88,7 @@ function BackofficeTasksContent() {
           <TabsList>
             <TabsTrigger value="pending">Pending</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
+            <TabsTrigger value="expired">Expired</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -115,12 +116,16 @@ function BackofficeTasksContent() {
 
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm min-w-[700px]">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {['Task', 'Assigned To', 'Assigned By', 'Department', 'Priority', 'Status', 'Deadline'].map((h) => (
-                <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
-              ))}
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-64">Task</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-36 whitespace-nowrap">Assigned To</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-36 whitespace-nowrap">Assigned By</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-32">Department</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-24">Priority</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-24">Status</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-32">Deadline</th>
             </tr>
           </thead>
           <tbody>
@@ -142,21 +147,21 @@ function BackofficeTasksContent() {
                 className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                 onClick={() => setSelectedTask(task)}
               >
-                <td className="px-4 py-3 max-w-56">
-                  <p className="font-medium text-gray-800 truncate">{task.title}</p>
-                  <p className="text-xs text-gray-400 truncate mt-0.5">{task.description}</p>
+                <td className="px-4 py-3">
+                  <p className="font-medium text-gray-800 truncate max-w-60">{task.title}</p>
+                  <p className="text-xs text-gray-400 truncate max-w-60 mt-0.5">{task.description}</p>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-medium flex-shrink-0">
                       {getInitials(task.assignedTo.name)}
                     </div>
-                    <span className="font-medium text-gray-800">{task.assignedTo.name}</span>
+                    <span className="font-medium text-gray-800 whitespace-nowrap">{task.assignedTo.name}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-600 text-xs">{task.assignedBy.name}</td>
+                <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{task.assignedBy.name}</td>
                 <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${DEPT_COLORS[task.assignedTo.department] ?? 'bg-gray-100 text-gray-600'}`}>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap ${DEPT_COLORS[task.assignedTo.department] ?? 'bg-gray-100 text-gray-600'}`}>
                     {task.assignedTo.department.replace(/_/g, ' ')}
                   </span>
                 </td>
@@ -171,7 +176,7 @@ function BackofficeTasksContent() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <p className="text-xs text-gray-600">{formatDate(task.deadline)}</p>
+                  <p className="text-xs text-gray-600 whitespace-nowrap">{formatDate(task.deadline)}</p>
                   <DeadlineInfo deadline={new Date(task.deadline)} status={task.status} />
                 </td>
               </tr>

@@ -10,7 +10,12 @@ export const taskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100, 'Title must be under 100 characters'),
   description: z.string().min(10, 'Description must be at least 10 characters'),
   deadline: z.coerce.date().refine(
-    (date) => date >= new Date(new Date().setHours(0, 0, 0, 0)),
+    (date) => {
+      // Allow same-day deadlines — tasks expire at 5:30 PM on the deadline day
+      const startOfToday = new Date()
+      startOfToday.setHours(0, 0, 0, 0)
+      return date >= startOfToday
+    },
     'Deadline cannot be in the past'
   ),
   priority: z.enum(['HIGH', 'MEDIUM', 'LOW']).default('MEDIUM'),

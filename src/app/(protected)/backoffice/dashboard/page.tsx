@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Clock, CheckCircle, ClipboardList } from 'lucide-react'
+import { Clock, CheckCircle, ClipboardList, AlertTriangle } from 'lucide-react'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal'
 import { TaskWithRelations } from '@/types'
@@ -41,6 +41,7 @@ function DeadlineInfo({ deadline, status }: { deadline: Date; status: string }) 
 interface BackofficeDashData {
   pendingTasks: number
   completedTasksThisMonth: number
+  expiredTasks: number
   filteredTasks: TaskWithRelations[]
 }
 
@@ -78,15 +79,15 @@ export default function BackofficeDashboardPage() {
 
       {loading ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
-            {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
           </div>
           <Skeleton className="h-48 rounded-lg" />
         </div>
       ) : data && (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <KpiCard
               title="Tasks Pending"
               value={data.pendingTasks}
@@ -105,6 +106,15 @@ export default function BackofficeDashboardPage() {
               actionLabel="View"
               onAction={() => router.push('/backoffice/tasks?tab=completed')}
             />
+            <KpiCard
+              title="Tasks Expired"
+              value={data.expiredTasks}
+              subtitle="Missed deadline"
+              icon={AlertTriangle}
+              accent="red"
+              actionLabel="View"
+              onAction={() => router.push('/backoffice/tasks?tab=expired')}
+            />
           </div>
 
           {/* Tasks Table */}
@@ -117,6 +127,7 @@ export default function BackofficeDashboardPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="day">Due Today</SelectItem>
+                  <SelectItem value="tomorrow">Due Tomorrow</SelectItem>
                   <SelectItem value="week">Due This Week</SelectItem>
                   <SelectItem value="month">Due This Month</SelectItem>
                 </SelectContent>
@@ -124,12 +135,16 @@ export default function BackofficeDashboardPage() {
             </div>
 
             <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[700px]">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    {['Task', 'Assigned To', 'Assigned By', 'Department', 'Priority', 'Status', 'Deadline'].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
-                    ))}
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-64">Task</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-36 whitespace-nowrap">Assigned To</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-36 whitespace-nowrap">Assigned By</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-32">Department</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-24">Priority</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-24">Status</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-32">Deadline</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -146,21 +161,21 @@ export default function BackofficeDashboardPage() {
                       className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                       onClick={() => setSelectedTask(task)}
                     >
-                      <td className="px-4 py-3 max-w-56">
-                        <p className="font-medium text-gray-800 truncate">{task.title}</p>
-                        <p className="text-xs text-gray-400 truncate mt-0.5">{task.description}</p>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-gray-800 truncate max-w-60">{task.title}</p>
+                        <p className="text-xs text-gray-400 truncate max-w-60 mt-0.5">{task.description}</p>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-medium flex-shrink-0">
                             {getInitials(task.assignedTo.name)}
                           </div>
-                          <span className="font-medium text-gray-800">{task.assignedTo.name}</span>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">{task.assignedTo.name}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">{task.assignedBy.name}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{task.assignedBy.name}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${DEPT_COLORS[task.assignedTo.department] ?? 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap ${DEPT_COLORS[task.assignedTo.department] ?? 'bg-gray-100 text-gray-600'}`}>
                           {task.assignedTo.department.replace(/_/g, ' ')}
                         </span>
                       </td>
@@ -175,7 +190,7 @@ export default function BackofficeDashboardPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-xs text-gray-600">{formatDate(task.deadline)}</p>
+                        <p className="text-xs text-gray-600 whitespace-nowrap">{formatDate(task.deadline)}</p>
                         <DeadlineInfo deadline={new Date(task.deadline)} status={task.status} />
                       </td>
                     </tr>

@@ -1,12 +1,11 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Search, Download, CalendarIcon, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, getInitials, cn } from '@/lib/utils'
@@ -64,7 +63,6 @@ export default function EquityClientsPage() {
   const [remark, setRemark] = useState('all')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
   const limit = 25
 
   const fetchClients = useCallback(() => {
@@ -121,23 +119,6 @@ export default function EquityClientsPage() {
     updateClient(id, { followUpDate: date ? date.toISOString() : null })
   }
 
-  const handleBulkUpdate = async (updates: Record<string, unknown>) => {
-    if (selected.size === 0) return
-    const res = await fetch('/api/clients/bulk', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientIds: Array.from(selected), ...updates }),
-    })
-    const data = await res.json()
-    if (data.success) {
-      toast.success(`Updated ${selected.size} clients`)
-      setSelected(new Set())
-      fetchClients()
-    } else {
-      toast.error(data.error)
-    }
-  }
-
   const handleExport = () => {
     const params = new URLSearchParams()
     if (status !== 'all') params.set('status', status)
@@ -147,7 +128,6 @@ export default function EquityClientsPage() {
   }
 
   const totalPages = Math.ceil(total / limit)
-  const allSelected = clients.length > 0 && selected.size === clients.length
 
   return (
     <div className="p-6 space-y-4">
@@ -175,16 +155,6 @@ export default function EquityClientsPage() {
               {REMARK_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          {selected.size > 0 && (
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => handleBulkUpdate({ status: 'TRADED', remark: 'SUCCESSFULLY_TRADED' })}>
-                Mark Traded ({selected.size})
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => handleBulkUpdate({ status: 'NOT_TRADED', remark: 'DID_NOT_ANSWER' })}>
-                Mark Not Traded ({selected.size})
-              </Button>
-            </div>
-          )}
           <Button size="sm" variant="outline" onClick={handleExport} className="ml-auto gap-1.5">
             <Download className="h-3.5 w-3.5" />Export CSV
           </Button>
@@ -196,15 +166,6 @@ export default function EquityClientsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-4 py-3 text-left w-10">
-                <Checkbox
-                  checked={allSelected}
-                  onCheckedChange={(v) => {
-                    if (v) setSelected(new Set(clients.map((c) => c.id)))
-                    else setSelected(new Set())
-                  }}
-                />
-              </th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Code</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Name</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Contact</th>
@@ -217,11 +178,11 @@ export default function EquityClientsPage() {
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}><td colSpan={8} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
+                <tr key={i}><td colSpan={7} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
               ))
             ) : clients.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
+                <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
                   <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
                   <p className="text-sm">No clients found</p>
                 </td>
@@ -230,8 +191,6 @@ export default function EquityClientsPage() {
               <ClientRow
                 key={client.id}
                 client={client}
-                selected={selected.has(client.id)}
-                onSelect={(id, v) => setSelected((prev) => { const s = new Set(prev); v ? s.add(id) : s.delete(id); return s })}
                 onStatusChange={handleStatusChange}
                 onRemarkChange={handleRemarkChange}
                 onNotesSave={handleNotesSave}
@@ -256,10 +215,8 @@ export default function EquityClientsPage() {
   )
 }
 
-function ClientRow({ client, selected, onSelect, onStatusChange, onRemarkChange, onNotesSave, onFollowUpChange }: {
+function ClientRow({ client, onStatusChange, onRemarkChange, onNotesSave, onFollowUpChange }: {
   client: ClientWithOperator
-  selected: boolean
-  onSelect: (id: string, v: boolean) => void
   onStatusChange: (id: string, status: string, remark?: string) => void
   onRemarkChange: (id: string, remark: string) => void
   onNotesSave: (id: string, notes: string) => void
@@ -279,9 +236,6 @@ function ClientRow({ client, selected, onSelect, onStatusChange, onRemarkChange,
 
   return (
     <tr className={rowClass}>
-      <td className="px-4 py-3">
-        <Checkbox checked={selected} onCheckedChange={(v) => onSelect(client.id, !!v)} />
-      </td>
       <td className="px-4 py-3 font-mono text-xs font-medium text-gray-700">{client.clientCode}</td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">

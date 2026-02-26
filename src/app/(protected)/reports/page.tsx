@@ -12,12 +12,10 @@ const ADMIN_REPORTS = [
 
 const EQUITY_REPORTS = [
   { title: 'My Brokerage Report', desc: 'Your monthly brokerage performance', icon: IndianRupee, color: 'text-green-600 bg-green-50', href: '/reports/brokerage' },
-  { title: 'My Task Report', desc: 'Your task completion history', icon: CheckSquare, color: 'text-blue-600 bg-blue-50', href: '/reports/tasks' },
 ]
 
 const MF_REPORTS = [
   { title: 'My Clients', desc: 'Your client list and engagement summary', icon: Users, color: 'text-purple-600 bg-purple-50', href: '/mf/clients' },
-  { title: 'My Task Report', desc: 'Your task completion history', icon: CheckSquare, color: 'text-blue-600 bg-blue-50', href: '/reports/tasks' },
 ]
 
 const BO_REPORTS = [

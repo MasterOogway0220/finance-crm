@@ -69,6 +69,7 @@ model Employee {
   department    Department
   designation   String
   role          Role
+  secondaryRole Role?
   isActive      Boolean     @default(true)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt

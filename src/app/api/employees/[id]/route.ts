@@ -11,6 +11,7 @@ const updateEmployeeSchema = z.object({
   phone: z.string().length(10, 'Phone must be 10 digits').regex(/^\d{10}$/).optional(),
   designation: z.string().min(1, 'Designation is required').optional(),
   role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']).optional(),
+  secondaryRole: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']).nullable().optional(),
   isActive: z.boolean().optional(),
   password: z.string().min(8, 'Password must be at least 8 characters').optional(),
 })
@@ -37,6 +38,7 @@ export async function GET(
         department: true,
         designation: true,
         role: true,
+        secondaryRole: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -103,6 +105,7 @@ export async function PATCH(
         department: true,
         designation: true,
         role: true,
+        secondaryRole: true,
         isActive: true,
         updatedAt: true,
       },

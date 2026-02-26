@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentMonthRange } from '@/lib/utils'
 import { Role } from '@prisma/client'
-import { startOfDay, endOfDay, startOfWeek, endOfWeek } from 'date-fns'
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, addDays } from 'date-fns'
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,6 +36,10 @@ export async function GET(request: NextRequest) {
         filterStart = startOfDay(now)
         filterEnd = endOfDay(now)
         break
+      case 'tomorrow':
+        filterStart = startOfDay(addDays(now, 1))
+        filterEnd = endOfDay(addDays(now, 1))
+        break
       case 'week':
         filterStart = startOfWeek(now, { weekStartsOn: 1 })
         filterEnd = endOfWeek(now, { weekStartsOn: 1 })
@@ -47,7 +51,7 @@ export async function GET(request: NextRequest) {
         break
     }
 
-    const [pendingTasks, completedTasksThisMonth, filteredTasks] = await Promise.all([
+    const [pendingTasks, completedTasksThisMonth, expiredTasks, filteredTasks] = await Promise.all([
       prisma.task.count({
         where: { assignedToId: employeeId, status: 'PENDING' },
       }),
@@ -57,6 +61,9 @@ export async function GET(request: NextRequest) {
           status: 'COMPLETED',
           completedAt: { gte: monthStart, lte: monthEnd },
         },
+      }),
+      prisma.task.count({
+        where: { assignedToId: employeeId, status: 'EXPIRED' },
       }),
       prisma.task.findMany({
         where: {
@@ -77,6 +84,7 @@ export async function GET(request: NextRequest) {
       data: {
         pendingTasks,
         completedTasksThisMonth,
+        expiredTasks,
         filteredTasks,
         filter,
       },

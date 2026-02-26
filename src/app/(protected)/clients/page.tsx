@@ -1,15 +1,29 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Search, Users, UserPlus } from 'lucide-react'
+import { toast } from 'sonner'
 import { formatDate, getInitials, cn } from '@/lib/utils'
 import { ClientWithOperator } from '@/types'
 import Link from 'next/link'
 
 export default function AllClientsPage() {
+  const { data: session } = useSession()
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -17,7 +31,11 @@ export default function AllClientsPage() {
   const [status, setStatus] = useState('all')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirmAction, setConfirmAction] = useState<null | 'traded' | 'not_traded'>(null)
   const limit = 25
+
+  const isAdmin = session?.user?.role === 'SUPER_ADMIN' || session?.user?.role === 'ADMIN'
 
   const fetchClients = useCallback(() => {
     setLoading(true)
@@ -34,6 +52,37 @@ export default function AllClientsPage() {
   }, [search, dept, status, page])
 
   useEffect(() => { const t = setTimeout(fetchClients, 300); return () => clearTimeout(t) }, [fetchClients])
+
+  const allSelected = clients.length > 0 && selected.size === clients.length
+
+  const toggleSelectAll = (checked: boolean) => {
+    setSelected(checked ? new Set(clients.map((c) => c.id)) : new Set())
+  }
+
+  const toggleSelectOne = (id: string, checked: boolean) => {
+    setSelected((prev) => {
+      const s = new Set(prev)
+      checked ? s.add(id) : s.delete(id)
+      return s
+    })
+  }
+
+  const handleBulkUpdate = async (updates: Record<string, unknown>) => {
+    const res = await fetch('/api/clients/bulk', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientIds: Array.from(selected), ...updates }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      toast.success(`Updated ${selected.size} clients`)
+      setSelected(new Set())
+      fetchClients()
+    } else {
+      toast.error(data.error || 'Update failed')
+    }
+    setConfirmAction(null)
+  }
 
   const totalPages = Math.ceil(total / limit)
 
@@ -73,6 +122,27 @@ export default function AllClientsPage() {
               <SelectItem value="NOT_TRADED">Not Traded</SelectItem>
             </SelectContent>
           </Select>
+
+          {isAdmin && selected.size > 0 && (
+            <div className="flex gap-2 ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-green-300 text-green-700 hover:bg-green-50"
+                onClick={() => setConfirmAction('traded')}
+              >
+                Mark Traded ({selected.size})
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-300 text-red-700 hover:bg-red-50"
+                onClick={() => setConfirmAction('not_traded')}
+              >
+                Mark Not Traded ({selected.size})
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -80,6 +150,14 @@ export default function AllClientsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
+              {isAdmin && (
+                <th className="px-4 py-3 text-left w-10">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={(v) => toggleSelectAll(!!v)}
+                  />
+                </th>
+              )}
               {['Code', 'Name', 'Phone', 'Department', 'Operator', 'Status', 'Remark', 'Added'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
               ))}
@@ -88,15 +166,26 @@ export default function AllClientsPage() {
           <tbody>
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => (
-                <tr key={i}><td colSpan={8} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
+                <tr key={i}><td colSpan={isAdmin ? 9 : 8} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
               ))
             ) : clients.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">
+              <tr><td colSpan={isAdmin ? 9 : 8} className="px-4 py-12 text-center text-gray-400">
                 <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No clients found</p>
               </td></tr>
             ) : clients.map((c) => (
-              <tr key={c.id} className={cn('border-b border-gray-100 hover:bg-gray-50', c.status === 'TRADED' ? 'bg-green-50' : 'bg-white')}>
+              <tr key={c.id} className={cn(
+                'border-b border-gray-100 hover:bg-gray-50',
+                selected.has(c.id) ? 'bg-blue-50' : c.status === 'TRADED' ? 'bg-green-50' : 'bg-white'
+              )}>
+                {isAdmin && (
+                  <td className="px-4 py-3">
+                    <Checkbox
+                      checked={selected.has(c.id)}
+                      onCheckedChange={(v) => toggleSelectOne(c.id, !!v)}
+                    />
+                  </td>
+                )}
                 <td className="px-4 py-3 font-mono text-xs font-medium text-gray-700">{c.clientCode}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -137,6 +226,38 @@ export default function AllClientsPage() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={!!confirmAction} onOpenChange={(open) => { if (!open) setConfirmAction(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction === 'traded' ? 'Mark as Traded?' : 'Mark as Not Traded?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction === 'traded'
+                ? `This will mark ${selected.size} selected client(s) as Traded with remark "Successfully Traded".`
+                : `This will mark ${selected.size} selected client(s) as Not Traded with remark "Did Not Answer". This action affects clients across all operators.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={confirmAction === 'not_traded' ? 'bg-red-600 hover:bg-red-700' : ''}
+              onClick={() => {
+                if (confirmAction === 'traded') {
+                  handleBulkUpdate({ status: 'TRADED', remark: 'SUCCESSFULLY_TRADED' })
+                } else {
+                  handleBulkUpdate({ status: 'NOT_TRADED', remark: 'DID_NOT_ANSWER' })
+                }
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
