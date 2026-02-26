@@ -152,12 +152,33 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
     router.push(getDashboardForRole(role))
   }
 
-  // Initial fetch + 30s polling
+  // Initial fetch + 30s polling, paused when tab is hidden
   useEffect(() => {
     fetchNotifications()
-    pollRef.current = setInterval(fetchNotifications, 30_000)
-    return () => {
+
+    const startPolling = () => {
       if (pollRef.current) clearInterval(pollRef.current)
+      pollRef.current = setInterval(fetchNotifications, 30_000)
+    }
+
+    const stopPolling = () => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications()
+        startPolling()
+      } else {
+        stopPolling()
+      }
+    }
+
+    startPolling()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      stopPolling()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [fetchNotifications])
 
