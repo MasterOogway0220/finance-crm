@@ -188,13 +188,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Reject upload if any codes are unmapped — prevents orphan BrokerageDetail records
-    if (unmappedCodes.length > 0) {
+    // If ALL codes are unmapped, reject — nothing to upload
+    if (details.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          error: `${unmappedCodes.length} client code(s) not found in the system. Add these clients first, then re-upload.`,
-          data: { unmappedCodes, mappedCount: details.length },
+          error: `None of the ${unmappedCodes.length} client code(s) in this file exist in the system. Add these clients first, then re-upload.`,
+          data: { unmappedCodes, mappedCount: 0 },
         },
         { status: 422 }
       )

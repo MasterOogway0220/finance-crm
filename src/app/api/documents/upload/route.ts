@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir } from 'fs/promises'
+import { randomUUID } from 'crypto'
 import path from 'path'
 
 const MAX_SIZE = 20 * 1024 * 1024 // 20 MB
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File | null
     const folderId = formData.get('folderId') as string | null
 
-    if (!file) {
+    if (!file || !file.name) {
       return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 })
     }
     if (!folderId) {
@@ -39,14 +40,17 @@ export async function POST(request: NextRequest) {
     // Build a safe file name: {docId}.{ext}
     const originalName = file.name
     const ext = path.extname(originalName) || ''
-    const docId = crypto.randomUUID()
+    const docId = randomUUID()
     const savedFileName = `${docId}${ext}`
 
-    const folderDir = path.join(process.cwd(), 'uploads', 'documents', folderId)
+    const uploadBase = path.resolve(process.cwd(), 'uploads', 'documents')
+    const folderDir = path.join(uploadBase, folderId)
+
     await mkdir(folderDir, { recursive: true })
 
     const filePath = path.join(folderDir, savedFileName)
-    const buffer = Buffer.from(await file.arrayBuffer())
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
     await writeFile(filePath, buffer)
 
     const document = await prisma.document.create({
@@ -67,6 +71,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: document }, { status: 201 })
   } catch (error) {
     console.error('[POST /api/documents/upload]', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Internal server error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }

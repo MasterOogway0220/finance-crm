@@ -279,14 +279,16 @@ function ApplyLeaveDialog({
 interface MarkLeaveDialogProps {
   onClose: () => void
   onSuccess: () => void
+  allHolidays: string[]
 }
 
-function MarkLeaveDialog({ onClose, onSuccess }: MarkLeaveDialogProps) {
+function MarkLeaveDialog({ onClose, onSuccess, allHolidays }: MarkLeaveDialogProps) {
   const [department, setDepartment] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const [employees, setEmployees] = useState<Employee[]>([])
-  const [date, setDate] = useState('')
-  const [days, setDays] = useState(1)
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [days, setDays] = useState(0)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -297,10 +299,23 @@ function MarkLeaveDialog({ onClose, onSuccess }: MarkLeaveDialogProps) {
       .then((d) => { if (d.success) setEmployees(d.data) })
   }, [department])
 
+  // Auto-calculate working days whenever dates change
+  useEffect(() => {
+    if (!fromDate || !toDate) { setDays(0); return }
+    const from = new Date(fromDate)
+    const to = new Date(toDate)
+    if (from > to) { setDays(0); return }
+    setDays(calcWorkingDays(from, to, allHolidays))
+  }, [fromDate, toDate, allHolidays])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!employeeId || !date || days < 1) {
+    if (!employeeId || !fromDate || !toDate) {
       toast.error('Please fill all required fields.')
+      return
+    }
+    if (days < 1) {
+      toast.error('Selected date range has no working days (all weekends/holidays).')
       return
     }
     setLoading(true)
@@ -308,7 +323,7 @@ function MarkLeaveDialog({ onClose, onSuccess }: MarkLeaveDialogProps) {
       const res = await fetch('/api/leaves/mark', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId, date, days, note }),
+        body: JSON.stringify({ employeeId, fromDate, toDate, days, note }),
       })
       const data = await res.json()
       if (data.success) {
@@ -369,25 +384,36 @@ function MarkLeaveDialog({ onClose, onSuccess }: MarkLeaveDialogProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Date of Absence</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">From Date</label>
               <input
                 type="date"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">No. of Days</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">To Date</label>
               <input
-                type="number"
-                min={1}
-                max={30}
+                type="date"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                value={days}
-                onChange={(e) => setDays(Math.max(1, parseInt(e.target.value) || 1))}
+                value={toDate}
+                min={fromDate}
+                onChange={(e) => setToDate(e.target.value)}
               />
             </div>
+          </div>
+
+          {/* Auto-calculated working days */}
+          <div className="rounded-lg bg-orange-50 px-4 py-2.5">
+            <p className="text-sm text-orange-700">
+              Working days:{' '}
+              <span className="font-bold text-orange-900">{days}</span>
+              {fromDate && toDate && days > 0 && ' (weekends & holidays excluded)'}
+              {fromDate && toDate && days === 0 && (
+                <span className="ml-1 text-red-600 font-normal">— no working days in this range</span>
+              )}
+            </p>
           </div>
 
           <div>
@@ -405,7 +431,11 @@ function MarkLeaveDialog({ onClose, onSuccess }: MarkLeaveDialogProps) {
             <Button type="button" variant="outline" className="flex-1" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" className="flex-1 bg-orange-600 hover:bg-orange-700" disabled={loading}>
+            <Button
+              type="submit"
+              className="flex-1 bg-orange-600 hover:bg-orange-700"
+              disabled={loading || days < 1}
+            >
               {loading ? 'Marking...' : 'Mark Absence'}
             </Button>
           </div>
@@ -959,6 +989,7 @@ export default function CalendarPage() {
         <MarkLeaveDialog
           onClose={() => setShowMarkDialog(false)}
           onSuccess={fetchApplications}
+          allHolidays={allHolidayStrings}
         />
       )}
     </div>

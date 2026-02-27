@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { employeeId, date, days, note } = body
+    const { employeeId, fromDate, toDate, days, note } = body
 
-    if (!employeeId || !date || !days || days < 1) {
+    if (!employeeId || !fromDate || !toDate || !days || days < 1) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -32,13 +32,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Employee not found' }, { status: 404 })
     }
 
-    const from = new Date(date)
+    const from = new Date(fromDate)
     from.setHours(0, 0, 0, 0)
-
-    // Calculate end date based on days (simple: add days-1 to start, skipping weekends not required here since admin sets exact days)
-    const to = new Date(from)
-    to.setDate(to.getDate() + (days - 1))
+    const to = new Date(toDate)
     to.setHours(23, 59, 59, 999)
+
+    if (from > to) {
+      return NextResponse.json({ success: false, error: 'From date must be before to date' }, { status: 400 })
+    }
 
     // Check for overlapping leaves
     const overlap = await prisma.leaveApplication.findFirst({
@@ -74,12 +75,13 @@ export async function POST(request: NextRequest) {
     })
 
     // Notify the employee
-    const dateStr = from.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    const fmt = (d: Date) => d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    const rangeStr = from.toDateString() === to.toDateString() ? fmt(from) : `${fmt(from)} – ${fmt(to)}`
     await createNotification({
       userId: employeeId,
       type: 'LEAVE_APPROVED',
       title: 'Absence Recorded',
-      message: `Admin has recorded your absence on ${dateStr} (${days} day${days > 1 ? 's' : ''}). This has been deducted from your leave balance.`,
+      message: `Admin has recorded your absence from ${rangeStr} (${days} working day${days > 1 ? 's' : ''}). This has been deducted from your leave balance.`,
       link: '/calendar',
     })
 

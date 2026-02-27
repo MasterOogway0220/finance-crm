@@ -141,9 +141,9 @@ export default function DocumentPoolPage() {
       const data = await res.json()
       if (data.success) {
         toast.success(`Folder "${name}" created`)
-        setFolders((prev) => [data.data, ...prev])
         setNewFolderName('')
         setShowNewFolder(false)
+        await fetchFolders()
       } else {
         toast.error(data.error || 'Failed to create folder')
       }

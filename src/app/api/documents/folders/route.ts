@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { mkdir } from 'fs/promises'
 import path from 'path'
+import { randomUUID } from 'crypto'
 
 const folderSchema = z.object({
   name: z.string().min(1, 'Folder name is required').max(100, 'Name too long').trim(),
@@ -26,8 +27,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Generate the ID upfront so we can create the disk directory first
+    const folderId = randomUUID()
+    const folderPath = path.resolve(process.cwd(), 'uploads', 'documents', folderId)
+    await mkdir(folderPath, { recursive: true })
+
     const folder = await prisma.documentFolder.create({
       data: {
+        id: folderId,
         name: parsed.data.name,
         createdById: session.user.id,
       },
@@ -37,13 +44,10 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Create the folder directory on disk
-    const folderPath = path.join(process.cwd(), 'uploads', 'documents', folder.id)
-    await mkdir(folderPath, { recursive: true })
-
     return NextResponse.json({ success: true, data: folder }, { status: 201 })
   } catch (error) {
     console.error('[POST /api/documents/folders]', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Internal server error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }
