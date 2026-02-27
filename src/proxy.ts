@@ -23,20 +23,22 @@ export default auth((req) => {
   }
 
   const role = session?.user?.role
+  const secondaryRole = session?.user?.secondaryRole
   const path = nextUrl.pathname
 
-  // Role-based access control
-  if (path.startsWith('/equity') && role !== 'EQUITY_DEALER') {
+  // Role-based access control — check both primary and secondary roles so dual-role
+  // employees can access pages for either of their roles
+  if (path.startsWith('/equity') && role !== 'EQUITY_DEALER' && secondaryRole !== 'EQUITY_DEALER') {
     return NextResponse.redirect(new URL(getDashboardPath(role), nextUrl))
   }
-  if (path.startsWith('/mf') && role !== 'MF_DEALER') {
+  if (path.startsWith('/mf') && role !== 'MF_DEALER' && secondaryRole !== 'MF_DEALER') {
     return NextResponse.redirect(new URL(getDashboardPath(role), nextUrl))
   }
-  if (path.startsWith('/backoffice') && role !== 'BACK_OFFICE') {
+  if (path.startsWith('/backoffice') && role !== 'BACK_OFFICE' && secondaryRole !== 'BACK_OFFICE') {
     return NextResponse.redirect(new URL(getDashboardPath(role), nextUrl))
   }
   if ((path.startsWith('/dashboard') || path.startsWith('/brokerage') || path.startsWith('/masters')) &&
-    role !== 'SUPER_ADMIN' && role !== 'ADMIN') {
+    role !== 'SUPER_ADMIN' && role !== 'ADMIN' && secondaryRole !== 'SUPER_ADMIN' && secondaryRole !== 'ADMIN') {
     return NextResponse.redirect(new URL(getDashboardPath(role), nextUrl))
   }
 
