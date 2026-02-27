@@ -11,7 +11,31 @@
       "Bash(cd /e/freelance/finance-crm && npx ts-node --compiler-options \"{\\\\\"module\\\\\":\\\\\"CommonJS\\\\\"}\" prisma/seed.ts 2>&1)",
       "Bash(cd /e/freelance/finance-crm && npx prisma db push 2>&1)",
       "Bash(node:*)",
-      "Bash(cd /e/freelance/finance-crm && npm run build 2>&1)"
+      "Bash(cd /e/freelance/finance-crm && npm run build 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && git rm --cached finance-crm-deploy.zip create-deploy.ps1 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && git add .gitignore && git commit -m \"Remove deploy artifacts and update gitignore\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\" && git push 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && git add src/app/page.tsx && git commit -m \"Redirect root route to login page\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\" && git push 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && git add package.json && git commit -m \"Use PORT env variable for next start\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\" && git push 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && git add package.json && git commit -m \"Simplify start command\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\" && git push 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && git add src/app/api/dashboard/admin/route.ts src/lib/utils.ts && git commit -m \"Fix admin dashboard API to return complete data matching dashboard interface\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\" && git push 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && git add \"src/app/\\(auth\\)/login/page.tsx\" && git commit -m \"Fix login page background not covering full width on desktop\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\" && git push 2>&1)",
+      "Bash(cd /e/freelance/finance-crm && git add next.config.ts \"src/app/\\(protected\\)/dashboard/page.tsx\" && git commit -m \"Disable React Compiler and add null guard for taskStats in dashboard\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\" && git push 2>&1)",
+      "Bash(head:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(git:*)",
+      "Bash(npm run:*)",
+      "Bash(start:*)",
+      "Bash(xargs wc:*)",
+      "Bash(grep:*)",
+      "Bash(npm install:*)",
+      "Bash(E:/freelance/finance-crm/prisma/schema.prisma:*)",
+      "Bash(npx prisma:*)",
+      "Bash(pip install:*)",
+      "WebFetch(domain:date.nager.at)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

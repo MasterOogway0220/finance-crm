@@ -12,6 +12,8 @@ import {
   CheckSquare,
   BarChart3,
   Database,
+  FolderOpen,
+  CalendarDays,
   ChevronDown,
   ChevronRight,
   LogOut,
@@ -31,6 +33,8 @@ const ADMIN_NAV: NavItem[] = [
   { label: 'All Clients', href: '/clients', icon: Users },
   { label: 'Brokerage', href: '/brokerage', icon: IndianRupee },
   { label: 'Tasks', href: '/tasks', icon: CheckSquare },
+  { label: 'Document Pool', href: '/documents', icon: FolderOpen },
+  { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
   {
     label: 'Masters',
@@ -46,18 +50,40 @@ const EQUITY_DEALER_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/equity/dashboard', icon: LayoutDashboard },
   { label: 'My Clients', href: '/equity/clients', icon: Users },
   { label: 'My Brokerage', href: '/equity/brokerage', icon: IndianRupee },
+  {
+    label: 'Tasks',
+    icon: CheckSquare,
+    children: [
+      { label: 'Assign Task', href: '/tasks/assign', icon: CheckSquare },
+      { label: 'My Tasks', href: '/equity/tasks', icon: CheckSquare },
+    ],
+  },
+  { label: 'Document Pool', href: '/documents', icon: FolderOpen },
+  { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 
 const MF_DEALER_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/mf/dashboard', icon: LayoutDashboard },
   { label: 'My Clients', href: '/mf/clients', icon: Users },
+  {
+    label: 'Tasks',
+    icon: CheckSquare,
+    children: [
+      { label: 'Assign Task', href: '/tasks/assign', icon: CheckSquare },
+      { label: 'My Tasks', href: '/mf/tasks', icon: CheckSquare },
+    ],
+  },
+  { label: 'Document Pool', href: '/documents', icon: FolderOpen },
+  { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 
 const BACK_OFFICE_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/backoffice/dashboard', icon: LayoutDashboard },
   { label: 'Tasks', href: '/backoffice/tasks', icon: CheckSquare },
+  { label: 'Document Pool', href: '/documents', icon: FolderOpen },
+  { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 

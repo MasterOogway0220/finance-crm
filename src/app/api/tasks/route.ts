@@ -39,8 +39,15 @@ export async function GET(request: NextRequest) {
       data: { status: 'EXPIRED' },
     })
 
+    const assignedByMe = searchParams.get('assignedByMe') === 'true'
+    const assignedToMe = searchParams.get('assignedToMe') === 'true'
+
     // BACK_OFFICE can only see tasks assigned to themselves
     if (userRole === 'BACK_OFFICE') {
+      where.assignedToId = session.user.id
+    } else if (assignedByMe) {
+      where.assignedById = session.user.id
+    } else if (assignedToMe) {
       where.assignedToId = session.user.id
     } else {
       if (assignedToId) where.assignedToId = assignedToId
@@ -66,7 +73,6 @@ export async function GET(request: NextRequest) {
         include: {
           assignedTo: { select: { id: true, name: true, department: true } },
           assignedBy: { select: { id: true, name: true, department: true } },
-          _count: { select: { comments: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -100,6 +106,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
+    const userRole = getEffectiveRole(session.user)
+
+    // BACK_OFFICE employees cannot assign tasks
+    if (userRole === 'BACK_OFFICE') {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
     const body = await request.json()
     const parsed = taskSchema.safeParse(body)
 
@@ -114,11 +127,21 @@ export async function POST(request: NextRequest) {
 
     const assignee = await prisma.employee.findUnique({
       where: { id: data.assignedToId },
-      select: { id: true, name: true, isActive: true },
+      select: { id: true, name: true, isActive: true, department: true },
     })
 
     if (!assignee || !assignee.isActive) {
       return NextResponse.json({ success: false, error: 'Assignee not found or inactive' }, { status: 404 })
+    }
+
+    // EQUITY_DEALER and MF_DEALER can only assign tasks to Back Office employees
+    if (userRole === 'EQUITY_DEALER' || userRole === 'MF_DEALER') {
+      if (assignee.department !== 'BACK_OFFICE') {
+        return NextResponse.json(
+          { success: false, error: 'You can only assign tasks to Back Office employees' },
+          { status: 403 }
+        )
+      }
     }
 
     const task = await prisma.task.create({

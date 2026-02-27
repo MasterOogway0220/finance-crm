@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,7 @@ import { CalendarIcon, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useActiveRoleStore } from '@/stores/active-role-store'
 
 const schema = z.object({
   department: z.string().min(1, 'Select department'),
@@ -45,6 +47,13 @@ const PRIORITY_OPTIONS = [
 ]
 
 export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
+  const { data: session } = useSession()
+  const { activeRole } = useActiveRoleStore()
+  const effectiveRole = activeRole || session?.user?.role || ''
+
+  // EQUITY_DEALER and MF_DEALER can only assign to Back Office
+  const isRoleLocked = effectiveRole === 'EQUITY_DEALER' || effectiveRole === 'MF_DEALER'
+
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loadingEmployees, setLoadingEmployees] = useState(false)
   const [deadline, setDeadline] = useState<Date | undefined>()
@@ -53,10 +62,23 @@ export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { department: '', assignedToId: '', title: '', description: '', priority: 'MEDIUM' },
+    defaultValues: {
+      department: isRoleLocked ? 'BACK_OFFICE' : '',
+      assignedToId: '',
+      title: '',
+      description: '',
+      priority: 'MEDIUM',
+    },
   })
 
   const selectedDepartment = watch('department')
+
+  // For locked roles, auto-load Back Office employees on mount
+  useEffect(() => {
+    if (isRoleLocked) {
+      setValue('department', 'BACK_OFFICE')
+    }
+  }, [isRoleLocked, setValue])
 
   useEffect(() => {
     if (!selectedDepartment) return
@@ -100,17 +122,23 @@ export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
         {/* Row 1: Department + Assign To */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Department <span className="text-red-500 normal-case">*</span></Label>
-            <Select onValueChange={(v) => setValue('department', v)}>
-              <SelectTrigger className={cn('h-10', errors.department && 'border-red-400')}>
-                <SelectValue placeholder="Select department" />
-              </SelectTrigger>
-              <SelectContent>
-                {DEPARTMENTS.map((d) => (
-                  <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Department</Label>
+            {isRoleLocked ? (
+              <div className="h-10 px-3 flex items-center rounded-md border border-gray-200 bg-gray-50 text-sm text-gray-600 font-medium">
+                Back Office
+              </div>
+            ) : (
+              <Select onValueChange={(v) => setValue('department', v)}>
+                <SelectTrigger className={cn('h-10', errors.department && 'border-red-400')}>
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEPARTMENTS.map((d) => (
+                    <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {errors.department && <p className="text-xs text-red-500">{errors.department.message}</p>}
           </div>
 
@@ -138,7 +166,7 @@ export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
 
         {/* Row 2: Title */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Task Title <span className="text-red-500 normal-case">*</span></Label>
+          <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Task Work <span className="text-red-500 normal-case">*</span></Label>
           <Input
             {...register('title')}
             placeholder="e.g. Follow up with HNI clients for Q4"

@@ -7,6 +7,8 @@ interface ActiveRoleState {
   // Call on session load — resets role if a different user logs in
   initForUser: (userId: string, primaryRole: string) => void
   setActiveRole: (role: string) => void
+  // Called from the login role-picker so the choice survives initForUser
+  setRoleForNewLogin: (userId: string, role: string) => void
 }
 
 export const useActiveRoleStore = create<ActiveRoleState>()(
@@ -26,6 +28,9 @@ export const useActiveRoleStore = create<ActiveRoleState>()(
       },
 
       setActiveRole: (role) => set({ activeRole: role }),
+
+      // Sets both userId and role at once so initForUser won't reset it
+      setRoleForNewLogin: (userId, role) => set({ activeRole: role, userId }),
     }),
     {
       name: 'finance-crm-active-role',

@@ -31,12 +31,6 @@ export async function GET(
       include: {
         assignedTo: { select: { id: true, name: true, department: true, designation: true } },
         assignedBy: { select: { id: true, name: true, department: true } },
-        comments: {
-          include: {
-            author: { select: { id: true, name: true } },
-          },
-          orderBy: { createdAt: 'asc' },
-        },
       },
     })
 
@@ -81,6 +75,8 @@ export async function PATCH(
       )
     }
 
+    const userRole = getEffectiveRole(session.user)
+
     const existing = await prisma.task.findUnique({
       where: { id },
       include: {
@@ -94,6 +90,21 @@ export async function PATCH(
     }
 
     const data = parsed.data
+    const isContentEdit = !!(data.title || data.description || data.priority || data.deadline)
+
+    // BACK_OFFICE can only update status (mark complete), not edit content
+    if (isContentEdit && userRole === 'BACK_OFFICE') {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
+    // No content edits allowed once a task is completed or expired
+    if (isContentEdit && existing.status !== 'PENDING') {
+      return NextResponse.json(
+        { success: false, error: 'Cannot edit a task that is completed or expired' },
+        { status: 400 }
+      )
+    }
+
     const updateData: Record<string, unknown> = { ...data }
 
     if (data.status === 'COMPLETED') {
@@ -128,11 +139,24 @@ export async function PATCH(
       })
     }
 
+    // Notify Back Office assignee when task content is edited while pending
+    if (isContentEdit && existing.status === 'PENDING') {
+      await createNotification({
+        userId: existing.assignedToId,
+        type: 'TASK_EDITED',
+        title: 'Task updated — please review',
+        message: `"${existing.title}" was updated by ${existing.assignedBy.name}. Open the task to check the latest details before completing it.`,
+        link: `/backoffice/tasks`,
+      })
+    }
+
     await logActivity({
       userId: session.user.id,
       action: 'UPDATE',
       module: 'TASKS',
-      details: `Updated task "${existing.title}" - status: ${task.status}`,
+      details: isContentEdit
+        ? `Edited task "${existing.title}"`
+        : `Updated task "${existing.title}" - status: ${task.status}`,
     })
 
     return NextResponse.json({ success: true, data: task })

@@ -182,7 +182,9 @@ function EquityTasksContent() {
         open={!!selectedTask}
         onClose={() => setSelectedTask(null)}
         onTaskCompleted={handleTaskCompleted}
+        onTaskUpdated={(updated) => { setSelectedTask(updated); fetchTasks() }}
         canComplete={tab === 'my-tasks'}
+        canEdit={tab === 'assigned-by-me'}
       />
     </div>
   )

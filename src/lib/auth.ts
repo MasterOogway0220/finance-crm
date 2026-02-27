@@ -63,6 +63,36 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     },
   },
+  events: {
+    async signIn({ user }) {
+      try {
+        await prisma.employeeLoginLog.create({
+          data: { employeeId: user.id! },
+        })
+        await prisma.employee.update({
+          where: { id: user.id! },
+          data: { lastSeenAt: new Date() },
+        })
+      } catch { /* non-critical */ }
+    },
+    async signOut(message) {
+      const token = 'token' in message ? message.token : null
+      const userId = token?.id as string | undefined
+      if (!userId) return
+      try {
+        const openLog = await prisma.employeeLoginLog.findFirst({
+          where: { employeeId: userId, logoutAt: null },
+          orderBy: { loginAt: 'desc' },
+        })
+        if (openLog) {
+          await prisma.employeeLoginLog.update({
+            where: { id: openLog.id },
+            data: { logoutAt: new Date() },
+          })
+        }
+      } catch { /* non-critical */ }
+    },
+  },
   pages: {
     signIn: '/login',
     error: '/login',

@@ -7,6 +7,7 @@ import { KpiCard } from '@/components/dashboard/kpi-card'
 import { BrokerageChart } from '@/components/dashboard/brokerage-chart'
 import { TaskPieChart } from '@/components/dashboard/task-pie-chart'
 import { OperatorTable } from '@/components/dashboard/operator-table'
+import { EmployeeStatusTable } from '@/components/dashboard/employee-status-table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDateLong, getDaysInMonth } from '@/lib/utils'
 
@@ -148,6 +149,9 @@ export default function AdminDashboardPage() {
           />
         </div>
       )}
+
+      {/* Employee Login/Logout Status */}
+      <EmployeeStatusTable />
 
     </div>
   )

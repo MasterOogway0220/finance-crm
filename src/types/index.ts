@@ -58,14 +58,6 @@ export interface TaskWithRelations {
   priority: TaskPriority
   completedAt?: Date | null
   createdAt: Date
-  comments?: TaskCommentItem[]
-}
-
-export interface TaskCommentItem {
-  id: string
-  content: string
-  createdAt: Date
-  author: { id: string; name: string }
 }
 
 export interface ClientWithOperator {

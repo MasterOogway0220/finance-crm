@@ -28,6 +28,13 @@ enum TaskStatus {
   EXPIRED
 }
 
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 enum TaskPriority {
   HIGH
   MEDIUM
@@ -71,6 +78,7 @@ model Employee {
   role          Role
   secondaryRole Role?
   isActive      Boolean     @default(true)
+  lastSeenAt    DateTime?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -81,6 +89,12 @@ model Employee {
   notifications      Notification[]
   activityLogs       ActivityLog[]
   brokerageUploads   BrokerageUpload[]
+  createdFolders       DocumentFolder[]   @relation("FolderCreator")
+  uploadedDocuments    Document[]         @relation("DocumentUploader")
+  leaveBalances        LeaveBalance[]
+  leaveApplications    LeaveApplication[] @relation("LeaveApplicant")
+  reviewedLeaves       LeaveApplication[] @relation("LeaveReviewer")
+  loginLogs            EmployeeLoginLog[]
 
   @@index([department])
   @@index([role])
@@ -226,6 +240,64 @@ model ActivityLog {
   @@index([createdAt])
 }
 
+model LeaveBalance {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  year        Int
+  totalLeaves Int      @default(0)
+
+  @@unique([employeeId, year])
+  @@index([employeeId])
+}
+
+model LeaveApplication {
+  id           String      @id @default(cuid())
+  employeeId   String
+  employee     Employee    @relation("LeaveApplicant", fields: [employeeId], references: [id])
+  reason       String      @db.Text
+  fromDate     DateTime
+  toDate       DateTime
+  days         Int
+  status       LeaveStatus @default(PENDING)
+  reviewedById String?
+  reviewedBy   Employee?   @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+  reviewNote   String?     @db.Text
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([fromDate])
+}
+
+model DocumentFolder {
+  id          String     @id @default(cuid())
+  name        String
+  createdById String
+  createdBy   Employee   @relation("FolderCreator", fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+  documents   Document[]
+
+  @@index([createdById])
+}
+
+model Document {
+  id           String         @id @default(cuid())
+  name         String
+  mimeType     String
+  size         Int
+  filePath     String         @db.Text
+  folderId     String
+  folder       DocumentFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   Employee       @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  createdAt    DateTime       @default(now())
+
+  @@index([folderId])
+  @@index([uploadedById])
+}
+
 model PasswordResetToken {
   id        String    @id @default(cuid())
   email     String
@@ -236,4 +308,15 @@ model PasswordResetToken {
 
   @@index([email])
   @@index([token])
+}
+
+model EmployeeLoginLog {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  loginAt    DateTime  @default(now())
+  logoutAt   DateTime?
+
+  @@index([employeeId])
+  @@index([loginAt])
 }

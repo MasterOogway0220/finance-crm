@@ -2,13 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
 export async function POST(request: NextRequest) {
+  const resend = new Resend(process.env.RESEND_API_KEY)
   try {
     const { email } = await request.json()
 

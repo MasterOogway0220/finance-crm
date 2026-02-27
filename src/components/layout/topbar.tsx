@@ -13,7 +13,11 @@ import {
   LogOut,
   KeyRound,
   Check,
-  RefreshCw,
+  Layers,
+  TriangleAlert,
+  CalendarCheck,
+  CalendarX,
+  CalendarDays,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -37,10 +41,19 @@ import CommandSearch from '@/components/layout/command-search'
 function NotificationIcon({ type }: { type: string }) {
   const cls = 'h-4 w-4 shrink-0'
   switch (type) {
-    case 'task':
+    case 'TASK_EDITED':
+      return <TriangleAlert className={cn(cls, 'text-amber-500')} />
+    case 'TASK_ASSIGNED':
+    case 'TASK_COMPLETED':
       return <CheckSquare className={cn(cls, 'text-blue-500')} />
-    case 'brokerage':
+    case 'BROKERAGE_UPLOAD':
       return <IndianRupee className={cn(cls, 'text-green-500')} />
+    case 'LEAVE_APPROVED':
+      return <CalendarCheck className={cn(cls, 'text-green-500')} />
+    case 'LEAVE_REJECTED':
+      return <CalendarX className={cn(cls, 'text-red-500')} />
+    case 'LEAVE_APPLIED':
+      return <CalendarDays className={cn(cls, 'text-blue-500')} />
     default:
       return <Info className={cn(cls, 'text-gray-400')} />
   }
@@ -93,7 +106,10 @@ function NotificationPanel({ notifications, onMarkAsRead, onMarkAllRead }: Notif
               onClick={() => handleClick(n)}
               className={cn(
                 'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50',
-                !n.isRead && 'border-l-2 border-blue-500 bg-blue-50',
+                !n.isRead && n.type === 'TASK_EDITED' && 'border-l-4 border-amber-500 bg-amber-50',
+                !n.isRead && n.type === 'LEAVE_APPROVED' && 'border-l-4 border-green-500 bg-green-50',
+                !n.isRead && n.type === 'LEAVE_REJECTED' && 'border-l-4 border-red-500 bg-red-50',
+                !n.isRead && !['TASK_EDITED', 'LEAVE_APPROVED', 'LEAVE_REJECTED'].includes(n.type) && 'border-l-2 border-blue-500 bg-blue-50',
               )}
             >
               <div className="mt-0.5">
@@ -214,41 +230,6 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
             <Search className="h-5 w-5" />
           </button>
 
-          {/* Role Switcher — only for dual-role employees */}
-          {hasDualRole && primaryRole && secondaryRole && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                  {ROLE_LABELS[effectiveRole] ?? effectiveRole}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuLabel className="text-xs text-gray-500 font-normal">
-                  Switch active role
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => handleSwitchRole(primaryRole)}
-                  className={cn(effectiveRole === primaryRole && 'bg-blue-50 text-blue-700 font-medium')}
-                >
-                  <span className="flex-1">{ROLE_LABELS[primaryRole]}</span>
-                  {effectiveRole === primaryRole && <Check className="h-3.5 w-3.5 text-blue-600" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleSwitchRole(secondaryRole)}
-                  className={cn(effectiveRole === secondaryRole && 'bg-blue-50 text-blue-700 font-medium')}
-                >
-                  <span className="flex-1">{ROLE_LABELS[secondaryRole]}</span>
-                  {effectiveRole === secondaryRole && <Check className="h-3.5 w-3.5 text-blue-600" />}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
           {/* Notifications */}
           <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
             <DropdownMenuTrigger asChild>
@@ -284,16 +265,64 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
               <button
                 type="button"
                 aria-label="User menu"
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white focus:outline-none hover:bg-blue-700 transition-colors"
+                className="relative flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white focus:outline-none hover:bg-blue-700 transition-colors"
               >
                 {initials}
+                {/* Green dot for dual-role indicator */}
+                {hasDualRole && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-white ring-1 ring-white">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  </span>
+                )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-56">
+              {/* User info */}
               <DropdownMenuLabel className="font-normal">
                 <p className="text-sm font-semibold text-gray-900">{userName}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{session?.user?.designation ?? session?.user?.role?.replace(/_/g, ' ')}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{session?.user?.designation ?? ''}</p>
               </DropdownMenuLabel>
+
+              {/* Active role badge */}
+              <div className="px-2 pb-1.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                  {ROLE_LABELS[effectiveRole] ?? effectiveRole}
+                </span>
+              </div>
+
+              {/* Role switcher — only for dual-role employees */}
+              {hasDualRole && primaryRole && secondaryRole && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="py-1 text-[11px] font-medium text-gray-400 uppercase tracking-wider">
+                    Switch Profile
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={() => handleSwitchRole(primaryRole)}
+                    className={cn(
+                      'gap-2',
+                      effectiveRole === primaryRole && 'bg-blue-50 text-blue-700'
+                    )}
+                  >
+                    <Layers className="h-4 w-4 shrink-0 text-gray-400" />
+                    <span className="flex-1 text-sm">{ROLE_LABELS[primaryRole]}</span>
+                    {effectiveRole === primaryRole && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleSwitchRole(secondaryRole)}
+                    className={cn(
+                      'gap-2',
+                      effectiveRole === secondaryRole && 'bg-blue-50 text-blue-700'
+                    )}
+                  >
+                    <Layers className="h-4 w-4 shrink-0 text-gray-400" />
+                    <span className="flex-1 text-sm">{ROLE_LABELS[secondaryRole]}</span>
+                    {effectiveRole === secondaryRole && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                  </DropdownMenuItem>
+                </>
+              )}
+
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push('/settings')}>
                 <KeyRound className="mr-2 h-4 w-4 text-gray-500" />

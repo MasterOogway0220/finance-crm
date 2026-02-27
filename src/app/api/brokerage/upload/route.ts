@@ -15,6 +15,45 @@ function findColumnIndex(headers: string[], candidates: string[]): number {
   return -1
 }
 
+/**
+ * Scans all rows to find the header row (first row containing known column keywords).
+ * Returns { headerRowIndex, headers, dataRows } or null if not found.
+ */
+function detectHeaderRow(rows: string[][]): { headerRowIndex: number; headers: string[]; dataRows: string[][] } | null {
+  // Keywords that must appear in the header row for ledger format
+  const ledgerKeywords = ['date', 'narration', 'credit']
+  // Keywords for simple format
+  const simpleKeywords = ['client', 'amount']
+
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const row = rows[i].map((c) => String(c ?? '').toLowerCase().trim())
+    const hasLedger = ledgerKeywords.every((kw) => row.some((c) => c.includes(kw)))
+    const hasSimple = simpleKeywords.every((kw) => row.some((c) => c.includes(kw)))
+    if (hasLedger || hasSimple) {
+      return {
+        headerRowIndex: i,
+        headers: rows[i].map((h) => String(h ?? '')),
+        dataRows: rows.slice(i + 1),
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Extracts client code from a narration string.
+ * Narration format examples:
+ *   "Z/M/2026039/ 18A213"  → "18A213"
+ *   "Z/L/2026039/57066490 91383117" → "91383117"
+ * The client code is always the last space-separated token.
+ */
+function extractClientCodeFromNarration(narration: string): string {
+  const trimmed = narration.trim()
+  const lastSpaceIdx = trimmed.lastIndexOf(' ')
+  if (lastSpaceIdx === -1) return trimmed.toUpperCase()
+  return trimmed.slice(lastSpaceIdx + 1).trim().toUpperCase()
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth()
@@ -55,31 +94,69 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'File has no data rows' }, { status: 400 })
     }
 
-    const headers = rows[0].map((h) => String(h ?? ''))
-    const dataRows = rows.slice(1)
-
-    // Detect client code and amount columns
-    const codeIdx = findColumnIndex(headers, [
-      'client code', 'clientcode', 'client_code', 'code', 'client id', 'clientid',
-    ])
-    const amountIdx = findColumnIndex(headers, [
-      'amount', 'brokerage', 'brokerage amount', 'net amount', 'netamount',
-    ])
-
-    if (codeIdx === -1) {
-      return NextResponse.json({ success: false, error: 'Could not find client code column' }, { status: 400 })
+    // Find header row — supports both ledger format (metadata rows at top) and simple format
+    const detected = detectHeaderRow(rows)
+    if (!detected) {
+      return NextResponse.json(
+        { success: false, error: 'Could not detect header row. Ensure the file contains Date/Narration/Credit columns (ledger format) or ClientCode/Amount columns.' },
+        { status: 400 }
+      )
     }
-    if (amountIdx === -1) {
-      return NextResponse.json({ success: false, error: 'Could not find amount column' }, { status: 400 })
-    }
+
+    const { headers, dataRows } = detected
+
+    // Determine format: ledger (Financial Ledger XLS) or simple (ClientCode/Amount CSV)
+    const narrationIdx = findColumnIndex(headers, ['narration'])
+    const creditIdx = findColumnIndex(headers, ['credit'])
+    const isLedgerFormat = narrationIdx !== -1 && creditIdx !== -1
 
     // Aggregate amounts by client code (deduplicate by summing)
     const codeAmountMap = new Map<string, number>()
-    for (const row of dataRows) {
-      const code = String(row[codeIdx] ?? '').trim().toUpperCase()
-      const amount = parseFloat(String(row[amountIdx] ?? '0').replace(/,/g, ''))
-      if (!code || isNaN(amount)) continue
-      codeAmountMap.set(code, (codeAmountMap.get(code) ?? 0) + amount)
+
+    if (isLedgerFormat) {
+      // Ledger format: client code embedded in Narration, amount in Credit column
+      const dateIdx = findColumnIndex(headers, ['date'])
+      for (const row of dataRows) {
+        const dateVal = String(row[dateIdx] ?? '').trim()
+        const narration = String(row[narrationIdx] ?? '').trim()
+        const creditRaw = String(row[creditIdx] ?? '').trim()
+
+        // Skip rows without a date (opening balance, totals rows)
+        if (!dateVal) continue
+        // Skip rows without a narration (structural/separator rows)
+        if (!narration) continue
+
+        const amount = parseFloat(creditRaw.replace(/,/g, ''))
+        // Skip zero or non-numeric credit entries
+        if (!amount || isNaN(amount) || amount <= 0) continue
+
+        const code = extractClientCodeFromNarration(narration)
+        if (!code) continue
+
+        codeAmountMap.set(code, (codeAmountMap.get(code) ?? 0) + amount)
+      }
+    } else {
+      // Simple format: explicit ClientCode and Amount columns
+      const codeIdx = findColumnIndex(headers, [
+        'client code', 'clientcode', 'client_code', 'code', 'client id', 'clientid',
+      ])
+      const amountIdx = findColumnIndex(headers, [
+        'amount', 'brokerage', 'brokerage amount', 'net amount', 'netamount',
+      ])
+
+      if (codeIdx === -1) {
+        return NextResponse.json({ success: false, error: 'Could not find client code column' }, { status: 400 })
+      }
+      if (amountIdx === -1) {
+        return NextResponse.json({ success: false, error: 'Could not find amount column' }, { status: 400 })
+      }
+
+      for (const row of dataRows) {
+        const code = String(row[codeIdx] ?? '').trim().toUpperCase()
+        const amount = parseFloat(String(row[amountIdx] ?? '0').replace(/,/g, ''))
+        if (!code || isNaN(amount)) continue
+        codeAmountMap.set(code, (codeAmountMap.get(code) ?? 0) + amount)
+      }
     }
 
     if (codeAmountMap.size === 0) {

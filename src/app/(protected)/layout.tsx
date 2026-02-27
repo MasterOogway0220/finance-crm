@@ -2,11 +2,27 @@
 
 import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
-import { SessionProvider } from 'next-auth/react'
+import { SessionProvider, useSession } from 'next-auth/react'
 import { Toaster } from 'sonner'
 import Sidebar from '@/components/layout/sidebar'
 import TopBar from '@/components/layout/topbar'
 import InactivityGuard from '@/components/auth/inactivity-guard'
+
+const HEARTBEAT_INTERVAL = 5 * 60 * 1000 // 5 minutes
+
+function HeartbeatProvider() {
+  const { data: session } = useSession()
+  useEffect(() => {
+    if (!session?.user) return
+    // Fire immediately on mount (page load = presence)
+    fetch('/api/heartbeat', { method: 'POST' }).catch(() => {})
+    const id = setInterval(() => {
+      fetch('/api/heartbeat', { method: 'POST' }).catch(() => {})
+    }, HEARTBEAT_INTERVAL)
+    return () => clearInterval(id)
+  }, [session?.user?.id])
+  return null
+}
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -63,6 +79,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
         <Toaster position="top-right" richColors closeButton />
         <InactivityGuard />
+        <HeartbeatProvider />
       </div>
     </SessionProvider>
   )
