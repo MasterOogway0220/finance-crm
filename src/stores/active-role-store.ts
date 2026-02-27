@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 interface ActiveRoleState {
   activeRole: string
   userId: string
+  _hydrated: boolean
   // Call on session load — resets role if a different user logs in
   initForUser: (userId: string, primaryRole: string) => void
   setActiveRole: (role: string) => void
@@ -16,11 +17,15 @@ export const useActiveRoleStore = create<ActiveRoleState>()(
     (set, get) => ({
       activeRole: '',
       userId: '',
+      _hydrated: false,
 
       initForUser: (userId, primaryRole) => {
         const state = get()
+        // Don't run until sessionStorage has been loaded — prevents resetting
+        // the role chosen in the login picker before hydration completes
+        if (!state._hydrated) return
         if (state.userId !== userId) {
-          // Different user logged in — always reset to their primary role
+          // Different user logged in — reset to their primary role
           set({ activeRole: primaryRole, userId })
         } else if (!state.activeRole) {
           set({ activeRole: primaryRole })
@@ -45,6 +50,12 @@ export const useActiveRoleStore = create<ActiveRoleState>()(
         }
         return sessionStorage
       }),
+      // Mark hydrated after sessionStorage is loaded
+      onRehydrateStorage: () => (state) => {
+        if (state) state._hydrated = true
+      },
+      // Don't persist the internal hydration flag
+      partialize: (state) => ({ activeRole: state.activeRole, userId: state.userId }),
     },
   ),
 )

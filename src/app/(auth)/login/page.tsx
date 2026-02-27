@@ -201,7 +201,6 @@ export default function LoginPage() {
         // Single role — redirect immediately
         setRoleForNewLogin(session.user.id, primaryRole)
         router.push(getDashboardForRole(primaryRole))
-        router.refresh()
       }
     } catch {
       setServerError('Something went wrong. Please try again.')
@@ -212,7 +211,6 @@ export default function LoginPage() {
     if (!pendingSession) return
     setRoleForNewLogin(pendingSession.userId, role)
     router.push(getDashboardForRole(role))
-    router.refresh()
   }
 
   // Show role picker if dual-role user just authenticated

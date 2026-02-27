@@ -112,9 +112,9 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Notify admins of new leave application
+    // Notify admins of new leave application (exclude the applicant themselves)
     const admins = await prisma.employee.findMany({
-      where: { role: { in: ['SUPER_ADMIN', 'ADMIN'] }, isActive: true },
+      where: { role: { in: ['SUPER_ADMIN', 'ADMIN'] }, isActive: true, id: { not: targetEmployeeId } },
       select: { id: true },
     })
     await Promise.all(

@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const docId = randomUUID()
     const savedFileName = `${docId}${ext}`
 
-    const uploadBase = path.resolve(process.cwd(), 'uploads', 'documents')
+    const uploadBase = path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), 'uploads'), 'documents')
     const folderDir = path.join(uploadBase, folderId)
 
     await mkdir(folderDir, { recursive: true })

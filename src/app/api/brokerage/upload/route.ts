@@ -110,8 +110,9 @@ export async function POST(request: NextRequest) {
     const creditIdx = findColumnIndex(headers, ['credit'])
     const isLedgerFormat = narrationIdx !== -1 && creditIdx !== -1
 
-    // Aggregate amounts by client code (deduplicate by summing)
+    // Aggregate amounts by client code (deduplicate by summing); track row count per code
     const codeAmountMap = new Map<string, number>()
+    const codeRowCount = new Map<string, number>()
 
     if (isLedgerFormat) {
       // Ledger format: client code embedded in Narration, amount in Credit column
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
         if (!code) continue
 
         codeAmountMap.set(code, (codeAmountMap.get(code) ?? 0) + amount)
+        codeRowCount.set(code, (codeRowCount.get(code) ?? 0) + 1)
       }
     } else {
       // Simple format: explicit ClientCode and Amount columns
@@ -156,12 +158,15 @@ export async function POST(request: NextRequest) {
         const amount = parseFloat(String(row[amountIdx] ?? '0').replace(/,/g, ''))
         if (!code || isNaN(amount)) continue
         codeAmountMap.set(code, (codeAmountMap.get(code) ?? 0) + amount)
+        codeRowCount.set(code, (codeRowCount.get(code) ?? 0) + 1)
       }
     }
 
     if (codeAmountMap.size === 0) {
       return NextResponse.json({ success: false, error: 'No valid data rows found' }, { status: 400 })
     }
+
+    const duplicatesConsolidated = [...codeRowCount.values()].filter((c) => c > 1).length
 
     // Map client codes to operators via Client table
     const allCodes = Array.from(codeAmountMap.keys())
@@ -202,11 +207,46 @@ export async function POST(request: NextRequest) {
 
     const totalAmount = details.reduce((sum, d) => sum + d.amount, 0)
 
-    // If date already has an upload, delete it and re-create
-    const existingUpload = await prisma.brokerageUpload.findUnique({
-      where: { uploadDate },
+    // Build operator summary (needed for both preview and confirm)
+    const operatorIds = [...new Set(details.map((d) => d.operatorId))]
+    const operators = await prisma.employee.findMany({
+      where: { id: { in: operatorIds } },
+      select: { id: true, name: true },
     })
+    const operatorNameMap = new Map(operators.map((o) => [o.id, o.name]))
 
+    const opSummaryMap = new Map<string, { operatorName: string; clientCount: number; totalAmount: number }>()
+    for (const d of details) {
+      const name = operatorNameMap.get(d.operatorId) ?? 'Unknown'
+      const existing = opSummaryMap.get(d.operatorId) ?? { operatorName: name, clientCount: 0, totalAmount: 0 }
+      opSummaryMap.set(d.operatorId, {
+        operatorName: name,
+        clientCount: existing.clientCount + 1,
+        totalAmount: existing.totalAmount + d.amount,
+      })
+    }
+    const operatorSummary = Array.from(opSummaryMap.values())
+
+    const existingUpload = await prisma.brokerageUpload.findUnique({ where: { uploadDate } })
+    const dateExists = !!existingUpload
+
+    // Preview mode — return summary without writing to DB
+    const isPreview = formData.get('preview') === 'true'
+    if (isPreview) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          operatorSummary,
+          totalClients: details.length,
+          totalAmount,
+          unmappedCodes,
+          duplicatesConsolidated,
+          dateExists,
+        },
+      })
+    }
+
+    // Confirm mode — write to DB
     if (existingUpload) {
       await prisma.brokerageUpload.delete({ where: { id: existingUpload.id } })
     }
@@ -261,7 +301,7 @@ export async function POST(request: NextRequest) {
         totalAmount,
         mappedCount: details.length,
         unmappedCount: unmappedCodes.length,
-        warnings: unmappedCodes.map((code) => `Client code not found: ${code}`),
+        skippedCodes: unmappedCodes,
       },
     })
   } catch (error) {

@@ -192,14 +192,15 @@ interface SidebarProps {
 export default function Sidebar({ onClose }: SidebarProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
-  const { activeRole, initForUser } = useActiveRoleStore()
+  const { activeRole, _hydrated, initForUser } = useActiveRoleStore()
 
-  // Initialise the store for this user whenever the session loads
+  // Initialise the store for this user — wait until sessionStorage has hydrated
+  // to avoid resetting a role that was chosen in the login picker
   useEffect(() => {
-    if (session?.user?.id && session.user.role) {
+    if (_hydrated && session?.user?.id && session.user.role) {
       initForUser(session.user.id, session.user.role)
     }
-  }, [session?.user?.id, session?.user?.role, initForUser])
+  }, [_hydrated, session?.user?.id, session?.user?.role, initForUser])
 
   const effectiveRole = activeRole || session?.user?.role || ''
   const navItems = getNavItems(effectiveRole)

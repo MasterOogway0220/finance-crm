@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     // Generate the ID upfront so we can create the disk directory first
     const folderId = randomUUID()
-    const folderPath = path.resolve(process.cwd(), 'uploads', 'documents', folderId)
+    const folderPath = path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), 'uploads'), 'documents', folderId)
     await mkdir(folderPath, { recursive: true })
 
     const folder = await prisma.documentFolder.create({
