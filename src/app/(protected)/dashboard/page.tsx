@@ -10,6 +10,7 @@ import { OperatorTable } from '@/components/dashboard/operator-table'
 import { EmployeeStatusTable } from '@/components/dashboard/employee-status-table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDateLong, getDaysInMonth } from '@/lib/utils'
+import { useActiveRoleStore, getDashboardForRole } from '@/stores/active-role-store'
 
 interface DashboardData {
   totalEmployees: number
@@ -45,6 +46,16 @@ export default function AdminDashboardPage() {
   const today = new Date()
   const currentDay = today.getDate()
   const daysInMonth = getDaysInMonth(today.getFullYear(), today.getMonth() + 1)
+  const { activeRole } = useActiveRoleStore()
+
+  // If the user's active role doesn't belong on this dashboard, send them to the right one
+  useEffect(() => {
+    if (!activeRole) return
+    const target = getDashboardForRole(activeRole)
+    if (target !== '/dashboard') {
+      window.location.replace(target)
+    }
+  }, [activeRole])
 
   useEffect(() => {
     fetch('/api/dashboard/admin')

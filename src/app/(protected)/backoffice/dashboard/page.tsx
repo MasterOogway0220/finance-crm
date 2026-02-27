@@ -9,6 +9,7 @@ import { TaskWithRelations } from '@/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, formatDateLong, getDaysRemaining, getInitials } from '@/lib/utils'
+import { useActiveRoleStore, getDashboardForRole } from '@/stores/active-role-store'
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING:   'bg-amber-100 text-amber-700',
@@ -53,6 +54,16 @@ export default function BackofficeDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [selectedTask, setSelectedTask] = useState<TaskWithRelations | null>(null)
   const today = new Date()
+  const { activeRole } = useActiveRoleStore()
+
+  // If the user's active role doesn't belong on this dashboard, send them to the right one
+  useEffect(() => {
+    if (!activeRole) return
+    const target = getDashboardForRole(activeRole)
+    if (target !== '/backoffice/dashboard') {
+      window.location.replace(target)
+    }
+  }, [activeRole])
 
   const fetchData = (f: string) => {
     setLoading(true)
