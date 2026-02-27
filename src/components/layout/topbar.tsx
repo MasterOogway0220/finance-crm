@@ -165,7 +165,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
 
   const handleSwitchRole = (role: string) => {
     setActiveRole(role)
-    router.push(getDashboardForRole(role))
+    window.location.href = getDashboardForRole(role)
   }
 
   // Initial fetch + 30s polling, paused when tab is hidden

@@ -122,7 +122,7 @@ export default function BackofficeDashboardPage() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold text-gray-800">Pending Tasks</h2>
               <Select value={filter} onValueChange={setFilter}>
-                <SelectTrigger className="w-32 h-8 text-sm">
+                <SelectTrigger className="w-40 h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

@@ -200,7 +200,7 @@ export default function LoginPage() {
       } else {
         // Single role — redirect immediately
         setRoleForNewLogin(session.user.id, primaryRole)
-        router.push(getDashboardForRole(primaryRole))
+        window.location.href = getDashboardForRole(primaryRole)
       }
     } catch {
       setServerError('Something went wrong. Please try again.')
@@ -210,7 +210,7 @@ export default function LoginPage() {
   const handleRolePick = (role: string) => {
     if (!pendingSession) return
     setRoleForNewLogin(pendingSession.userId, role)
-    router.push(getDashboardForRole(role))
+    window.location.href = getDashboardForRole(role)
   }
 
   // Show role picker if dual-role user just authenticated

@@ -4,11 +4,10 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 interface ActiveRoleState {
   activeRole: string
   userId: string
-  _hydrated: boolean
-  // Call on session load — resets role if a different user logs in
+  // Call on session load — only resets role if a *confirmed* different user logs in
   initForUser: (userId: string, primaryRole: string) => void
   setActiveRole: (role: string) => void
-  // Called from the login role-picker so the choice survives initForUser
+  // Called from the login role-picker — sets both so initForUser never resets it
   setRoleForNewLogin: (userId: string, role: string) => void
 }
 
@@ -17,30 +16,28 @@ export const useActiveRoleStore = create<ActiveRoleState>()(
     (set, get) => ({
       activeRole: '',
       userId: '',
-      _hydrated: false,
 
       initForUser: (userId, primaryRole) => {
         const state = get()
-        // Don't run until sessionStorage has been loaded — prevents resetting
-        // the role chosen in the login picker before hydration completes
-        if (!state._hydrated) return
-        if (state.userId !== userId) {
-          // Different user logged in — reset to their primary role
+        if (!state.userId) {
+          // Store not yet hydrated from sessionStorage — just record userId,
+          // leave activeRole alone (will be set by rehydration or setRoleForNewLogin)
+          set({ userId })
+        } else if (state.userId !== userId) {
+          // Confirmed different user logged in — reset to their primary role
           set({ activeRole: primaryRole, userId })
-        } else if (!state.activeRole) {
-          set({ activeRole: primaryRole })
         }
+        // Same user with an existing role → do nothing
       },
 
       setActiveRole: (role) => set({ activeRole: role }),
 
-      // Sets both userId and role at once so initForUser won't reset it
+      // Sets both userId and role atomically so initForUser can never override it
       setRoleForNewLogin: (userId, role) => set({ activeRole: role, userId }),
     }),
     {
       name: 'finance-crm-active-role',
       storage: createJSONStorage(() => {
-        // SSR-safe: fall back to a no-op storage on the server
         if (typeof window === 'undefined') {
           return {
             getItem: () => null,
@@ -50,12 +47,6 @@ export const useActiveRoleStore = create<ActiveRoleState>()(
         }
         return sessionStorage
       }),
-      // Mark hydrated after sessionStorage is loaded
-      onRehydrateStorage: () => (state) => {
-        if (state) state._hydrated = true
-      },
-      // Don't persist the internal hydration flag
-      partialize: (state) => ({ activeRole: state.activeRole, userId: state.userId }),
     },
   ),
 )
