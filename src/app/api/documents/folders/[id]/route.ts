@@ -1,9 +1,6 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { rm } from 'fs/promises'
-import path from 'path'
-import { DOCUMENTS_DIR } from '@/lib/upload-dir'
 import { z } from 'zod'
 
 const renameSchema = z.object({
@@ -28,6 +25,7 @@ export async function GET(
       include: {
         createdBy: { select: { id: true, name: true, department: true } },
         documents: {
+          omit: { fileData: true },
           include: {
             uploadedBy: { select: { id: true, name: true, department: true } },
           },
@@ -97,17 +95,14 @@ export async function DELETE(
 
     const folder = await prisma.documentFolder.findUnique({
       where: { id },
-      select: { id: true, name: true },
+      select: { id: true },
     })
 
     if (!folder) {
       return NextResponse.json({ success: false, error: 'Folder not found' }, { status: 404 })
     }
 
-    // Delete all files on disk, then delete the folder record (cascade handles documents)
-    const folderPath = path.join(DOCUMENTS_DIR, id)
-    await rm(folderPath, { recursive: true, force: true })
-
+    // Cascade delete handles removing documents from DB
     await prisma.documentFolder.delete({ where: { id } })
 
     return NextResponse.json({ success: true })

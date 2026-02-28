@@ -287,7 +287,7 @@ model Document {
   name         String
   mimeType     String
   size         Int
-  filePath     String         @db.Text
+  fileData     Bytes          @db.LongBlob
   folderId     String?
   folder       DocumentFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
   uploadedById String

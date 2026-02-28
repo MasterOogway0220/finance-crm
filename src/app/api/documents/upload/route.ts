@@ -1,10 +1,6 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { writeFile, mkdir } from 'fs/promises'
-import { randomUUID } from 'crypto'
-import path from 'path'
-import { DOCUMENTS_DIR } from '@/lib/upload-dir'
 
 const MAX_SIZE = 20 * 1024 * 1024 // 20 MB
 
@@ -37,31 +33,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Build a safe file name: {docId}.{ext}
-    const originalName = file.name
-    const ext = path.extname(originalName) || ''
-    const docId = randomUUID()
-    const savedFileName = `${docId}${ext}`
-
-    const folderDir = path.join(DOCUMENTS_DIR, folderId || '_root')
-
-    await mkdir(folderDir, { recursive: true })
-
-    const filePath = path.join(folderDir, savedFileName)
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
-    await writeFile(filePath, buffer)
 
     const document = await prisma.document.create({
       data: {
-        id: docId,
-        name: originalName,
+        name: file.name,
         mimeType: file.type || 'application/octet-stream',
         size: file.size,
-        filePath,
+        fileData: buffer,
         folderId: folderId || null,
         uploadedById: session.user.id,
       },
+      omit: { fileData: true },
       include: {
         uploadedBy: { select: { id: true, name: true, department: true } },
       },

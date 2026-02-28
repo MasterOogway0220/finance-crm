@@ -1,7 +1,6 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { readFile, access } from 'fs/promises'
 
 // GET /api/documents/files/[id]/download — serve a file for download
 export async function GET(
@@ -18,31 +17,21 @@ export async function GET(
 
     const document = await prisma.document.findUnique({
       where: { id },
-      select: { id: true, name: true, mimeType: true, filePath: true },
+      select: { id: true, name: true, mimeType: true, fileData: true },
     })
 
     if (!document) {
       return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
     }
 
-    // Check if the file exists on disk before reading
-    try {
-      await access(document.filePath)
-    } catch {
-      console.error(`[Download] File not found on disk: ${document.filePath}`)
-      return NextResponse.json({ success: false, error: 'File not found on disk' }, { status: 404 })
-    }
-
-    const buffer = await readFile(document.filePath)
-
     // Encode filename for Content-Disposition (handles special chars)
     const encodedName = encodeURIComponent(document.name).replace(/'/g, "%27")
 
-    return new NextResponse(buffer, {
+    return new NextResponse(document.fileData, {
       headers: {
         'Content-Type': document.mimeType,
         'Content-Disposition': `attachment; filename*=UTF-8''${encodedName}`,
-        'Content-Length': buffer.length.toString(),
+        'Content-Length': document.fileData.length.toString(),
       },
     })
   } catch (error) {

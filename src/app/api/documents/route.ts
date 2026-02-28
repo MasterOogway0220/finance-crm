@@ -20,6 +20,7 @@ export async function GET() {
       }),
       prisma.document.findMany({
         where: { folderId: null },
+        omit: { fileData: true },
         include: {
           uploadedBy: { select: { id: true, name: true, department: true } },
         },

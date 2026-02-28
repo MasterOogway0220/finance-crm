@@ -2,10 +2,6 @@ import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { mkdir } from 'fs/promises'
-import path from 'path'
-import { randomUUID } from 'crypto'
-import { DOCUMENTS_DIR } from '@/lib/upload-dir'
 
 const folderSchema = z.object({
   name: z.string().min(1, 'Folder name is required').max(100, 'Name too long').trim(),
@@ -28,14 +24,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate the ID upfront so we can create the disk directory first
-    const folderId = randomUUID()
-    const folderPath = path.join(DOCUMENTS_DIR, folderId)
-    await mkdir(folderPath, { recursive: true })
-
     const folder = await prisma.documentFolder.create({
       data: {
-        id: folderId,
         name: parsed.data.name,
         createdById: session.user.id,
       },

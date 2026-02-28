@@ -1,7 +1,6 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { unlink } from 'fs/promises'
 import { z } from 'zod'
 
 const renameSchema = z.object({
@@ -58,15 +57,12 @@ export async function DELETE(
 
     const document = await prisma.document.findUnique({
       where: { id },
-      select: { id: true, filePath: true, name: true },
+      select: { id: true },
     })
 
     if (!document) {
       return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
     }
-
-    // Remove from disk (silently ignore if already gone)
-    await unlink(document.filePath).catch(() => {})
 
     await prisma.document.delete({ where: { id } })
 
