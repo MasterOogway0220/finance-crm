@@ -77,18 +77,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Employee not found' }, { status: 404 })
     }
 
-    const from = new Date(fromDate)
-    const to = new Date(toDate)
+    // Parse dates as explicit UTC to avoid timezone shifting
+    // fromDate/toDate are "YYYY-MM-DD" strings from input[type="date"]
+    const from = new Date(fromDate + 'T00:00:00.000Z')
+    const to = new Date(toDate + 'T00:00:00.000Z')
     if (from > to) {
       return NextResponse.json({ success: false, error: 'From date must be before to date' }, { status: 400 })
     }
 
-    // Check for overlapping leaves (pending or approved)
+    // Check for overlapping leaves (pending or approved) using UTC boundaries
+    const toEnd = new Date(toDate + 'T23:59:59.999Z')
     const overlap = await prisma.leaveApplication.findFirst({
       where: {
         employeeId: targetEmployeeId,
         status: { in: ['PENDING', 'APPROVED'] },
-        fromDate: { lte: to },
+        fromDate: { lte: toEnd },
         toDate: { gte: from },
       },
     })

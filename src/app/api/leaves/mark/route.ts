@@ -32,21 +32,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Employee not found' }, { status: 404 })
     }
 
-    const from = new Date(fromDate)
-    from.setHours(0, 0, 0, 0)
-    const to = new Date(toDate)
-    to.setHours(23, 59, 59, 999)
+    // Parse dates as explicit UTC to avoid timezone shifting
+    // fromDate/toDate are "YYYY-MM-DD" strings from input[type="date"]
+    const from = new Date(fromDate + 'T00:00:00.000Z')
+    const to = new Date(toDate + 'T00:00:00.000Z')
 
     if (from > to) {
       return NextResponse.json({ success: false, error: 'From date must be before to date' }, { status: 400 })
     }
 
-    // Check for overlapping leaves
+    // Check for overlapping leaves using UTC date boundaries
+    const toEnd = new Date(toDate + 'T23:59:59.999Z')
     const overlap = await prisma.leaveApplication.findFirst({
       where: {
         employeeId,
         status: { in: ['PENDING', 'APPROVED'] },
-        fromDate: { lte: to },
+        fromDate: { lte: toEnd },
         toDate: { gte: from },
       },
     })
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create leave directly as APPROVED
+    // Store both dates at UTC midnight so frontend can extract date-only reliably
     const application = await prisma.leaveApplication.create({
       data: {
         employeeId,
@@ -75,13 +77,13 @@ export async function POST(request: NextRequest) {
     })
 
     // Notify the employee
-    const fmt = (d: Date) => d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-    const rangeStr = from.toDateString() === to.toDateString() ? fmt(from) : `${fmt(from)} – ${fmt(to)}`
+    const fmt = (d: Date) => d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })
+    const rangeStr = fromDate === toDate ? fmt(from) : `${fmt(from)} – ${fmt(to)}`
     await createNotification({
       userId: employeeId,
       type: 'LEAVE_APPROVED',
       title: 'Absence Recorded',
-      message: `Admin has recorded your absence from ${rangeStr} (${days} working day${days > 1 ? 's' : ''}). This has been deducted from your leave balance.`,
+      message: `Admin has recorded your absence for ${rangeStr} (${days} working day${days > 1 ? 's' : ''}). This has been deducted from your leave balance.`,
       link: '/calendar',
     })
 

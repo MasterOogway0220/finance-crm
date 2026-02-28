@@ -15,16 +15,19 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayEnd = new Date(today)
-    todayEnd.setHours(23, 59, 59, 999)
+    // Get today's date in IST (Asia/Kolkata) to handle UTC server environments
+    const now = new Date()
+    const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) // "YYYY-MM-DD"
+
+    // Use explicit UTC boundaries for today
+    const todayStart = new Date(todayStr + 'T00:00:00.000Z')
+    const todayEnd = new Date(todayStr + 'T23:59:59.999Z')
 
     const onLeave = await prisma.leaveApplication.findMany({
       where: {
         status: 'APPROVED',
         fromDate: { lte: todayEnd },
-        toDate: { gte: today },
+        toDate: { gte: todayStart },
       },
       include: {
         employee: { select: { id: true, name: true, department: true, designation: true } },

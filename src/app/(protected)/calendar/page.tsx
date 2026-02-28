@@ -526,11 +526,14 @@ export default function CalendarPage() {
     .map((h) => parseISO(h.date))
 
   // All approved leave date ranges → individual days
+  // Extract date-only (YYYY-MM-DD) to avoid timezone shifts (e.g. UTC midnight → next day in IST)
   const approvedLeaveDates: Date[] = applications
     .filter((a) => a.status === 'APPROVED')
-    .flatMap((a) =>
-      eachDayOfInterval({ start: parseISO(a.fromDate), end: parseISO(a.toDate) })
-    )
+    .flatMap((a) => {
+      const fromStr = a.fromDate.slice(0, 10) // "YYYY-MM-DD"
+      const toStr = a.toDate.slice(0, 10)
+      return eachDayOfInterval({ start: parseISO(fromStr), end: parseISO(toStr) })
+    })
 
   const allHolidayStrings = holidays.map((h) => h.date)
 
@@ -568,8 +571,8 @@ export default function CalendarPage() {
     ? applications.filter(
         (a) =>
           a.status === 'APPROVED' &&
-          format(parseISO(a.fromDate), 'yyyy-MM-dd') <= selectedDateStr &&
-          format(parseISO(a.toDate), 'yyyy-MM-dd') >= selectedDateStr
+          a.fromDate.slice(0, 10) <= selectedDateStr &&
+          a.toDate.slice(0, 10) >= selectedDateStr
       )
     : []
 
@@ -644,40 +647,49 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* --- Admin: Who's on leave today --- */}
-      {isAdmin && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex items-center gap-3 border-b px-6 py-4">
-            <Users className="h-5 w-5 text-blue-600" />
-            <h2 className="font-semibold text-gray-900">On Leave Today</h2>
-            <span className="ml-auto rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
-              {todayLeaves.length}
-            </span>
-          </div>
-          <div className="px-6 py-4">
-            {todayLeaves.length === 0 ? (
-              <p className="text-sm text-gray-500">No employees on approved leave today.</p>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {todayLeaves.map((l) => (
-                  <div
-                    key={l.id}
-                    className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2"
-                  >
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-200 text-xs font-semibold text-green-800">
-                      {l.employee.name.charAt(0)}
+      {/* --- Admin: Who's on leave today (resets after 5:30 PM IST) --- */}
+      {isAdmin && (() => {
+        // Check if current IST time is past 5:30 PM (office hours ended)
+        const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+        const isPastOfficeHours = nowIST.getHours() > 17 || (nowIST.getHours() === 17 && nowIST.getMinutes() >= 30)
+        const visibleLeaves = isPastOfficeHours ? [] : todayLeaves
+
+        return (
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex items-center gap-3 border-b px-6 py-4">
+              <Users className="h-5 w-5 text-blue-600" />
+              <h2 className="font-semibold text-gray-900">On Leave Today</h2>
+              <span className="ml-auto rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                {visibleLeaves.length}
+              </span>
+            </div>
+            <div className="px-6 py-4">
+              {isPastOfficeHours ? (
+                <p className="text-sm text-gray-500">Office hours have ended (5:30 PM). This section resets daily.</p>
+              ) : visibleLeaves.length === 0 ? (
+                <p className="text-sm text-gray-500">No employees on approved leave today.</p>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {visibleLeaves.map((l) => (
+                    <div
+                      key={l.id}
+                      className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2"
+                    >
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-200 text-xs font-semibold text-green-800">
+                        {l.employee.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{l.employee.name}</p>
+                        <p className="text-xs text-gray-500">{DEPT_LABELS[l.employee.department] ?? l.employee.department}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{l.employee.name}</p>
-                      <p className="text-xs text-gray-500">{DEPT_LABELS[l.employee.department] ?? l.employee.department}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* --- Calendar + Day Detail --- */}
       <div className="flex gap-6">
