@@ -14,9 +14,31 @@ import {
 
 const YEARS = ['2024', '2025', '2026']
 
+const MONTH_RANGES = [
+  { label: 'Full Year', value: 'full', indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+  { label: 'Quarter 1', value: 'q1', indices: [0, 1, 2] },
+  { label: 'Quarter 2', value: 'q2', indices: [3, 4, 5] },
+  { label: 'Quarter 3', value: 'q3', indices: [6, 7, 8] },
+  { label: 'Quarter 4', value: 'q4', indices: [9, 10, 11] },
+  { label: '1st Half', value: 'h1', indices: [0, 1, 2, 3, 4, 5] },
+  { label: '2nd Half', value: 'h2', indices: [6, 7, 8, 9, 10, 11] },
+]
+
+const Y_TICKS = [0, 50000, 100000, 150000, 200000, 250000, 300000, 350000, 400000]
+
+const formatYAxis = (v: number) => {
+  if (v === 0) return '0'
+  if (v < 100000) return `${v / 1000}k`
+  const lakhs = v / 100000
+  return `${lakhs % 1 === 0 ? lakhs.toFixed(0) : lakhs.toFixed(1)}L`
+}
+
+const BAR_COLORS = ['#3b82f6', '#ef4444', '#a855f7', '#f59e0b', '#10b981', '#06b6d4', '#ec4899', '#f97316', '#84cc16', '#14b8a6', '#8b5cf6', '#6b7280']
+
 export default function BrokerageReportPage() {
   const { data: session } = useSession()
   const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [monthRange, setMonthRange] = useState('full')
   const [data, setData] = useState<{ matrix: Record<string, Record<string, number>>; months: string[]; operators: string[] } | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -43,12 +65,15 @@ export default function BrokerageReportPage() {
     }
   }
 
-  const chartData = data?.operators.map((op) => ({
-    name: op.split(' ')[0],
-    ...data.months.reduce((acc, m) => ({ ...acc, [m]: data.matrix[op]?.[m] || 0 }), {}),
-  })) || []
+  // Filter months based on selected range
+  const selectedRange = MONTH_RANGES.find((r) => r.value === monthRange) || MONTH_RANGES[0]
+  const filteredMonths = data ? selectedRange.indices.filter((i) => i < data.months.length).map((i) => data.months[i]) : []
 
-  const COLORS = ['#3b82f6', '#ef4444', '#a855f7', '#f59e0b', '#10b981', '#6b7280', '#06b6d4', '#ec4899', '#f97316', '#84cc16', '#14b8a6', '#8b5cf6']
+  // Restructured: months on X-axis, operators as separate bars
+  const chartData = filteredMonths.map((month) => ({
+    month,
+    ...data?.operators.reduce((acc, op) => ({ ...acc, [op]: data.matrix[op]?.[month] || 0 }), {}),
+  })) || []
 
   return (
     <div className="p-6 space-y-6">
@@ -61,6 +86,14 @@ export default function BrokerageReportPage() {
           <Select value={year} onValueChange={setYear}>
             <SelectTrigger className="w-24 h-9"><SelectValue /></SelectTrigger>
             <SelectContent>{YEARS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={monthRange} onValueChange={setMonthRange}>
+            <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MONTH_RANGES.map((r) => (
+                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+              ))}
+            </SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={handleExport} className="gap-1.5 h-9">
             <Download className="h-3.5 w-3.5" />Export Excel
@@ -85,16 +118,21 @@ export default function BrokerageReportPage() {
 
           {/* Chart */}
           <div className="bg-white rounded-lg border p-4">
-            <h2 className="text-base font-semibold text-gray-700 mb-4">Monthly Brokerage by Operator</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData} margin={{ left: 10, right: 10 }}>
+            <h2 className="text-base font-semibold text-gray-700 mb-4">My Monthly Brokerage</h2>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={chartData} margin={{ left: 10, right: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis
+                  domain={[0, 400000]}
+                  ticks={Y_TICKS}
+                  tickFormatter={formatYAxis}
+                  tick={{ fontSize: 11 }}
+                />
                 <Tooltip formatter={(v: number | undefined, name: string | undefined) => [formatCurrency(v ?? 0), name ?? '']} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                {(data.months || []).map((m, i) => (
-                  <Bar key={m} dataKey={m} fill={COLORS[i % COLORS.length]} />
+                {(data.operators || []).map((op, i) => (
+                  <Bar key={op} dataKey={op} fill={BAR_COLORS[i % BAR_COLORS.length]} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
