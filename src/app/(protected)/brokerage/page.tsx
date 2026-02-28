@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, getDaysInMonth } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import { Upload } from 'lucide-react'
+import { Upload, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { format } from 'date-fns'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import Link from 'next/link'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
-} from 'recharts'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 
 interface BrokerageData {
   operatorPerformance: Array<{
@@ -31,8 +31,6 @@ interface BrokerageData {
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: new Date(0, i).toLocaleString('default', { month: 'long' }) }))
 const YEARS = [2024, 2025, 2026, 2027].map((y) => ({ value: String(y), label: String(y) }))
-const MONTH_COLORS = ['#3b82f6', '#ef4444', '#a855f7', '#f59e0b', '#10b981', '#6b7280', '#06b6d4', '#ec4899']
-
 const TH = 'px-3 py-2.5 text-white font-semibold text-center text-xs whitespace-nowrap'
 const TD = 'px-3 py-2.5 text-center text-sm'
 
@@ -42,14 +40,45 @@ export default function BrokeragePage() {
   const [year, setYear] = useState(String(now.getFullYear()))
   const [data, setData] = useState<BrokerageData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [uploadLog, setUploadLog] = useState<Array<{ id: string; uploadDate: string; fileName: string; totalAmount: number; uploadedBy: string; createdAt: string }>>([])
+  const [reverseTarget, setReverseTarget] = useState<string | null>(null)
+  const [reversing, setReversing] = useState(false)
 
-  useEffect(() => {
+  const fetchData = () => {
     setLoading(true)
     fetch(`/api/brokerage?month=${month}&year=${year}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
       .finally(() => setLoading(false))
-  }, [month, year])
+  }
+
+  const fetchLog = () => {
+    fetch(`/api/brokerage/log?month=${month}&year=${year}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setUploadLog(d.data) })
+  }
+
+  useEffect(() => { fetchData(); fetchLog() }, [month, year])
+
+  const handleReverse = async () => {
+    if (!reverseTarget) return
+    setReversing(true)
+    const res = await fetch('/api/brokerage/reverse', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uploadId: reverseTarget }),
+    })
+    const d = await res.json()
+    if (d.success) {
+      toast.success('Brokerage upload reversed')
+      setReverseTarget(null)
+      fetchData()
+      fetchLog()
+    } else {
+      toast.error(d.error || 'Reversal failed')
+    }
+    setReversing(false)
+  }
 
   const daysInMonth = getDaysInMonth(parseInt(year), parseInt(month))
   const currentDay = now.getMonth() + 1 === parseInt(month) && now.getFullYear() === parseInt(year) ? now.getDate() : daysInMonth
@@ -120,8 +149,6 @@ export default function BrokeragePage() {
                     <th className={TH}>Traded</th>
                     <th className={cn(TH, 'hidden sm:table-cell')}>Not Traded</th>
                     <th className={cn(TH, 'hidden sm:table-cell')}>Traded %</th>
-                    <th className={cn(TH, 'hidden md:table-cell')}>Amount %</th>
-                    <th className={cn(TH, 'hidden md:table-cell')}>DNA</th>
                     <th className={TH}>Monthly (₹)</th>
                   </tr>
                 </thead>
@@ -133,8 +160,6 @@ export default function BrokeragePage() {
                       <td className={cn(TD, 'text-green-700 font-medium')}>{row.tradedClients}</td>
                       <td className={cn(TD, 'text-red-600 hidden sm:table-cell')}>{row.notTraded}</td>
                       <td className={cn(TD, 'hidden sm:table-cell')}>{row.tradedPercentage.toFixed(1)}%</td>
-                      <td className={cn(TD, 'hidden md:table-cell')}>{row.tradedAmountPercent.toFixed(1)}%</td>
-                      <td className={cn(TD, 'text-amber-700 hidden md:table-cell')}>{row.didNotAnswer}</td>
                       <td className={cn(TD, 'font-semibold')}>{formatCurrency(row.monthlyTotal)}</td>
                     </tr>
                   ))}
@@ -146,14 +171,68 @@ export default function BrokeragePage() {
                     <td className={cn(TD, 'text-green-800')}>{data.operatorPerformance.reduce((s, r) => s + r.tradedClients, 0)}</td>
                     <td className={cn(TD, 'text-red-700 hidden sm:table-cell')}>{data.operatorPerformance.reduce((s, r) => s + r.notTraded, 0)}</td>
                     <td className={cn(TD, 'hidden sm:table-cell')}>—</td>
-                    <td className={cn(TD, 'hidden md:table-cell')}>100%</td>
-                    <td className={cn(TD, 'hidden md:table-cell')}>{data.operatorPerformance.reduce((s, r) => s + r.didNotAnswer, 0)}</td>
                     <td className={cn(TD, 'font-bold text-green-800')}>{formatCurrency(totalMonthly)}</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
           </div>
+
+          {/* ── Brokerage Upload Log ── */}
+          {uploadLog.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Brokerage Upload Log</h2>
+              <div className="rounded-lg border border-gray-200 overflow-hidden">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">Date</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">File Name</th>
+                      <th className="px-3 py-2.5 text-right font-semibold text-gray-600 text-xs">Total Amount</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">Uploaded By</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">Uploaded At</th>
+                      <th className="px-3 py-2.5 text-center font-semibold text-gray-600 text-xs">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uploadLog.map((log, idx) => (
+                      <tr key={log.id} className={cn('border-b border-gray-100', idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')}>
+                        <td className="px-3 py-2.5 text-sm text-gray-800">{format(new Date(log.uploadDate), 'd MMM yyyy')}</td>
+                        <td className="px-3 py-2.5 text-sm text-gray-600">{log.fileName}</td>
+                        <td className="px-3 py-2.5 text-sm text-right font-medium">{formatCurrency(log.totalAmount)}</td>
+                        <td className="px-3 py-2.5 text-sm text-gray-600">{log.uploadedBy}</td>
+                        <td className="px-3 py-2.5 text-xs text-gray-500">{format(new Date(log.createdAt), 'd MMM yyyy, h:mm a')}</td>
+                        <td className="px-3 py-2.5 text-center">
+                          <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setReverseTarget(log.id)}>
+                            Reverse
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Reverse Confirmation Dialog */}
+          <Dialog open={!!reverseTarget} onOpenChange={() => setReverseTarget(null)}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader><DialogTitle>Reverse Brokerage Upload</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Are you sure you want to reverse this brokerage upload? This will permanently delete all brokerage records for this upload.
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="flex-1" onClick={() => setReverseTarget(null)}>Cancel</Button>
+                  <Button variant="destructive" className="flex-1" onClick={handleReverse} disabled={reversing}>
+                    {reversing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    {reversing ? 'Reversing…' : 'Confirm Reverse'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* ── Daily Breakdown (own horizontal scroll, hidden on mobile) ── */}
           <div className="hidden md:block">
@@ -201,28 +280,6 @@ export default function BrokeragePage() {
             <p className="text-xs text-gray-400 mt-1.5">Scroll right to see all days →</p>
           </div>
 
-          {/* ── Chart ── */}
-          {data.brokerageChartData.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Equity All Stats</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={data.brokerageChartData} layout="vertical" margin={{ left: 10, right: 20, top: 4, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10 }} />
-                    <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(v: number | undefined, name: string | undefined) => [formatCurrency(v ?? 0), name ?? '']} />
-                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
-                    {data.brokerageMonths.map((m, i) => (
-                      <Bar key={m} dataKey={m} stackId="a" fill={MONTH_COLORS[i % MONTH_COLORS.length]} />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
         </>
       )}
     </div>

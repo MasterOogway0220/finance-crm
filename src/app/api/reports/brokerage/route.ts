@@ -1,7 +1,16 @@
 import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { Role } from '@prisma/client'
+
+const RANGE_MONTHS: Record<string, number[]> = {
+  Q1: [0, 1, 2],
+  Q2: [3, 4, 5],
+  Q3: [6, 7, 8],
+  Q4: [9, 10, 11],
+  H1: [0, 1, 2, 3, 4, 5],
+  H2: [6, 7, 8, 9, 10, 11],
+  FULL: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,25 +29,38 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const now = new Date()
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
+    const operatorId = searchParams.get('operatorId')
+    const range = searchParams.get('range') ?? 'FULL'
+    const activeMonthIndices = RANGE_MONTHS[range] ?? RANGE_MONTHS.FULL
 
     // Admins see all equity dealers; equity dealers see only themselves
-    const equityDealers = isAdmin
-      ? await prisma.employee.findMany({
+    let equityDealers
+    if (isAdmin) {
+      if (operatorId) {
+        equityDealers = await prisma.employee.findMany({
+          where: { id: operatorId, role: 'EQUITY_DEALER', isActive: true },
+          select: { id: true, name: true },
+        })
+      } else {
+        equityDealers = await prisma.employee.findMany({
           where: { role: 'EQUITY_DEALER', isActive: true },
           select: { id: true, name: true },
         })
-      : await prisma.employee.findMany({
-          where: { id: session.user.id },
-          select: { id: true, name: true },
-        })
+      }
+    } else {
+      equityDealers = await prisma.employee.findMany({
+        where: { id: session.user.id },
+        select: { id: true, name: true },
+      })
+    }
 
-    // Build 12 months for the year
-    const months: Array<{ label: string; start: Date; end: Date }> = []
-    for (let m = 0; m < 12; m++) {
+    // Build months for the year, filtered by range
+    const months: Array<{ label: string; start: Date; end: Date; idx: number }> = []
+    for (const m of activeMonthIndices) {
       const start = new Date(year, m, 1)
       const end = new Date(year, m + 1, 0, 23, 59, 59, 999)
       const label = start.toLocaleString('default', { month: 'short', year: '2-digit' })
-      months.push({ label, start, end })
+      months.push({ label, start, end, idx: m })
     }
     const monthLabels = months.map((m) => m.label)
     const operatorNames = equityDealers.map((e) => e.name)
@@ -71,13 +93,15 @@ export async function GET(request: NextRequest) {
 
     // Fill matrix
     const opIdToName = new Map(equityDealers.map((e) => [e.id, e.name]))
+    const activeMonthSet = new Set(activeMonthIndices)
     for (const detail of details) {
       const opName = opIdToName.get(detail.operatorId)
       if (!opName) continue
       const uploadDate = new Date(detail.brokerage.uploadDate)
       const monthIdx = uploadDate.getMonth()
-      const monthLabel = months[monthIdx].label
-      if (matrix[opName]) {
+      if (!activeMonthSet.has(monthIdx)) continue
+      const monthLabel = months.find((m) => m.idx === monthIdx)?.label
+      if (monthLabel && matrix[opName]) {
         matrix[opName][monthLabel] = (matrix[opName][monthLabel] ?? 0) + detail.amount
       }
     }

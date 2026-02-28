@@ -17,19 +17,31 @@ interface TaskReportData {
   summary: { totalCompleted: number; totalPending: number; totalExpired: number; completionRate: number }
 }
 
+interface Employee { id: string; name: string }
+
 export default function TasksReportPage() {
   const { data: session } = useSession()
   const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [employeeId, setEmployeeId] = useState('all')
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [data, setData] = useState<TaskReportData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    fetch('/api/employees?department=BACK_OFFICE&isActive=true')
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setEmployees(d.data) })
+  }, [])
+
+  useEffect(() => {
     setLoading(true)
-    fetch(`/api/reports/tasks?year=${year}`)
+    const params = new URLSearchParams({ year })
+    if (employeeId !== 'all') params.set('employeeId', employeeId)
+    fetch(`/api/reports/tasks?${params}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
       .finally(() => setLoading(false))
-  }, [year])
+  }, [year, employeeId])
 
   const handleExport = async () => {
     const res = await fetch('/api/reports/export', {
@@ -54,6 +66,13 @@ export default function TasksReportPage() {
           <p className="text-sm text-gray-500">Task completion performance</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Select value={employeeId} onValueChange={setEmployeeId}>
+            <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="Select Employee" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Employees</SelectItem>
+              {employees.map((e) => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={year} onValueChange={setYear}>
             <SelectTrigger className="w-24 h-9"><SelectValue /></SelectTrigger>
             <SelectContent>{YEARS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent>

@@ -412,7 +412,7 @@ export default function ClientMasterPage() {
                 Are you sure you want to permanently delete <strong>{deleteTarget.firstName} {deleteTarget.lastName}</strong> ({deleteTarget.clientCode})?
               </p>
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                Clients with brokerage history cannot be deleted.
+                This will permanently delete the client. Historical brokerage records will be preserved.
               </p>
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>

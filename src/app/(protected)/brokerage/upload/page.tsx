@@ -8,7 +8,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CalendarIcon, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react'
-import { format, subDays } from 'date-fns'
+import { format } from 'date-fns'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -24,7 +24,7 @@ interface UploadSummary {
 export default function BrokerageUploadPage() {
   const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
-  const [date, setDate] = useState<Date>(subDays(new Date(), 1))
+  const [date, setDate] = useState<Date>(new Date())
   const [step, setStep] = useState<'upload' | 'preview' | 'success'>('upload')
   const [summary, setSummary] = useState<UploadSummary | null>(null)
   const [processing, setProcessing] = useState(false)
@@ -113,7 +113,7 @@ export default function BrokerageUploadPage() {
                   <Calendar mode="single" selected={date} onSelect={(d) => d && setDate(d)} initialFocus />
                 </PopoverContent>
               </Popover>
-              <p className="text-xs text-gray-400 mt-1">Defaults to yesterday (brokerage for day X is uploaded on day X+1)</p>
+              <p className="text-xs text-gray-400 mt-1">Select the date for which brokerage is being uploaded</p>
             </div>
 
             <div>

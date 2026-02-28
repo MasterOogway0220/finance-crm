@@ -24,19 +24,17 @@ export async function DELETE(
 
     const existing = await prisma.client.findUnique({
       where: { id },
-      include: { _count: { select: { brokerageDetails: true } } },
     })
 
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Client not found' }, { status: 404 })
     }
 
-    if (existing._count.brokerageDetails > 0) {
-      return NextResponse.json(
-        { success: false, error: 'Cannot delete client with brokerage history' },
-        { status: 400 }
-      )
-    }
+    // Preserve brokerage history by unlinking client from brokerage details
+    await prisma.brokerageDetail.updateMany({
+      where: { clientId: id },
+      data: { clientId: null },
+    })
 
     await prisma.client.delete({ where: { id } })
 
@@ -44,7 +42,7 @@ export async function DELETE(
       userId: session.user.id,
       action: 'DELETE',
       module: 'CLIENTS',
-      details: `Deleted client: ${existing.clientCode} - ${existing.firstName} ${existing.lastName}`,
+      details: `Deleted client: ${existing.clientCode} - ${existing.firstName} ${existing.lastName}. Historical brokerage records preserved.`,
     })
 
     return NextResponse.json({ success: true })
