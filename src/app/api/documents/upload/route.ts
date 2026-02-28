@@ -22,19 +22,18 @@ export async function POST(request: NextRequest) {
     if (!file || !file.name) {
       return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 })
     }
-    if (!folderId) {
-      return NextResponse.json({ success: false, error: 'folderId is required' }, { status: 400 })
-    }
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ success: false, error: 'File exceeds 20 MB limit' }, { status: 400 })
     }
 
-    const folder = await prisma.documentFolder.findUnique({
-      where: { id: folderId },
-      select: { id: true },
-    })
-    if (!folder) {
-      return NextResponse.json({ success: false, error: 'Folder not found' }, { status: 404 })
+    if (folderId) {
+      const folder = await prisma.documentFolder.findUnique({
+        where: { id: folderId },
+        select: { id: true },
+      })
+      if (!folder) {
+        return NextResponse.json({ success: false, error: 'Folder not found' }, { status: 404 })
+      }
     }
 
     // Build a safe file name: {docId}.{ext}
@@ -44,7 +43,7 @@ export async function POST(request: NextRequest) {
     const savedFileName = `${docId}${ext}`
 
     const uploadBase = path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), 'uploads'), 'documents')
-    const folderDir = path.join(uploadBase, folderId)
+    const folderDir = path.join(uploadBase, folderId || '_root')
 
     await mkdir(folderDir, { recursive: true })
 
@@ -60,7 +59,7 @@ export async function POST(request: NextRequest) {
         mimeType: file.type || 'application/octet-stream',
         size: file.size,
         filePath,
-        folderId,
+        folderId: folderId || null,
         uploadedById: session.user.id,
       },
       include: {

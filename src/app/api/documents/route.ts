@@ -10,15 +10,24 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const folders = await prisma.documentFolder.findMany({
-      include: {
-        createdBy: { select: { id: true, name: true, department: true } },
-        _count: { select: { documents: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+    const [folders, looseFiles] = await Promise.all([
+      prisma.documentFolder.findMany({
+        include: {
+          createdBy: { select: { id: true, name: true, department: true } },
+          _count: { select: { documents: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.document.findMany({
+        where: { folderId: null },
+        include: {
+          uploadedBy: { select: { id: true, name: true, department: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ])
 
-    return NextResponse.json({ success: true, data: folders })
+    return NextResponse.json({ success: true, data: folders, looseFiles })
   } catch (error) {
     console.error('[GET /api/documents]', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })

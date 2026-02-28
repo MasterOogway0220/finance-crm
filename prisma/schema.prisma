@@ -288,8 +288,8 @@ model Document {
   mimeType     String
   size         Int
   filePath     String         @db.Text
-  folderId     String
-  folder       DocumentFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  folderId     String?
+  folder       DocumentFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
   uploadedById String
   uploadedBy   Employee       @relation("DocumentUploader", fields: [uploadedById], references: [id])
   createdAt    DateTime       @default(now())
