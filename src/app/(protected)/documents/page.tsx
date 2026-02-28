@@ -343,7 +343,8 @@ export default function DocumentPoolPage() {
     try {
       const res = await fetch(`/api/documents/files/${doc.id}/download`)
       if (!res.ok) {
-        toast.error('Download failed')
+        const data = await res.json().catch(() => null)
+        toast.error(data?.error || 'Download failed')
         return
       }
       const blob = await res.blob()
