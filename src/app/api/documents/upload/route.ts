@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir } from 'fs/promises'
 import { randomUUID } from 'crypto'
 import path from 'path'
+import { DOCUMENTS_DIR } from '@/lib/upload-dir'
 
 const MAX_SIZE = 20 * 1024 * 1024 // 20 MB
 
@@ -42,8 +43,7 @@ export async function POST(request: NextRequest) {
     const docId = randomUUID()
     const savedFileName = `${docId}${ext}`
 
-    const uploadBase = path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), 'uploads'), 'documents')
-    const folderDir = path.join(uploadBase, folderId || '_root')
+    const folderDir = path.join(DOCUMENTS_DIR, folderId || '_root')
 
     await mkdir(folderDir, { recursive: true })
 

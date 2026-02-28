@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { readFile } from 'fs/promises'
+import { readFile, access } from 'fs/promises'
 
 // GET /api/documents/files/[id]/download — serve a file for download
 export async function GET(
@@ -23,6 +23,14 @@ export async function GET(
 
     if (!document) {
       return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+    }
+
+    // Check if the file exists on disk before reading
+    try {
+      await access(document.filePath)
+    } catch {
+      console.error(`[Download] File not found on disk: ${document.filePath}`)
+      return NextResponse.json({ success: false, error: 'File not found on disk' }, { status: 404 })
     }
 
     const buffer = await readFile(document.filePath)

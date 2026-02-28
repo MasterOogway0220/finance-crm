@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { rm } from 'fs/promises'
 import path from 'path'
+import { DOCUMENTS_DIR } from '@/lib/upload-dir'
 import { z } from 'zod'
 
 const renameSchema = z.object({
@@ -104,7 +105,7 @@ export async function DELETE(
     }
 
     // Delete all files on disk, then delete the folder record (cascade handles documents)
-    const folderPath = path.join(process.cwd(), 'uploads', 'documents', id)
+    const folderPath = path.join(DOCUMENTS_DIR, id)
     await rm(folderPath, { recursive: true, force: true })
 
     await prisma.documentFolder.delete({ where: { id } })
