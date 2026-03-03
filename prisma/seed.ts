@@ -116,12 +116,12 @@ async function main() {
       },
     }),
     prisma.employee.upsert({
-      where: { email: 'karad.branch@placeholder.com' },
+      where: { email: 'karad_dummy18@gmail.com' },
       update: {},
       create: {
-        name: 'Karad Branch',
-        email: 'karad.branch@placeholder.com',
-        phone: '0000000001',
+        name: 'Karad',
+        email: 'karad_dummy18@gmail.com',
+        phone: '9998887771',
         password: hashedPassword,
         department: Department.EQUITY,
         designation: 'Equity Dealer',
@@ -129,12 +129,12 @@ async function main() {
       },
     }),
     prisma.employee.upsert({
-      where: { email: 'pune.branch@placeholder.com' },
+      where: { email: 'pruthav111@gmail.com' },
       update: {},
       create: {
-        name: 'Pune Branch',
-        email: 'pune.branch@placeholder.com',
-        phone: '0000000002',
+        name: 'Pune',
+        email: 'pruthav111@gmail.com',
+        phone: '8668547746',
         password: hashedPassword,
         department: Department.EQUITY,
         designation: 'Equity Dealer',
@@ -248,8 +248,8 @@ async function main() {
     'Vinit': 'vinitgollar07@gmail.com',
     'Kedar Sir': 'kedaroak_13@rediffmail.com',
     'Vedant': 'vedant_dummy18@gmail.com',
-    'Karad': 'karad.branch@placeholder.com',
-    'Pune': 'pune.branch@placeholder.com',
+    'Karad': 'karad_dummy18@gmail.com',
+    'Pune': 'pruthav111@gmail.com',
   }
 
   const operatorIdMap: Record<string, string> = {}

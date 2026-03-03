@@ -62,4 +62,5 @@ export const bulkClientUpdateSchema = z.object({
   remark: z.enum(['SUCCESSFULLY_TRADED', 'NOT_TRADED', 'NO_FUNDS_FOR_TRADING', 'DID_NOT_ANSWER', 'SELF_TRADING']).optional(),
   mfStatus: z.enum(['ACTIVE', 'INACTIVE']).optional(),
   mfRemark: z.enum(['INVESTMENT_DONE', 'INTERESTED', 'NOT_INTERESTED', 'DID_NOT_ANSWER', 'FOLLOW_UP_REQUIRED']).optional(),
+  operatorId: z.string().optional(),
 })

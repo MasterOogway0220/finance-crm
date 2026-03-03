@@ -60,7 +60,15 @@ function EquityTasksContent() {
     if (priority !== 'all') params.set('priority', priority)
     fetch(`/api/tasks?${params}`)
       .then((r) => r.json())
-      .then((d) => { if (d.success) setTasks(d.data.tasks || []) })
+      .then((d) => {
+        if (d.success) {
+          // Equity department: auto-reset monthly — only show current month's tasks
+          const now = new Date()
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+          const filtered = (d.data.tasks || []).filter((t: TaskWithRelations) => new Date(t.createdAt) >= monthStart)
+          setTasks(filtered)
+        }
+      })
       .finally(() => setLoading(false))
   }, [tab, status, priority])
 

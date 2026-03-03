@@ -58,13 +58,12 @@ export async function GET(request: NextRequest) {
     const monthlyBrokerage = brokerageSum._sum.amount ?? 0
     const lastMonthBrokerage = lastMonthBrokerageSum._sum.amount ?? 0
 
-    // Build last 6 months + current for brokerage chart
+    // Build all 12 months of current year for brokerage chart
     const months: Array<{ label: string; start: Date; end: Date }> = []
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const s = new Date(d.getFullYear(), d.getMonth(), 1)
-      const e = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59)
-      const label = d.toLocaleString('default', { month: 'short', year: '2-digit' })
+    for (let m = 0; m < 12; m++) {
+      const s = new Date(now.getFullYear(), m, 1)
+      const e = new Date(now.getFullYear(), m + 1, 0, 23, 59, 59)
+      const label = s.toLocaleString('default', { month: 'short', year: '2-digit' })
       months.push({ label, start: s, end: e })
     }
     const brokerageMonths = months.map((m) => m.label)

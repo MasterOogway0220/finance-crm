@@ -43,6 +43,9 @@ export default function BrokeragePage() {
   const [uploadLog, setUploadLog] = useState<Array<{ id: string; uploadDate: string; fileName: string; totalAmount: number; uploadedBy: string; createdAt: string }>>([])
   const [reverseTarget, setReverseTarget] = useState<string | null>(null)
   const [reversing, setReversing] = useState(false)
+  const [selectedUploads, setSelectedUploads] = useState<Set<string>>(new Set())
+  const [bulkReverseOpen, setBulkReverseOpen] = useState(false)
+  const [bulkReversing, setBulkReversing] = useState(false)
 
   const fetchData = () => {
     setLoading(true)
@@ -78,6 +81,42 @@ export default function BrokeragePage() {
       toast.error(d.error || 'Reversal failed')
     }
     setReversing(false)
+  }
+
+  const handleBulkReverse = async () => {
+    setBulkReversing(true)
+    const res = await fetch('/api/brokerage/reverse', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uploadIds: Array.from(selectedUploads) }),
+    })
+    const d = await res.json()
+    if (d.success) {
+      toast.success(`Reversed ${d.data.reversedCount} upload(s)`)
+      setBulkReverseOpen(false)
+      setSelectedUploads(new Set())
+      fetchData()
+      fetchLog()
+    } else {
+      toast.error(d.error || 'Bulk reversal failed')
+    }
+    setBulkReversing(false)
+  }
+
+  const toggleUploadSelect = (id: string) => {
+    setSelectedUploads(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const toggleAllUploads = () => {
+    if (selectedUploads.size === uploadLog.length) {
+      setSelectedUploads(new Set())
+    } else {
+      setSelectedUploads(new Set(uploadLog.map(l => l.id)))
+    }
   }
 
   const daysInMonth = getDaysInMonth(parseInt(year), parseInt(month))
@@ -181,11 +220,26 @@ export default function BrokeragePage() {
           {/* ── Brokerage Upload Log ── */}
           {uploadLog.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Brokerage Upload Log</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Brokerage Upload Log</h2>
+                {selectedUploads.size > 0 && (
+                  <Button size="sm" variant="destructive" className="h-8 text-xs gap-1.5" onClick={() => setBulkReverseOpen(true)}>
+                    Reverse Selected ({selectedUploads.size})
+                  </Button>
+                )}
+              </div>
               <div className="rounded-lg border border-gray-200 overflow-hidden">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-gray-50">
+                      <th className="px-3 py-2.5 w-10">
+                        <input
+                          type="checkbox"
+                          checked={uploadLog.length > 0 && selectedUploads.size === uploadLog.length}
+                          onChange={toggleAllUploads}
+                          className="rounded border-gray-300"
+                        />
+                      </th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">Date</th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">File Name</th>
                       <th className="px-3 py-2.5 text-right font-semibold text-gray-600 text-xs">Total Amount</th>
@@ -196,7 +250,15 @@ export default function BrokeragePage() {
                   </thead>
                   <tbody>
                     {uploadLog.map((log, idx) => (
-                      <tr key={log.id} className={cn('border-b border-gray-100', idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')}>
+                      <tr key={log.id} className={cn('border-b border-gray-100', selectedUploads.has(log.id) ? 'bg-blue-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')}>
+                        <td className="px-3 py-2.5">
+                          <input
+                            type="checkbox"
+                            checked={selectedUploads.has(log.id)}
+                            onChange={() => toggleUploadSelect(log.id)}
+                            className="rounded border-gray-300"
+                          />
+                        </td>
                         <td className="px-3 py-2.5 text-sm text-gray-800">{format(new Date(log.uploadDate), 'd MMM yyyy')}</td>
                         <td className="px-3 py-2.5 text-sm text-gray-600">{log.fileName}</td>
                         <td className="px-3 py-2.5 text-sm text-right font-medium">{formatCurrency(log.totalAmount)}</td>
@@ -228,6 +290,25 @@ export default function BrokeragePage() {
                   <Button variant="destructive" className="flex-1" onClick={handleReverse} disabled={reversing}>
                     {reversing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     {reversing ? 'Reversing…' : 'Confirm Reverse'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Bulk Reverse Confirmation Dialog */}
+          <Dialog open={bulkReverseOpen} onOpenChange={setBulkReverseOpen}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader><DialogTitle>Reverse {selectedUploads.size} Upload{selectedUploads.size > 1 ? 's' : ''}</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Are you sure you want to reverse <strong>{selectedUploads.size}</strong> selected brokerage upload{selectedUploads.size > 1 ? 's' : ''}? This will permanently delete all brokerage records for these uploads.
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="flex-1" onClick={() => setBulkReverseOpen(false)}>Cancel</Button>
+                  <Button variant="destructive" className="flex-1" onClick={handleBulkReverse} disabled={bulkReversing}>
+                    {bulkReversing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    {bulkReversing ? 'Reversing…' : `Reverse ${selectedUploads.size} Upload${selectedUploads.size > 1 ? 's' : ''}`}
                   </Button>
                 </div>
               </div>

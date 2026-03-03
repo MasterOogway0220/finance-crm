@@ -26,7 +26,7 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    const { clientIds, status, remark, mfStatus, mfRemark } = parsed.data
+    const { clientIds, status, remark, mfStatus, mfRemark, operatorId } = parsed.data
     const userRole = getEffectiveRole(session.user)
 
     // For EQUITY_DEALER: verify all clientIds belong to their operator account
@@ -51,6 +51,7 @@ export async function PATCH(request: NextRequest) {
     if (remark !== undefined) updateData.remark = remark
     if (mfStatus !== undefined) updateData.mfStatus = mfStatus
     if (mfRemark !== undefined) updateData.mfRemark = mfRemark
+    if (operatorId !== undefined) updateData.operatorId = operatorId
 
     // Auto-set remark when status is TRADED and remark not explicitly provided
     if (status === 'TRADED' && remark === undefined) {

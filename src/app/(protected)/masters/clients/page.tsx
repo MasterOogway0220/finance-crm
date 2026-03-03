@@ -7,6 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { UserPlus, Search, ArrowRightLeft, X, Pencil, Trash2, Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
@@ -73,6 +83,16 @@ export default function ClientMasterPage() {
   // Bulk delete
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+
+  // Bulk status update
+  const [bulkStatusAction, setBulkStatusAction] = useState<null | 'traded' | 'not_traded'>(null)
+  const [bulkStatusUpdating, setBulkStatusUpdating] = useState(false)
+
+  // Bulk swap operator
+  const [swapOpen, setSwapOpen] = useState(false)
+  const [swapOperatorId, setSwapOperatorId] = useState('')
+  const [swapOperators, setSwapOperators] = useState<Employee[]>([])
+  const [swapping, setSwapping] = useState(false)
 
   // Import
   const [importOpen, setImportOpen] = useState(false)
@@ -234,6 +254,62 @@ export default function ClientMasterPage() {
     setBulkDeleting(false)
   }
 
+  // Bulk status update
+  const handleBulkStatusUpdate = async () => {
+    setBulkStatusUpdating(true)
+    const updates = bulkStatusAction === 'traded'
+      ? { status: 'TRADED', remark: 'SUCCESSFULLY_TRADED' }
+      : { status: 'NOT_TRADED', remark: 'DID_NOT_ANSWER' }
+    const res = await fetch('/api/clients/bulk', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientIds: Array.from(selected), ...updates }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      toast.success(`Updated ${data.data.updatedCount} clients`)
+      setBulkStatusAction(null)
+      setSelected(new Set())
+      fetchClients()
+    } else {
+      toast.error(data.error || 'Update failed')
+    }
+    setBulkStatusUpdating(false)
+  }
+
+  // Bulk swap operator
+  const openSwapOperator = () => {
+    setSwapOpen(true)
+    setSwapOperatorId('')
+    // Load all active equity + MF operators
+    Promise.all([
+      fetch('/api/employees?department=EQUITY&isActive=true').then(r => r.json()),
+      fetch('/api/employees?department=MUTUAL_FUND&isActive=true').then(r => r.json()),
+    ]).then(([eq, mf]) => {
+      setSwapOperators([...(eq.success ? eq.data : []), ...(mf.success ? mf.data : [])])
+    })
+  }
+
+  const handleSwapOperator = async () => {
+    if (!swapOperatorId) return
+    setSwapping(true)
+    const res = await fetch('/api/clients/bulk', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientIds: Array.from(selected), operatorId: swapOperatorId }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      toast.success(`Transferred ${data.data.updatedCount} clients`)
+      setSwapOpen(false)
+      setSelected(new Set())
+      fetchClients()
+    } else {
+      toast.error(data.error || 'Transfer failed')
+    }
+    setSwapping(false)
+  }
+
   // Import
   const handleFileSelect = async (file: File) => {
     setImportFile(file)
@@ -305,14 +381,23 @@ export default function ClientMasterPage() {
 
       {/* Selection bar */}
       {selected.size > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center justify-between">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm font-medium text-blue-800">{selected.size} client{selected.size > 1 ? 's' : ''} selected</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())} className="h-8 text-xs text-blue-700 hover:bg-blue-100">
-              Clear Selection
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-green-300 text-green-700 hover:bg-green-50" onClick={() => setBulkStatusAction('traded')}>
+              Mark Traded ({selected.size})
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50" onClick={() => setBulkStatusAction('not_traded')}>
+              Mark Not Traded ({selected.size})
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50" onClick={openSwapOperator}>
+              <ArrowRightLeft className="h-3.5 w-3.5" />Swap Operator ({selected.size})
             </Button>
             <Button size="sm" variant="destructive" onClick={() => setBulkDeleteOpen(true)} className="h-8 text-xs gap-1.5">
               <Trash2 className="h-3.5 w-3.5" />Delete ({selected.size})
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())} className="h-8 text-xs text-blue-700 hover:bg-blue-100">
+              Clear
             </Button>
           </div>
         </div>
@@ -585,6 +670,62 @@ export default function ClientMasterPage() {
               <Button variant="outline" className="flex-1" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
               <Button variant="destructive" className="flex-1" onClick={handleBulkDelete} disabled={bulkDeleting}>
                 {bulkDeleting ? 'Deleting…' : `Delete ${selected.size} Client${selected.size > 1 ? 's' : ''}`}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Status Update Confirmation */}
+      <AlertDialog open={!!bulkStatusAction} onOpenChange={(open) => { if (!open) setBulkStatusAction(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkStatusAction === 'traded' ? 'Mark as Traded?' : 'Mark as Not Traded?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkStatusAction === 'traded'
+                ? `This will mark ${selected.size} selected client(s) as Traded with remark "Successfully Traded".`
+                : `This will mark ${selected.size} selected client(s) as Not Traded with remark "Did Not Answer".`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={bulkStatusAction === 'not_traded' ? 'bg-red-600 hover:bg-red-700' : ''}
+              onClick={handleBulkStatusUpdate}
+              disabled={bulkStatusUpdating}
+            >
+              {bulkStatusUpdating ? 'Updating…' : 'Confirm'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Swap Operator Dialog */}
+      <Dialog open={swapOpen} onOpenChange={setSwapOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Swap Operator</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Transfer <strong>{selected.size}</strong> selected client{selected.size > 1 ? 's' : ''} to a new operator.
+            </p>
+            <div className="space-y-1.5">
+              <Label>New Operator</Label>
+              <Select value={swapOperatorId} onValueChange={setSwapOperatorId}>
+                <SelectTrigger><SelectValue placeholder="Select operator" /></SelectTrigger>
+                <SelectContent>
+                  {swapOperators.map(e => (
+                    <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setSwapOpen(false)}>Cancel</Button>
+              <Button className="flex-1" onClick={handleSwapOperator} disabled={!swapOperatorId || swapping}>
+                {swapping ? 'Transferring…' : 'Confirm Transfer'}
               </Button>
             </div>
           </div>

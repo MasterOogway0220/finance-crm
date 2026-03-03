@@ -2,13 +2,14 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
-import { IndianRupee, CheckSquare, Users, ArrowRight } from 'lucide-react'
+import { IndianRupee, CheckSquare, Users, ArrowRight, CalendarDays } from 'lucide-react'
 import { getEffectiveRole } from '@/lib/roles'
 
 const ADMIN_REPORTS = [
   { title: 'Equity Brokerage Report', desc: 'Monthly brokerage analysis per operator', icon: IndianRupee, color: 'text-green-600 bg-green-50', href: '/reports/brokerage' },
   { title: 'Task Completion Report', desc: 'Task performance across all departments', icon: CheckSquare, color: 'text-blue-600 bg-blue-50', href: '/reports/tasks' },
   { title: 'Client Engagement Report', desc: 'Client trading status and follow-up data', icon: Users, color: 'text-purple-600 bg-purple-50', href: '/reports/engagement' },
+  { title: 'Employee Leave Report', desc: 'Leave balance and usage across departments', icon: CalendarDays, color: 'text-amber-600 bg-amber-50', href: '/reports/leave' },
 ]
 
 const EQUITY_REPORTS = [

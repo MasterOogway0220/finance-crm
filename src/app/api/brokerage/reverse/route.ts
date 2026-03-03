@@ -16,32 +16,36 @@ export async function DELETE(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { uploadId } = body
+    const { uploadId, uploadIds } = body
 
-    if (!uploadId) {
-      return NextResponse.json({ success: false, error: 'Upload ID is required' }, { status: 400 })
+    // Support both single uploadId and bulk uploadIds
+    const ids: string[] = uploadIds ?? (uploadId ? [uploadId] : [])
+
+    if (ids.length === 0) {
+      return NextResponse.json({ success: false, error: 'Upload ID(s) required' }, { status: 400 })
     }
 
-    const upload = await prisma.brokerageUpload.findUnique({
-      where: { id: uploadId },
+    const uploads = await prisma.brokerageUpload.findMany({
+      where: { id: { in: ids } },
       select: { id: true, uploadDate: true, fileName: true, totalAmount: true },
     })
 
-    if (!upload) {
-      return NextResponse.json({ success: false, error: 'Upload not found' }, { status: 404 })
+    if (uploads.length === 0) {
+      return NextResponse.json({ success: false, error: 'No uploads found' }, { status: 404 })
     }
 
     // Cascade delete removes all BrokerageDetail records automatically
-    await prisma.brokerageUpload.delete({ where: { id: uploadId } })
+    await prisma.brokerageUpload.deleteMany({ where: { id: { in: uploads.map(u => u.id) } } })
 
+    const totalAmount = uploads.reduce((s, u) => s + u.totalAmount, 0)
     await logActivity({
       userId: session.user.id,
       action: 'DELETE',
       module: 'BROKERAGE',
-      details: `Reversed brokerage upload: ${upload.fileName} (${upload.uploadDate.toISOString().split('T')[0]}, ₹${upload.totalAmount.toFixed(2)})`,
+      details: `Reversed ${uploads.length} brokerage upload(s): ${uploads.map(u => u.fileName).join(', ')} (Total: ₹${totalAmount.toFixed(2)})`,
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, data: { reversedCount: uploads.length } })
   } catch (error) {
     console.error('[DELETE /api/brokerage/reverse]', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })

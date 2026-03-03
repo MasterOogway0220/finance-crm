@@ -1,14 +1,16 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/utils'
 import { Download, ArrowLeft } from 'lucide-react'
+import { getEffectiveRole } from '@/lib/roles'
 import Link from 'next/link'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts'
 
 const YEARS = ['2024', '2025', '2026']
@@ -21,6 +23,17 @@ const TIME_RANGES = [
   { value: 'H1', label: '1st Half (Jan-Jun)' },
   { value: 'H2', label: '2nd Half (Jul-Dec)' },
 ]
+
+const RANGE_HEADING_LABELS: Record<string, string> = {
+  FULL: 'Full Year',
+  Q1: 'Q1(Jan-Mar)',
+  Q2: 'Q2(Apr-Jun)',
+  Q3: 'Q3(Jul-Sep)',
+  Q4: 'Q4(Oct-Dec)',
+  H1: 'H1(Jan-Jun)',
+  H2: 'H2(Jul-Dec)',
+}
+
 const BAR_COLORS = ['#3b82f6', '#ef4444', '#a855f7', '#f59e0b', '#10b981', '#06b6d4', '#ec4899', '#f97316', '#84cc16', '#14b8a6', '#8b5cf6', '#6b7280']
 
 interface Operator { id: string; name: string }
@@ -33,6 +46,11 @@ const formatYAxis = (v: number) => {
 }
 
 export default function BrokerageReportPage() {
+  const { data: session } = useSession()
+  const role = session?.user ? getEffectiveRole(session.user) : undefined
+  const isEquityDealer = role === 'EQUITY_DEALER'
+  const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN'
+
   const [year, setYear] = useState(String(new Date().getFullYear()))
   const [range, setRange] = useState('FULL')
   const [operatorId, setOperatorId] = useState('all')
@@ -40,21 +58,23 @@ export default function BrokerageReportPage() {
   const [data, setData] = useState<{ matrix: Record<string, Record<string, number>>; months: string[]; operators: string[] } | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Only fetch operators list for admins
   useEffect(() => {
+    if (!isAdmin) return
     fetch('/api/employees?department=EQUITY&isActive=true')
       .then((r) => r.json())
       .then((d) => { if (d.success) setOperators(d.data) })
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
     setLoading(true)
     const params = new URLSearchParams({ year, range })
-    if (operatorId !== 'all') params.set('operatorId', operatorId)
+    if (isAdmin && operatorId !== 'all') params.set('operatorId', operatorId)
     fetch(`/api/reports/brokerage?${params}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
       .finally(() => setLoading(false))
-  }, [year, range, operatorId])
+  }, [year, range, operatorId, isAdmin])
 
   const handleExport = async () => {
     const res = await fetch('/api/reports/export', {
@@ -71,10 +91,10 @@ export default function BrokerageReportPage() {
     }
   }
 
-  const singleOperator = operatorId !== 'all' && data?.operators.length === 1
+  const singleOperator = data?.operators.length === 1
 
-  // Single operator: months on X-axis with individual bar colors
-  // All operators: operators on X-axis with total brokerage
+  // Chart data: for single operator (equity dealer), show months on X-axis
+  // For multiple operators (admin view), show operators on X-axis
   const chartData = singleOperator
     ? (data?.months || []).map((m) => ({
         name: m,
@@ -87,21 +107,37 @@ export default function BrokerageReportPage() {
 
   const totalAmount = data ? Object.values(data.matrix).reduce((s, row) => s + Object.values(row).reduce((a, b) => a + b, 0), 0) : 0
 
+  // Calculate a reasonable Y-axis max based on data
+  const maxAmount = Math.max(...chartData.map((d) => d.amount), 0)
+  const yAxisMax = maxAmount === 0 ? 10000 : Math.ceil(maxAmount * 1.2 / 10000) * 10000
+
+  // Chart heading: for equity dealer use "Employee Name – Q1(Jan-Mar)" format
+  const chartHeading = singleOperator
+    ? `${data?.operators[0]} – ${RANGE_HEADING_LABELS[range] || range}`
+    : 'Brokerage by Operator'
+
+  // Page title for equity dealer
+  const pageTitle = isEquityDealer ? 'Annual Report' : 'Brokerage Report'
+  const pageSubtitle = isEquityDealer ? 'Your annual brokerage performance' : 'Monthly operator performance'
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Brokerage Report</h1>
-          <p className="text-sm text-gray-500">Monthly operator performance</p>
+          <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
+          <p className="text-sm text-gray-500">{pageSubtitle}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={operatorId} onValueChange={setOperatorId}>
-            <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="Select Operator" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Operators</SelectItem>
-              {operators.map((op) => <SelectItem key={op.id} value={op.id}>{op.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {/* Operator selector: only for admins */}
+          {isAdmin && (
+            <Select value={operatorId} onValueChange={setOperatorId}>
+              <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="Select Operator" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Operators</SelectItem>
+                {operators.map((op) => <SelectItem key={op.id} value={op.id}>{op.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={range} onValueChange={setRange}>
             <SelectTrigger className="w-44 h-9 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>{TIME_RANGES.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
@@ -113,11 +149,14 @@ export default function BrokerageReportPage() {
           <Button size="sm" variant="outline" onClick={handleExport} className="gap-1.5 h-9">
             <Download className="h-3.5 w-3.5" />Export Excel
           </Button>
-          <Link href="/reports">
-            <Button size="sm" variant="secondary" className="gap-1.5 h-9">
-              <ArrowLeft className="h-3.5 w-3.5" />Back to Reports
-            </Button>
-          </Link>
+          {/* Back to Reports: only for admins */}
+          {isAdmin && (
+            <Link href="/reports">
+              <Button size="sm" variant="secondary" className="gap-1.5 h-9">
+                <ArrowLeft className="h-3.5 w-3.5" />Back to Reports
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -127,27 +166,29 @@ export default function BrokerageReportPage() {
         <>
           {/* Summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card><CardContent className="pt-4"><p className="text-xs text-gray-500">Operators</p><p className="text-xl font-bold mt-1">{data.operators.length}</p></CardContent></Card>
-            <Card><CardContent className="pt-4"><p className="text-xs text-gray-500">{range === 'FULL' ? 'Annual' : range} Total</p><p className="text-xl font-bold text-green-700 mt-1">{formatCurrency(totalAmount)}</p></CardContent></Card>
+            {!isEquityDealer && (
+              <Card><CardContent className="pt-4"><p className="text-xs text-gray-500">Operators</p><p className="text-xl font-bold mt-1">{data.operators.length}</p></CardContent></Card>
+            )}
+            <Card><CardContent className="pt-4"><p className="text-xs text-gray-500">{range === 'FULL' ? 'Annual' : RANGE_HEADING_LABELS[range] || range} Total</p><p className="text-xl font-bold text-green-700 mt-1">{formatCurrency(totalAmount)}</p></CardContent></Card>
           </div>
 
           {/* Chart */}
           <div className="bg-white rounded-lg border p-4">
             <h2 className="text-base font-semibold text-gray-700 mb-4">
-              {singleOperator ? `${data.operators[0]} — Monthly Brokerage` : 'Brokerage by Operator'}
+              {chartHeading}
             </h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData} margin={{ left: 10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" />
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={chartData} margin={{ left: 10, right: 10, top: 5, bottom: 5 }} barSize={40}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis
                   tickFormatter={formatYAxis}
                   tick={{ fontSize: 11 }}
-                  domain={[0, 400000]}
-                  ticks={[0, 50000, 100000, 150000, 200000, 250000, 300000, 350000, 400000]}
+                  domain={[0, yAxisMax]}
+                  allowDecimals={false}
                 />
                 <Tooltip formatter={(v: number | undefined) => [formatCurrency(v ?? 0), 'Brokerage']} />
-                <Bar dataKey="amount" name="Brokerage">
+                <Bar dataKey="amount" name="Brokerage" radius={[4, 4, 0, 0]}>
                   {chartData.map((_, idx) => (
                     <Cell key={idx} fill={BAR_COLORS[idx % BAR_COLORS.length]} />
                   ))}
@@ -161,7 +202,7 @@ export default function BrokerageReportPage() {
             <table className="w-full text-sm">
               <thead style={{ backgroundColor: '#2E7D32' }}>
                 <tr>
-                  <th className="px-3 py-3 text-white text-left font-semibold">Operator</th>
+                  <th className="px-3 py-3 text-white text-left font-semibold">{isEquityDealer ? 'Name' : 'Operator'}</th>
                   {data.months.map((m) => <th key={m} className="px-3 py-3 text-white text-center font-semibold whitespace-nowrap">{m}</th>)}
                   <th className="px-3 py-3 text-white text-center font-semibold">Total</th>
                 </tr>

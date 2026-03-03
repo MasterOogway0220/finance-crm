@@ -30,8 +30,7 @@ interface NavItem {
 
 const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'All Clients', href: '/clients', icon: Users },
-  { label: 'Brokerage', href: '/brokerage', icon: IndianRupee },
+{ label: 'Brokerage', href: '/brokerage', icon: IndianRupee },
   { label: 'Tasks', href: '/tasks', icon: CheckSquare },
   { label: 'Document Pool', href: '/documents', icon: FolderOpen },
   { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
@@ -60,7 +59,7 @@ const EQUITY_DEALER_NAV: NavItem[] = [
   },
   { label: 'Document Pool', href: '/documents', icon: FolderOpen },
   { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
-  { label: 'Reports', href: '/reports', icon: BarChart3 },
+  { label: 'Annual Report', href: '/reports/brokerage', icon: BarChart3 },
 ]
 
 const MF_DEALER_NAV: NavItem[] = [

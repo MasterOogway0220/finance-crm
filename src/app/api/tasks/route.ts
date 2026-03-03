@@ -39,6 +39,17 @@ export async function GET(request: NextRequest) {
       data: { status: 'EXPIRED' },
     })
 
+    // Auto-reset equity department tasks: expire pending tasks from previous months
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+    await prisma.task.updateMany({
+      where: {
+        status: 'PENDING',
+        createdAt: { lt: monthStart },
+        assignedBy: { department: 'EQUITY' },
+      },
+      data: { status: 'EXPIRED' },
+    })
+
     const assignedByMe = searchParams.get('assignedByMe') === 'true'
     const assignedToMe = searchParams.get('assignedToMe') === 'true'
 

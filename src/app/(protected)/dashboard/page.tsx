@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import {
-  Users, Briefcase, IndianRupee, TrendingUp, Clock, AlertTriangle,
+  Users, Briefcase, IndianRupee, TrendingUp, Clock, AlertTriangle, UserCheck,
 } from 'lucide-react'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { BrokerageChart } from '@/components/dashboard/brokerage-chart'
@@ -110,10 +110,10 @@ export default function AdminDashboardPage() {
             trend={brokerageTrend}
           />
           <KpiCard
-            title="Traded Clients"
-            value={`${data.totalEquityClients > 0 ? ((data.tradedClients / data.totalEquityClients) * 100).toFixed(1) : 0}%`}
-            subtitle={`${data.tradedClients} of ${data.totalEquityClients} clients`}
-            icon={TrendingUp}
+            title="Total Clients Traded"
+            value={data.tradedClients}
+            subtitle={`${data.totalEquityClients > 0 ? ((data.tradedClients / data.totalEquityClients) * 100).toFixed(1) : 0}% of ${data.totalEquityClients} equity clients`}
+            icon={UserCheck}
             accent="emerald"
           />
           <KpiCard
