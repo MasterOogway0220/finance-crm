@@ -3,11 +3,12 @@ import { useState, useEffect } from 'react'
 import {
   Users, Briefcase, IndianRupee, TrendingUp, Clock, AlertTriangle, UserCheck,
 } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { KpiCard } from '@/components/dashboard/kpi-card'
-import { BrokerageChart } from '@/components/dashboard/brokerage-chart'
-import { TaskPieChart } from '@/components/dashboard/task-pie-chart'
-import { OperatorTable } from '@/components/dashboard/operator-table'
-import { EmployeeStatusTable } from '@/components/dashboard/employee-status-table'
+const BrokerageChart = dynamic(() => import('@/components/dashboard/brokerage-chart').then(m => ({ default: m.BrokerageChart })), { ssr: false, loading: () => <Skeleton className="h-[340px] rounded-lg" /> })
+const TaskPieChart = dynamic(() => import('@/components/dashboard/task-pie-chart').then(m => ({ default: m.TaskPieChart })), { ssr: false, loading: () => <Skeleton className="h-[340px] rounded-lg" /> })
+const OperatorTable = dynamic(() => import('@/components/dashboard/operator-table').then(m => ({ default: m.OperatorTable })), { loading: () => <Skeleton className="h-48 rounded-lg" /> })
+const EmployeeStatusTable = dynamic(() => import('@/components/dashboard/employee-status-table').then(m => ({ default: m.EmployeeStatusTable })), { loading: () => <Skeleton className="h-48 rounded-lg" /> })
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDateLong, getDaysInMonth } from '@/lib/utils'
 import { useActiveRoleStore, getDashboardForRole } from '@/stores/active-role-store'

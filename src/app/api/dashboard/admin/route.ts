@@ -2,6 +2,7 @@ import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentMonthRange, getLastMonthRange } from '@/lib/utils'
+import { getCached, setCache } from '@/lib/cache'
 import { Role } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -14,6 +15,13 @@ export async function GET(request: NextRequest) {
     const userRole = getEffectiveRole(session.user)
     if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Cache dashboard data for 30s — all admins see the same data
+    const cacheKey = 'dashboard:admin'
+    const cached = getCached<Record<string, unknown>>(cacheKey)
+    if (cached) {
+      return NextResponse.json({ success: true, data: cached })
     }
 
     const { start, end } = getCurrentMonthRange()
@@ -130,9 +138,7 @@ export async function GET(request: NextRequest) {
       ...op.monthlyHistory,
     }))
 
-    return NextResponse.json({
-      success: true,
-      data: {
+    const responseData = {
         totalEmployees,
         totalClients: equityCount + mfCount,
         equityClients: equityCount,
@@ -147,8 +153,11 @@ export async function GET(request: NextRequest) {
         operatorPerformance,
         brokerageChartData,
         brokerageMonths,
-      },
-    })
+      }
+
+    setCache(cacheKey, responseData, 30)
+
+    return NextResponse.json({ success: true, data: responseData })
   } catch (error) {
     console.error('[GET /api/dashboard/admin]', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
