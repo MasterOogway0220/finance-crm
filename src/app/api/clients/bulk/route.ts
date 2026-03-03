@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { bulkClientUpdateSchema } from '@/lib/validations'
-import { Role } from '@prisma/client'
+import { z } from 'zod'
+
+const bulkDeleteSchema = z.object({
+  clientIds: z.array(z.string()).min(1, 'Select at least one client'),
+})
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -78,6 +82,57 @@ export async function PATCH(request: NextRequest) {
     })
   } catch (error) {
     console.error('[PATCH /api/clients/bulk]', error)
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userRole = getEffectiveRole(session.user)
+    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const parsed = bulkDeleteSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: parsed.error.issues[0]?.message ?? 'Validation failed' },
+        { status: 400 }
+      )
+    }
+
+    const { clientIds } = parsed.data
+
+    // Unlink clients from brokerage records to preserve history
+    await prisma.brokerageDetail.updateMany({
+      where: { clientId: { in: clientIds } },
+      data: { clientId: null },
+    })
+
+    const result = await prisma.client.deleteMany({
+      where: { id: { in: clientIds } },
+    })
+
+    await logActivity({
+      userId: session.user.id,
+      action: 'BULK_DELETE',
+      module: 'CLIENTS',
+      details: `Bulk deleted ${result.count} clients. Brokerage records preserved.`,
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: { deletedCount: result.count },
+    })
+  } catch (error) {
+    console.error('[DELETE /api/clients/bulk]', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

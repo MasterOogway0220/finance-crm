@@ -73,6 +73,9 @@ export async function GET(request: NextRequest) {
         include: {
           assignedTo: { select: { id: true, name: true, department: true } },
           assignedBy: { select: { id: true, name: true, department: true } },
+          completionProofs: {
+            select: { id: true, name: true, mimeType: true, size: true, createdAt: true },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,

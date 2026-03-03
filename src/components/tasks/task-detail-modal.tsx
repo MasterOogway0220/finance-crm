@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { TaskWithRelations } from '@/types'
 import { formatDate, getDaysRemaining } from '@/lib/utils'
 import { format } from 'date-fns'
@@ -7,7 +7,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialog, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { CheckCircle, Loader2, Pencil, X, CalendarIcon } from 'lucide-react'
+import { CheckCircle, Loader2, Pencil, X, CalendarIcon, Upload, FileText, Image, File, Download, Eye, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -49,6 +49,22 @@ interface DraftState {
   deadline: Date
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function getFileIcon(mimeType: string) {
+  if (mimeType.startsWith('image/')) return <Image className="h-4 w-4 text-blue-500" />
+  if (mimeType === 'application/pdf') return <FileText className="h-4 w-4 text-red-500" />
+  return <File className="h-4 w-4 text-gray-500" />
+}
+
+function isPreviewable(mimeType: string): boolean {
+  return mimeType.startsWith('image/') || mimeType === 'application/pdf'
+}
+
 export function TaskDetailModal({
   task,
   open,
@@ -69,10 +85,23 @@ export function TaskDetailModal({
     deadline: new Date(),
   })
 
+  // Completion proof state
+  const [completionNote, setCompletionNote] = useState('')
+  const [proofFiles, setProofFiles] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   // Reset edit state when modal opens for a different task
   useEffect(() => {
     setIsEditing(false)
   }, [task?.id])
+
+  // Reset completion form when confirm dialog closes
+  useEffect(() => {
+    if (!showConfirm) {
+      setCompletionNote('')
+      setProofFiles([])
+    }
+  }, [showConfirm])
 
   if (!task) return null
 
@@ -116,13 +145,45 @@ export function TaskDetailModal({
     }
   }
 
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    const maxSize = 20 * 1024 * 1024
+    const oversized = files.filter((f) => f.size > maxSize)
+    if (oversized.length > 0) {
+      toast.error(`${oversized[0].name} exceeds the 20 MB limit`)
+      return
+    }
+    setProofFiles((prev) => [...prev, ...files])
+    // Reset input so the same file can be selected again
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const removeProofFile = (index: number) => {
+    setProofFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
   const handleComplete = async () => {
+    if (!completionNote.trim()) {
+      toast.error('Please describe the work you have done')
+      return
+    }
+    if (proofFiles.length === 0) {
+      toast.error('Please upload at least one proof file')
+      return
+    }
+
     setIsCompleting(true)
     try {
+      const formData = new FormData()
+      formData.append('status', 'COMPLETED')
+      formData.append('completionNote', completionNote.trim())
+      for (const file of proofFiles) {
+        formData.append('proofFiles', file)
+      }
+
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'COMPLETED' }),
+        body: formData,
       })
       const data = await res.json()
       if (data.success) {
@@ -136,6 +197,17 @@ export function TaskDetailModal({
       setIsCompleting(false)
       setShowConfirm(false)
     }
+  }
+
+  const handleProofDownload = (proofId: string, fileName: string) => {
+    const link = document.createElement('a')
+    link.href = `/api/tasks/${task.id}/proof/${proofId}/download`
+    link.download = fileName
+    link.click()
+  }
+
+  const handleProofPreview = (proofId: string) => {
+    window.open(`/api/tasks/${task.id}/proof/${proofId}/download`, '_blank')
   }
 
   const showEditButton = canEdit && task.status === 'PENDING'
@@ -299,6 +371,60 @@ export function TaskDetailModal({
               </div>
             )}
 
+            {/* Completion Proof — shown for completed tasks */}
+            {task.status === 'COMPLETED' && task.completionNote && (
+              <div className="pt-2 border-t">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Completion Note</h4>
+                <p className="text-sm text-gray-600 bg-green-50 border border-green-200 rounded-lg p-3 whitespace-pre-wrap">
+                  {task.completionNote}
+                </p>
+              </div>
+            )}
+
+            {task.status === 'COMPLETED' && task.completionProofs && task.completionProofs.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Work Proof</h4>
+                <div className="space-y-2">
+                  {task.completionProofs.map((proof) => (
+                    <div
+                      key={proof.id}
+                      className="flex items-center justify-between bg-white border rounded-lg p-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {getFileIcon(proof.mimeType)}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{proof.name}</p>
+                          <p className="text-xs text-gray-500">{formatFileSize(proof.size)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {isPreviewable(proof.mimeType) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleProofPreview(proof.id)}
+                            title="Preview"
+                          >
+                            <Eye className="h-4 w-4 text-gray-500" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleProofDownload(proof.id, proof.name)}
+                          title="Download"
+                        >
+                          <Download className="h-4 w-4 text-gray-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Complete button */}
             {canComplete && task.status === 'PENDING' && !isEditing && (
               <div className="pt-2 border-t">
@@ -316,26 +442,100 @@ export function TaskDetailModal({
         </DialogContent>
       </Dialog>
 
-      {/* Completion confirmation dialog */}
+      {/* Completion confirmation dialog with proof form */}
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>⚠️ Complete Task</AlertDialogTitle>
+            <AlertDialogTitle>Complete Task</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be reversed. Once marked as complete, the task status is permanent.
-              Are you sure you want to proceed?
+              Please provide proof of your work below.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Completion note */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                Describe what work you have done <span className="text-red-500">*</span>
+              </label>
+              <Textarea
+                value={completionNote}
+                onChange={(e) => setCompletionNote(e.target.value)}
+                placeholder="Describe the work completed for this task..."
+                rows={3}
+                className="text-sm"
+                disabled={isCompleting}
+              />
+            </div>
+
+            {/* File upload */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                Upload proof files <span className="text-red-500">*</span>
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFilesSelected}
+                disabled={isCompleting}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full h-10 gap-2 border-dashed"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isCompleting}
+              >
+                <Upload className="h-4 w-4" />
+                Choose files (PDF, Excel, Image, etc.)
+              </Button>
+              <p className="text-xs text-gray-500 mt-1">Max 20 MB per file</p>
+
+              {/* Selected files list */}
+              {proofFiles.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {proofFiles.map((file, index) => (
+                    <div
+                      key={`${file.name}-${index}`}
+                      className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {getFileIcon(file.type)}
+                        <div className="min-w-0">
+                          <p className="text-sm text-gray-700 truncate">{file.name}</p>
+                          <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 flex-shrink-0"
+                        onClick={() => removeProofFile(index)}
+                        disabled={isCompleting}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isCompleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <Button
               onClick={handleComplete}
               disabled={isCompleting}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               {isCompleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Submit
-            </AlertDialogAction>
+              {isCompleting ? 'Submitting…' : 'Submit'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

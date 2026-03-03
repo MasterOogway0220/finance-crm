@@ -1,5 +1,7 @@
 import { PrismaClient, Department, Role, ClientStatus, ClientRemark, MFClientStatus, MFClientRemark, TaskStatus, TaskPriority } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import fs from 'fs'
+import path from 'path'
 
 const prisma = new PrismaClient()
 
@@ -94,6 +96,45 @@ async function main() {
         name: 'Kedar Niranjan Mulye',
         email: 'kedarmulyeo1@gmail.com',
         phone: '7506149415',
+        password: hashedPassword,
+        department: Department.EQUITY,
+        designation: 'Equity Dealer',
+        role: Role.EQUITY_DEALER,
+      },
+    }),
+    prisma.employee.upsert({
+      where: { email: 'vedant_dummy18@gmail.com' },
+      update: {},
+      create: {
+        name: 'Vedant',
+        email: 'vedant_dummy18@gmail.com',
+        phone: '0000000000',
+        password: hashedPassword,
+        department: Department.EQUITY,
+        designation: 'Equity Dealer',
+        role: Role.EQUITY_DEALER,
+      },
+    }),
+    prisma.employee.upsert({
+      where: { email: 'karad.branch@placeholder.com' },
+      update: {},
+      create: {
+        name: 'Karad Branch',
+        email: 'karad.branch@placeholder.com',
+        phone: '0000000001',
+        password: hashedPassword,
+        department: Department.EQUITY,
+        designation: 'Equity Dealer',
+        role: Role.EQUITY_DEALER,
+      },
+    }),
+    prisma.employee.upsert({
+      where: { email: 'pune.branch@placeholder.com' },
+      update: {},
+      create: {
+        name: 'Pune Branch',
+        email: 'pune.branch@placeholder.com',
+        phone: '0000000002',
         password: hashedPassword,
         department: Department.EQUITY,
         designation: 'Equity Dealer',
@@ -198,80 +239,100 @@ async function main() {
   console.log(`Seeded ${employees.length} employees`)
 
   // Get operator IDs for client seeding
-  const reshma = await prisma.employee.findUnique({ where: { email: 'reshmamyerunkar@gmail.com' } })
-  const karan = await prisma.employee.findUnique({ where: { email: 'patilkaran128@gmail.com' } })
-  const vinit = await prisma.employee.findUnique({ where: { email: 'vinitgollar07@gmail.com' } })
-  const shweta = await prisma.employee.findUnique({ where: { email: 'pethe.shweta95@gmail.com' } })
-  const kedarM = await prisma.employee.findUnique({ where: { email: 'kedarmulyeo1@gmail.com' } })
-  const gayatri = await prisma.employee.findUnique({ where: { email: 'gayatri.ghadi123@gmail.com' } })
-  const rishita = await prisma.employee.findUnique({ where: { email: 'risha.tawade@yahoo.co.in' } })
+  const operatorEmailMap: Record<string, string> = {
+    'Shweta': 'pethe.shweta95@gmail.com',
+    'KM': 'kedarmulyeo1@gmail.com',
+    'Reshma': 'reshmamyerunkar@gmail.com',
+    'Sarvesh': 'sarveshoak3@gmail.com',
+    'Karan': 'patilkaran128@gmail.com',
+    'Vinit': 'vinitgollar07@gmail.com',
+    'Kedar Sir': 'kedaroak_13@rediffmail.com',
+    'Vedant': 'vedant_dummy18@gmail.com',
+    'Karad': 'karad.branch@placeholder.com',
+    'Pune': 'pune.branch@placeholder.com',
+  }
+
+  const operatorIdMap: Record<string, string> = {}
+  for (const [name, email] of Object.entries(operatorEmailMap)) {
+    const emp = await prisma.employee.findUnique({ where: { email } })
+    if (!emp) throw new Error(`Employee not found for operator "${name}" (${email})`)
+    operatorIdMap[name] = emp.id
+  }
+
   const admin = await prisma.employee.findUnique({ where: { email: 'vishakha.kul.work@gmail.com' } })
   const backOffice1 = await prisma.employee.findUnique({ where: { email: 'akshita15work@gmail.com' } })
 
-  if (!reshma || !karan || !vinit || !shweta || !kedarM || !gayatri || !rishita || !admin || !backOffice1) {
+  if (!admin || !backOffice1) {
     throw new Error('Required employees not found')
   }
 
-  // Seed Equity Clients
-  const equityClients = [
-    { clientCode: '18K001', firstName: 'Amit', middleName: 'Ramesh', lastName: 'Sharma', phone: '9876543210', operatorId: reshma.id, status: ClientStatus.TRADED, remark: ClientRemark.SUCCESSFULLY_TRADED },
-    { clientCode: '18K002', firstName: 'Priya', middleName: 'Suresh', lastName: 'Patel', phone: '9876543211', operatorId: reshma.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.DID_NOT_ANSWER },
-    { clientCode: '18K003', firstName: 'Rahul', middleName: '', lastName: 'Verma', phone: '9876543212', operatorId: reshma.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.NO_FUNDS_FOR_TRADING },
-    { clientCode: '18K004', firstName: 'Sunita', middleName: 'Prakash', lastName: 'Singh', phone: '9876543213', operatorId: reshma.id, status: ClientStatus.TRADED, remark: ClientRemark.SUCCESSFULLY_TRADED },
-    { clientCode: '91383117', firstName: 'Vikram', middleName: '', lastName: 'Mehta', phone: '9876543214', operatorId: karan.id, status: ClientStatus.TRADED, remark: ClientRemark.SUCCESSFULLY_TRADED },
-    { clientCode: '91383118', firstName: 'Kavita', middleName: 'Anil', lastName: 'Joshi', phone: '9876543215', operatorId: karan.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.DID_NOT_ANSWER },
-    { clientCode: '91383119', firstName: 'Deepak', middleName: '', lastName: 'Kumar', phone: '9876543216', operatorId: karan.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.SELF_TRADING },
-    { clientCode: '18KS001', firstName: 'Anjali', middleName: 'Ravi', lastName: 'Gupta', phone: '9876543217', operatorId: karan.id, status: ClientStatus.TRADED, remark: ClientRemark.SUCCESSFULLY_TRADED },
-    { clientCode: '18KS002', firstName: 'Suresh', middleName: '', lastName: 'Nair', phone: '9876543218', operatorId: vinit.id, status: ClientStatus.TRADED, remark: ClientRemark.SUCCESSFULLY_TRADED },
-    { clientCode: '18KS003', firstName: 'Meena', middleName: 'Vijay', lastName: 'Reddy', phone: '9876543219', operatorId: vinit.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.DID_NOT_ANSWER },
-    { clientCode: '18K005', firstName: 'Ravi', middleName: '', lastName: 'Pillai', phone: '9876543220', operatorId: vinit.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.NO_FUNDS_FOR_TRADING },
-    { clientCode: '18K006', firstName: 'Pooja', middleName: 'Sanjay', lastName: 'Desai', phone: '9876543221', operatorId: shweta.id, status: ClientStatus.TRADED, remark: ClientRemark.SUCCESSFULLY_TRADED },
-    { clientCode: '18K007', firstName: 'Nikhil', middleName: '', lastName: 'Jain', phone: '9876543222', operatorId: shweta.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.DID_NOT_ANSWER },
-    { clientCode: '91383120', firstName: 'Smita', middleName: 'Mohan', lastName: 'Kulkarni', phone: '9876543223', operatorId: shweta.id, status: ClientStatus.TRADED, remark: ClientRemark.SUCCESSFULLY_TRADED },
-    { clientCode: '18KS004', firstName: 'Arun', middleName: '', lastName: 'Bose', phone: '9876543224', operatorId: kedarM.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.DID_NOT_ANSWER },
-    { clientCode: '18KS005', firstName: 'Neha', middleName: 'Girish', lastName: 'Shah', phone: '9876543225', operatorId: kedarM.id, status: ClientStatus.TRADED, remark: ClientRemark.SUCCESSFULLY_TRADED },
-    { clientCode: '18K008', firstName: 'Rajesh', middleName: '', lastName: 'Iyer', phone: '9876543226', operatorId: kedarM.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.SELF_TRADING },
-    { clientCode: '18K009', firstName: 'Lata', middleName: 'Krishnan', lastName: 'Menon', phone: '9876543227', operatorId: kedarM.id, status: ClientStatus.TRADED, remark: ClientRemark.SUCCESSFULLY_TRADED },
-    { clientCode: '91383121', firstName: 'Vijay', middleName: '', lastName: 'Tiwari', phone: '9876543228', operatorId: reshma.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.DID_NOT_ANSWER },
-    { clientCode: '18KS006', firstName: 'Sonal', middleName: 'Rakesh', lastName: 'Thakur', phone: '9876543229', operatorId: karan.id, status: ClientStatus.NOT_TRADED, remark: ClientRemark.NO_FUNDS_FOR_TRADING },
-  ]
+  // Unlink clients from brokerage details, then delete all existing clients
+  await prisma.brokerageDetail.updateMany({
+    where: { clientId: { not: null } },
+    data: { clientId: null },
+  })
+  await prisma.client.deleteMany({})
+  console.log('Cleared existing clients')
 
-  for (const client of equityClients) {
-    await prisma.client.upsert({
-      where: { clientCode: client.clientCode },
-      update: {},
-      create: {
-        ...client,
-        middleName: client.middleName || undefined,
-        department: Department.EQUITY,
-      },
-    })
+  // Load clients from CLIENT_MASTER.csv
+  const csvPath = path.join(__dirname, '..', 'crm-documents', 'CLIENT_MASTER.csv')
+  const csvContent = fs.readFileSync(csvPath, 'utf8')
+  const csvLines = csvContent.split('\n').slice(1).filter(l => l.trim())
+
+  function parseName(fullName: string) {
+    const parts = fullName.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 2) {
+      return { firstName: parts[0], middleName: undefined, lastName: parts[1] }
+    }
+    // 3+ words: first = firstName, last = lastName, middle = everything in between
+    const firstName = parts[0]
+    const lastName = parts[parts.length - 1]
+    const middleName = parts.slice(1, -1).join(' ')
+    return { firstName, middleName, lastName }
   }
 
-  // Seed MF Clients
-  const mfClients = [
-    { clientCode: '18MF001', firstName: 'Harish', middleName: 'Sunil', lastName: 'Pawar', phone: '9876543230', operatorId: gayatri.id, mfStatus: MFClientStatus.ACTIVE, mfRemark: MFClientRemark.INVESTMENT_DONE },
-    { clientCode: '18MF002', firstName: 'Jyoti', middleName: '', lastName: 'Chauhan', phone: '9876543231', operatorId: gayatri.id, mfStatus: MFClientStatus.INACTIVE, mfRemark: MFClientRemark.FOLLOW_UP_REQUIRED },
-    { clientCode: '18MF003', firstName: 'Mahesh', middleName: 'Balaji', lastName: 'Sawant', phone: '9876543232', operatorId: rishita.id, mfStatus: MFClientStatus.ACTIVE, mfRemark: MFClientRemark.INVESTMENT_DONE },
-    { clientCode: '18MF004', firstName: 'Varsha', middleName: '', lastName: 'More', phone: '9876543233', operatorId: rishita.id, mfStatus: MFClientStatus.INACTIVE, mfRemark: MFClientRemark.NOT_INTERESTED },
-    { clientCode: '18MF005', firstName: 'Ganesh', middleName: 'Dattatray', lastName: 'Bhosale', phone: '9876543234', operatorId: gayatri.id, mfStatus: MFClientStatus.INACTIVE, mfRemark: MFClientRemark.INTERESTED },
-  ]
+  let imported = 0
+  let skipped = 0
 
-  for (const client of mfClients) {
+  for (const line of csvLines) {
+    const cols = line.replace(/\r/g, '').replace(/\uFEFF/g, '').split(',')
+    const clientCode = (cols[0] || '').trim()
+    const clientName = (cols[1] || '').trim()
+    const operator = (cols[2] || '').trim()
+
+    if (!clientCode || !clientName || !operator) {
+      skipped++
+      continue
+    }
+
+    const operatorId = operatorIdMap[operator]
+    if (!operatorId) {
+      console.warn(`Skipping client ${clientCode}: unknown operator "${operator}"`)
+      skipped++
+      continue
+    }
+
+    const { firstName, middleName, lastName } = parseName(clientName)
+
     await prisma.client.upsert({
-      where: { clientCode: client.clientCode },
+      where: { clientCode },
       update: {},
       create: {
-        ...client,
-        middleName: client.middleName || undefined,
-        department: Department.MUTUAL_FUND,
+        clientCode,
+        firstName,
+        middleName,
+        lastName,
+        phone: '0000000000',
+        department: Department.EQUITY,
+        operatorId,
         status: ClientStatus.NOT_TRADED,
         remark: ClientRemark.DID_NOT_ANSWER,
       },
     })
+    imported++
   }
 
-  console.log('Seeded clients')
+  console.log(`Imported ${imported} clients from CSV (${skipped} skipped)`)
 
   // Seed sample tasks
   const now = new Date()
@@ -283,7 +344,7 @@ async function main() {
     {
       title: 'Follow up with inactive equity clients',
       description: 'Call all clients with DID_NOT_ANSWER status and update their trading status. Focus on clients who have not traded this month.',
-      assignedToId: reshma.id,
+      assignedToId: operatorIdMap['Reshma'],
       assignedById: admin.id,
       deadline: nextWeek,
       status: TaskStatus.PENDING,
@@ -301,7 +362,7 @@ async function main() {
     {
       title: 'Update client KYC documents',
       description: 'Collect and upload updated KYC documents for all clients whose documents expire this quarter.',
-      assignedToId: karan.id,
+      assignedToId: operatorIdMap['Karan'],
       assignedById: admin.id,
       deadline: nextWeek,
       status: TaskStatus.PENDING,
@@ -310,7 +371,7 @@ async function main() {
     {
       title: 'Monthly MF performance report',
       description: 'Prepare the monthly mutual fund performance report for all active clients and share with the admin team.',
-      assignedToId: gayatri.id,
+      assignedToId: operatorIdMap['Reshma'],
       assignedById: admin.id,
       deadline: tomorrow,
       status: TaskStatus.COMPLETED,

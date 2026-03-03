@@ -57,6 +57,8 @@ export interface TaskWithRelations {
   status: TaskStatus
   priority: TaskPriority
   completedAt?: Date | null
+  completionNote?: string | null
+  completionProofs?: { id: string; name: string; mimeType: string; size: number; createdAt: Date }[]
   createdAt: Date
 }
 

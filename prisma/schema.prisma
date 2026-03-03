@@ -143,15 +143,30 @@ model Task {
   status          TaskStatus    @default(PENDING)
   priority        TaskPriority  @default(MEDIUM)
   completedAt     DateTime?
+  completionNote  String?       @db.Text
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   comments        TaskComment[]
+  completionProofs TaskCompletionProof[]
 
   @@index([assignedToId])
   @@index([assignedById])
   @@index([status])
   @@index([deadline])
+}
+
+model TaskCompletionProof {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String
+  size      Int
+  fileData  Bytes    @db.LongBlob
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
 }
 
 model TaskComment {
