@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { Search, Download, CalendarIcon, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, getInitials, cn } from '@/lib/utils'
+import { useDebounce } from '@/hooks/use-debounce'
 import { ClientWithOperator } from '@/types'
 
 const STATUS_OPTIONS = [
@@ -58,7 +59,8 @@ function RemarkSelect({ clientId, value, onChange }: { clientId: string; value: 
 export default function EquityClientsPage() {
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const search = useDebounce(searchInput, 400)
   const [status, setStatus] = useState('all')
   const [remark, setRemark] = useState('all')
   const [page, setPage] = useState(1)
@@ -81,10 +83,7 @@ export default function EquityClientsPage() {
       .finally(() => setLoading(false))
   }, [search, status, remark, page])
 
-  useEffect(() => {
-    const t = setTimeout(fetchClients, 300)
-    return () => clearTimeout(t)
-  }, [fetchClients])
+  useEffect(() => { fetchClients() }, [fetchClients])
 
   const updateClient = async (id: string, updates: Record<string, unknown>) => {
     const res = await fetch(`/api/clients/${id}`, {
@@ -141,7 +140,7 @@ export default function EquityClientsPage() {
         <div className="flex flex-wrap gap-2 items-center">
           <div className="relative flex-1 min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Search by code, name, or phone…" className="pl-9 h-9 text-sm" />
+            <Input value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1) }} placeholder="Search by code, name, or phone…" className="pl-9 h-9 text-sm" />
           </div>
           <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
             <SelectTrigger className="w-36 h-9 text-sm"><SelectValue /></SelectTrigger>

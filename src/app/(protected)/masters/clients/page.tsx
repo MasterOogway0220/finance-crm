@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,7 @@ import {
 import { UserPlus, Search, ArrowRightLeft, X, Pencil, Trash2, Upload, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
+import { useDebounce } from '@/hooks/use-debounce'
 import { ClientWithOperator } from '@/types'
 
 interface Employee { id: string; name: string; department: string }
@@ -52,7 +53,8 @@ export default function ClientMasterPage() {
   const router = useRouter()
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const search = useDebounce(searchInput, 400)
   const [dept, setDept] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [operatorFilter, setOperatorFilter] = useState('all')
@@ -139,14 +141,14 @@ export default function ClientMasterPage() {
       .finally(() => setLoading(false))
   }, [search, dept, statusFilter, operatorFilter, page])
 
-  useEffect(() => { const t = setTimeout(fetchClients, 300); return () => clearTimeout(t) }, [fetchClients])
+  useEffect(() => { fetchClients() }, [fetchClients])
 
   // Clear selection when filters/page change
-  useEffect(() => { setSelected(new Set()) }, [search, dept, statusFilter, operatorFilter, page])
+  useEffect(() => { setSelected(new Set()) }, [searchInput, dept, statusFilter, operatorFilter, page])
 
-  const hasActiveFilters = dept !== 'all' || statusFilter !== 'all' || operatorFilter !== 'all' || search !== ''
+  const hasActiveFilters = dept !== 'all' || statusFilter !== 'all' || operatorFilter !== 'all' || searchInput !== ''
 
-  const clearFilters = () => { setSearch(''); setDept('all'); setStatusFilter('all'); setOperatorFilter('all'); setPage(1) }
+  const clearFilters = () => { setSearchInput(''); setDept('all'); setStatusFilter('all'); setOperatorFilter('all'); setPage(1) }
 
   // Selection
   const toggleSelect = (id: string) => {
@@ -408,7 +410,7 @@ export default function ClientMasterPage() {
         <div className="flex flex-wrap gap-2 items-center">
           <div className="relative flex-1 min-w-44">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} placeholder="Name, code or phone…" className="pl-9 h-9 text-sm" />
+            <Input value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1) }} placeholder="Name, code or phone…" className="pl-9 h-9 text-sm" />
           </div>
           <Select value={dept} onValueChange={(v) => { setDept(v); setPage(1) }}>
             <SelectTrigger className="w-38 h-9 text-sm"><SelectValue placeholder="Department" /></SelectTrigger>
