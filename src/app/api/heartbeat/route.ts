@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotificationForMany } from '@/lib/notifications'
 import { runMonthlyReset } from '@/lib/monthly-reset'
+import { runYearReset } from '@/lib/year-leave-reset'
 
 // POST /api/heartbeat — update lastSeenAt + expire overdue tasks
 // Called every 5 minutes by the client for each logged-in user.
@@ -57,9 +58,21 @@ export async function POST() {
       }
     }
 
-    // On the 1st of every month, run monthly reset if not already done
+    // On the 1st of every month, run monthly brokerage/client reset if not already done
     if (now.getDate() === 1) {
       await runMonthlyReset()
+    }
+
+    // On Jan 1, allocate 30 leaves for the new year if not already done
+    if (now.getMonth() === 0 && now.getDate() === 1) {
+      const year = now.getFullYear()
+      const alreadyAllocated = await prisma.leaveBalance.findFirst({
+        where: { year },
+        select: { id: true },
+      })
+      if (!alreadyAllocated) {
+        await runYearReset(year, true)
+      }
     }
 
     return NextResponse.json({ success: true })

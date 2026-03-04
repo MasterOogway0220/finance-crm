@@ -1,30 +1,6 @@
 import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-
-export const ANNUAL_LEAVE_DAYS = 30
-
-// Upserts a LeaveBalance record for every active employee for the given year,
-// setting totalLeaves to ANNUAL_LEAVE_DAYS. Existing records are overwritten
-// so everyone gets a clean 30-day allocation on each yearly reset.
-async function runYearReset(year: number) {
-  const employees = await prisma.employee.findMany({
-    where: { isActive: true },
-    select: { id: true },
-  })
-
-  await Promise.all(
-    employees.map((emp) =>
-      prisma.leaveBalance.upsert({
-        where: { employeeId_year: { employeeId: emp.id, year } },
-        update: { totalLeaves: ANNUAL_LEAVE_DAYS },
-        create: { employeeId: emp.id, year, totalLeaves: ANNUAL_LEAVE_DAYS },
-      })
-    )
-  )
-
-  return { year, total: employees.length }
-}
+import { runYearReset, ANNUAL_LEAVE_DAYS } from '@/lib/year-leave-reset'
 
 // POST /api/leaves/year-reset
 // Admin-triggered manual reset. Body: { year?: number } — defaults to current year.
