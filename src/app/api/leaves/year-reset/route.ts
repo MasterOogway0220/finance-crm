@@ -2,34 +2,32 @@ import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// Shared reset logic: creates a zero-balance LeaveBalance record for every active
-// employee for the given year. Existing records for that year are untouched so
-// any admin-set allocations are preserved — only missing records are inserted.
+export const ANNUAL_LEAVE_DAYS = 30
+
+// Upserts a LeaveBalance record for every active employee for the given year,
+// setting totalLeaves to ANNUAL_LEAVE_DAYS. Existing records are overwritten
+// so everyone gets a clean 30-day allocation on each yearly reset.
 async function runYearReset(year: number) {
   const employees = await prisma.employee.findMany({
     where: { isActive: true },
     select: { id: true },
   })
 
-  let created = 0
-  for (const emp of employees) {
-    const existing = await prisma.leaveBalance.findUnique({
-      where: { employeeId_year: { employeeId: emp.id, year } },
-    })
-    if (!existing) {
-      await prisma.leaveBalance.create({
-        data: { employeeId: emp.id, year, totalLeaves: 0 },
+  await Promise.all(
+    employees.map((emp) =>
+      prisma.leaveBalance.upsert({
+        where: { employeeId_year: { employeeId: emp.id, year } },
+        update: { totalLeaves: ANNUAL_LEAVE_DAYS },
+        create: { employeeId: emp.id, year, totalLeaves: ANNUAL_LEAVE_DAYS },
       })
-      created++
-    }
-  }
+    )
+  )
 
-  return { year, total: employees.length, created, alreadyExisted: employees.length - created }
+  return { year, total: employees.length }
 }
 
 // POST /api/leaves/year-reset
-// Admin-triggered manual reset (e.g. button in UI or direct API call).
-// Body: { year?: number }  — defaults to current year
+// Admin-triggered manual reset. Body: { year?: number } — defaults to current year.
 export async function POST(request: NextRequest) {
   try {
     const session = await auth()
@@ -49,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Year ${year} initialised — ${result.created} new balance record(s) created, ${result.alreadyExisted} already existed.`,
+      message: `${result.total} employee(s) reset to ${ANNUAL_LEAVE_DAYS} leaves for ${year}.`,
       data: result,
     })
   } catch (error) {
@@ -59,7 +57,7 @@ export async function POST(request: NextRequest) {
 }
 
 // GET /api/leaves/year-reset
-// Cron-triggered reset (Vercel cron calls GET). Secured by CRON_SECRET env var.
+// Cron-triggered on Jan 1. Secured by CRON_SECRET env var (Authorization: Bearer <secret>).
 export async function GET(request: NextRequest) {
   try {
     const cronSecret = process.env.CRON_SECRET
@@ -77,7 +75,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Yearly leave reset complete for ${year}.`,
+      message: `Yearly leave reset complete for ${year} — ${result.total} employee(s) set to ${ANNUAL_LEAVE_DAYS} days.`,
       data: result,
     })
   } catch (error) {

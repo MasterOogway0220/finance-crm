@@ -2,6 +2,7 @@ import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notifications'
+import { ANNUAL_LEAVE_DAYS } from '@/app/api/leaves/year-reset/route'
 
 // POST /api/leaves/mark — admin marks a specific employee as absent on given date(s)
 // Creates a leave application that is immediately APPROVED, bypassing normal flow
@@ -55,6 +56,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'An overlapping leave already exists for this employee on this date' },
         { status: 409 }
+      )
+    }
+
+    // Check leave balance against approved days (mark is directly approved)
+    const leaveYear = from.getUTCFullYear()
+    const [balance, usedAgg] = await Promise.all([
+      prisma.leaveBalance.findUnique({
+        where: { employeeId_year: { employeeId, year: leaveYear } },
+        select: { totalLeaves: true },
+      }),
+      prisma.leaveApplication.aggregate({
+        where: {
+          employeeId,
+          status: 'APPROVED',
+          fromDate: {
+            gte: new Date(`${leaveYear}-01-01T00:00:00.000Z`),
+            lte: new Date(`${leaveYear}-12-31T23:59:59.999Z`),
+          },
+        },
+        _sum: { days: true },
+      }),
+    ])
+    const totalLeaves = balance?.totalLeaves ?? ANNUAL_LEAVE_DAYS
+    const usedDays = usedAgg._sum.days ?? 0
+    const remaining = totalLeaves - usedDays
+    if (days > remaining) {
+      return NextResponse.json(
+        { success: false, error: `Insufficient leave balance. ${employee.name} has only ${remaining} day(s) remaining out of ${totalLeaves} for ${leaveYear}.` },
+        { status: 400 }
       )
     }
 
