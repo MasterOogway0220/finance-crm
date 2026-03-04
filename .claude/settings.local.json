@@ -39,7 +39,9 @@
       "Bash(npx ts-node:*)",
       "Bash(npx vercel:*)",
       "Bash(curl:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(gh api:*)",
+      "Bash(gh auth:*)"
     ]
   }
 }

@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotificationForMany } from '@/lib/notifications'
+import { runMonthlyReset } from '@/lib/monthly-reset'
 
 // POST /api/heartbeat — update lastSeenAt + expire overdue tasks
 // Called every 5 minutes by the client for each logged-in user.
@@ -54,6 +55,11 @@ export async function POST() {
           link: '/tasks',
         })
       }
+    }
+
+    // On the 1st of every month, run monthly reset if not already done
+    if (now.getDate() === 1) {
+      await runMonthlyReset()
     }
 
     return NextResponse.json({ success: true })

@@ -1,0 +1,88 @@
+import { prisma } from '@/lib/prisma'
+import { logActivity } from '@/lib/activity-log'
+import { createNotificationForMany } from '@/lib/notifications'
+
+export async function runMonthlyReset() {
+  const now = new Date()
+  const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth()
+  const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+
+  // Idempotency guard — skip if already archived for this month
+  const alreadyRun = await prisma.monthlyArchive.findFirst({
+    where: { month: prevMonth, year: prevYear },
+    select: { id: true },
+  })
+  if (alreadyRun) {
+    return { skipped: true, reason: `Already run for ${prevMonth}/${prevYear}` }
+  }
+
+  const prevMonthStart = new Date(prevYear, prevMonth - 1, 1)
+  const prevMonthEnd = new Date(prevYear, prevMonth, 0, 23, 59, 59, 999)
+
+  const operators = await prisma.employee.findMany({
+    where: { role: 'EQUITY_DEALER', isActive: true },
+    select: { id: true, name: true },
+  })
+
+  // Archive brokerage summary per operator
+  for (const op of operators) {
+    const brokerageSum = await prisma.brokerageDetail.aggregate({
+      _sum: { amount: true },
+      where: {
+        clientId: { not: null },
+        operatorId: op.id,
+        brokerage: { uploadDate: { gte: prevMonthStart, lte: prevMonthEnd } },
+      },
+    })
+    const [totalClients, tradedClients] = await Promise.all([
+      prisma.client.count({ where: { operatorId: op.id } }),
+      prisma.client.count({ where: { operatorId: op.id, status: 'TRADED' } }),
+    ])
+    await prisma.monthlyArchive.upsert({
+      where: { month_year_entityType_entityId: { month: prevMonth, year: prevYear, entityType: 'BROKERAGE', entityId: op.id } },
+      create: { month: prevMonth, year: prevYear, entityType: 'BROKERAGE', entityId: op.id, data: { operatorId: op.id, operatorName: op.name, amount: brokerageSum._sum.amount ?? 0, totalClients, tradedClients } },
+      update: { data: { operatorId: op.id, operatorName: op.name, amount: brokerageSum._sum.amount ?? 0, totalClients, tradedClients } },
+    })
+  }
+
+  // Archive client status snapshot
+  const allClients = await prisma.client.findMany({
+    select: { id: true, clientCode: true, operatorId: true, status: true, remark: true, mfStatus: true, mfRemark: true },
+  })
+  for (const client of allClients) {
+    await prisma.monthlyArchive.upsert({
+      where: { month_year_entityType_entityId: { month: prevMonth, year: prevYear, entityType: 'CLIENT_STATUS', entityId: client.id } },
+      create: { month: prevMonth, year: prevYear, entityType: 'CLIENT_STATUS', entityId: client.id, data: { clientCode: client.clientCode, operatorId: client.operatorId, status: client.status, remark: client.remark, mfStatus: client.mfStatus, mfRemark: client.mfRemark } },
+      update: { data: { clientCode: client.clientCode, operatorId: client.operatorId, status: client.status, remark: client.remark, mfStatus: client.mfStatus, mfRemark: client.mfRemark } },
+    })
+  }
+
+  // Reset all client statuses for the new month
+  await prisma.client.updateMany({
+    data: { status: 'NOT_TRADED', remark: 'DID_NOT_ANSWER', notes: null, followUpDate: null },
+  })
+
+  // Notify all active employees
+  const allEmployees = await prisma.employee.findMany({ where: { isActive: true }, select: { id: true } })
+  if (allEmployees.length > 0) {
+    await createNotificationForMany({
+      userIds: allEmployees.map((e) => e.id),
+      type: 'MONTHLY_RESET',
+      title: 'Monthly reset completed',
+      message: `Client statuses archived and reset for ${prevMonth}/${prevYear}. New month has started.`,
+      link: '/brokerage',
+    })
+  }
+
+  const superAdmin = await prisma.employee.findFirst({ where: { role: 'SUPER_ADMIN', isActive: true }, select: { id: true } })
+  if (superAdmin) {
+    await logActivity({
+      userId: superAdmin.id,
+      action: 'MONTHLY_RESET',
+      module: 'SYSTEM',
+      details: `Monthly reset for ${prevMonth}/${prevYear}. Archived ${allClients.length} clients and ${operators.length} operators. Reset all client statuses.`,
+    })
+  }
+
+  return { skipped: false, archivedMonth: prevMonth, archivedYear: prevYear, clientsReset: allClients.length, operatorsArchived: operators.length }
+}
