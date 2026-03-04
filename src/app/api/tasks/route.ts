@@ -158,13 +158,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Normalize deadline to 5:30 PM IST (12:00 UTC) on the selected date
+    // so tasks expire at end of office hours, not midnight
+    const deadline = new Date(data.deadline)
+    deadline.setUTCHours(12, 0, 0, 0)
+
     const task = await prisma.task.create({
       data: {
         title: data.title,
         description: data.description,
         assignedToId: data.assignedToId,
         assignedById: session.user.id,
-        deadline: data.deadline,
+        deadline,
         priority: data.priority as TaskPriority,
       },
       include: {
