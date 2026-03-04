@@ -42,11 +42,9 @@ export async function POST() {
 
       if (count > 0) {
         const assigneeIds = [...new Set(overdueTasks.map((t) => t.assignedToId))]
-        const assignerIds = [...new Set(overdueTasks.map((t) => t.assignedById))]
-        const userIds = [...new Set([...assigneeIds, ...assignerIds])]
 
         await createNotificationForMany({
-          userIds,
+          userIds: assigneeIds,
           type: 'TASK_EXPIRED',
           title: 'Task expired',
           message: `${count} task${count > 1 ? 's have' : ' has'} expired due to missed deadline.`,
