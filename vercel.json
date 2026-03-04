@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/monthly-reset",
       "schedule": "0 0 1 * *"
-    },
-    {
-      "path": "/api/cron/task-expiry",
-      "schedule": "30 12 * * *"
     }
   ]
 }
