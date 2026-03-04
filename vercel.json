@@ -6,11 +6,7 @@
     },
     {
       "path": "/api/cron/task-expiry",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/leaves/year-reset",
-      "schedule": "0 0 1 1 *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
