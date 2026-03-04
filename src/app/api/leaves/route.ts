@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl
     const status = searchParams.get('status') // optional filter
     const employeeId = searchParams.get('employeeId') // admin only filter
+    const yearParam = searchParams.get('year')
+    const year = yearParam ? parseInt(yearParam) : new Date().getFullYear()
 
     const where: Record<string, unknown> = {}
 
@@ -29,6 +31,12 @@ export async function GET(request: NextRequest) {
 
     if (status) {
       where.status = status
+    }
+
+    // Filter by year — fromDate falls within Jan 1 – Dec 31 of the requested year
+    where.fromDate = {
+      gte: new Date(`${year}-01-01T00:00:00.000Z`),
+      lte: new Date(`${year}-12-31T23:59:59.999Z`),
     }
 
     const applications = await prisma.leaveApplication.findMany({

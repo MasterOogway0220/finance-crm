@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Wifi, WifiOff, Clock, LogIn, LogOut, ChevronDown, ChevronUp } from 'lucide-react'
+import { Wifi, WifiOff, Clock, LogIn, LogOut, ChevronDown, ChevronUp, Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 interface EmployeeStatus {
@@ -30,6 +32,8 @@ const DEPT_LABELS: Record<string, string> = {
   ADMIN: 'Admin',
 }
 
+const HISTORY_LIMIT = 50
+
 function formatTime(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
@@ -51,6 +55,36 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
+function durationStr(loginAt: string, logoutAt: string | null): string {
+  if (!logoutAt) return '—'
+  const ms = new Date(logoutAt).getTime() - new Date(loginAt).getTime()
+  const h = Math.floor(ms / 3600000)
+  const m = Math.floor((ms % 3600000) / 60000)
+  return `${h}h ${m}m`
+}
+
+function exportHistoryCSV(history: LoginHistoryEntry[], date: string) {
+  const rows = [
+    ['Employee', 'Department', 'Designation', 'Login Time', 'Logout Time', 'Duration'],
+    ...history.map((log) => [
+      log.employee.name,
+      DEPT_LABELS[log.employee.department] ?? log.employee.department,
+      log.employee.designation,
+      formatDateTime(log.loginAt),
+      formatDateTime(log.logoutAt),
+      durationStr(log.loginAt, log.logoutAt),
+    ]),
+  ]
+  const csv = rows.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `login-history-${date}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function EmployeeStatusTable() {
   const [employees, setEmployees] = useState<EmployeeStatus[]>([])
   const [loading, setLoading] = useState(true)
@@ -58,6 +92,9 @@ export function EmployeeStatusTable() {
   const [history, setHistory] = useState<LoginHistoryEntry[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyDate, setHistoryDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [historyEmployee, setHistoryEmployee] = useState('all')
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyTotal, setHistoryTotal] = useState(0)
 
   const fetchStatus = useCallback(() => {
     fetch('/api/admin/employee-status')
@@ -68,25 +105,36 @@ export function EmployeeStatusTable() {
 
   useEffect(() => {
     fetchStatus()
-    // Refresh every minute
     const id = setInterval(fetchStatus, 60_000)
     return () => clearInterval(id)
   }, [fetchStatus])
 
-  const fetchHistory = useCallback((date: string) => {
+  const fetchHistory = useCallback((date: string, employeeId: string, page: number) => {
     setHistoryLoading(true)
-    fetch(`/api/admin/login-history?date=${date}&limit=100`)
+    const params = new URLSearchParams({ date, page: String(page), limit: String(HISTORY_LIMIT) })
+    if (employeeId !== 'all') params.set('employeeId', employeeId)
+    fetch(`/api/admin/login-history?${params}`)
       .then((r) => r.json())
-      .then((d) => { if (d.success) setHistory(d.data) })
+      .then((d) => {
+        if (d.success) {
+          setHistory(d.data)
+          setHistoryTotal(d.pagination.total)
+        }
+      })
       .finally(() => setHistoryLoading(false))
   }, [])
 
   useEffect(() => {
-    if (showHistory) fetchHistory(historyDate)
-  }, [showHistory, historyDate, fetchHistory])
+    if (showHistory) fetchHistory(historyDate, historyEmployee, historyPage)
+  }, [showHistory, historyDate, historyEmployee, historyPage, fetchHistory])
+
+  // Reset page when filters change
+  const handleDateChange = (date: string) => { setHistoryDate(date); setHistoryPage(1) }
+  const handleEmployeeChange = (emp: string) => { setHistoryEmployee(emp); setHistoryPage(1) }
 
   const onlineCount = employees.filter((e) => e.isOnline).length
   const offlineCount = employees.length - onlineCount
+  const historyTotalPages = Math.ceil(historyTotal / HISTORY_LIMIT)
 
   if (loading) {
     return (
@@ -142,13 +190,11 @@ export function EmployeeStatusTable() {
                 <td className="px-6 py-3">
                   {emp.isOnline ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                      <Wifi className="h-3 w-3" />
-                      Online
+                      <Wifi className="h-3 w-3" />Online
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">
-                      <WifiOff className="h-3 w-3" />
-                      Offline
+                      <WifiOff className="h-3 w-3" />Offline
                     </span>
                   )}
                 </td>
@@ -197,41 +243,59 @@ export function EmployeeStatusTable() {
 
         {showHistory && (
           <div className="mt-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <label className="text-xs font-medium text-gray-600">Date:</label>
-              <input
-                type="date"
-                className="rounded border border-gray-300 px-2 py-1 text-sm"
-                value={historyDate}
-                onChange={(e) => setHistoryDate(e.target.value)}
-              />
+            {/* Filters + Export */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-gray-600">Date:</label>
+                <input
+                  type="date"
+                  className="rounded border border-gray-300 px-2 py-1 text-sm"
+                  value={historyDate}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                />
+              </div>
+              <Select value={historyEmployee} onValueChange={handleEmployeeChange}>
+                <SelectTrigger className="h-8 w-44 text-xs">
+                  <SelectValue placeholder="All Employees" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Employees</SelectItem>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto gap-1.5 h-8 text-xs"
+                disabled={history.length === 0}
+                onClick={() => exportHistoryCSV(history, historyDate)}
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export CSV
+              </Button>
             </div>
 
             {historyLoading ? (
               <p className="text-sm text-gray-400">Loading history...</p>
             ) : history.length === 0 ? (
-              <p className="text-sm text-gray-400">No login activity on this date.</p>
+              <p className="text-sm text-gray-400">No login activity found.</p>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      <th className="px-4 py-2 text-left">Employee</th>
-                      <th className="px-4 py-2 text-left">Department</th>
-                      <th className="px-4 py-2 text-left">Login Time</th>
-                      <th className="px-4 py-2 text-left">Logout Time</th>
-                      <th className="px-4 py-2 text-left">Duration</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {history.map((log) => {
-                      const durationMs = log.logoutAt
-                        ? new Date(log.logoutAt).getTime() - new Date(log.loginAt).getTime()
-                        : null
-                      const durationStr = durationMs
-                        ? `${Math.floor(durationMs / 3600000)}h ${Math.floor((durationMs % 3600000) / 60000)}m`
-                        : '—'
-                      return (
+              <>
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <th className="px-4 py-2 text-left">Employee</th>
+                        <th className="px-4 py-2 text-left">Department</th>
+                        <th className="px-4 py-2 text-left">Login Time</th>
+                        <th className="px-4 py-2 text-left">Logout Time</th>
+                        <th className="px-4 py-2 text-left">Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {history.map((log) => (
                         <tr key={log.id} className="hover:bg-gray-50">
                           <td className="px-4 py-2 font-medium text-gray-900">{log.employee.name}</td>
                           <td className="px-4 py-2 text-gray-600">
@@ -239,13 +303,28 @@ export function EmployeeStatusTable() {
                           </td>
                           <td className="px-4 py-2 text-gray-700">{formatDateTime(log.loginAt)}</td>
                           <td className="px-4 py-2 text-gray-700">{formatDateTime(log.logoutAt)}</td>
-                          <td className="px-4 py-2 text-gray-500">{durationStr}</td>
+                          <td className="px-4 py-2 text-gray-500">{durationStr(log.loginAt, log.logoutAt)}</td>
                         </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                {historyTotalPages > 1 && (
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>{historyTotal} records · Page {historyPage} of {historyTotalPages}</span>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="h-7 text-xs" disabled={historyPage === 1} onClick={() => setHistoryPage((p) => p - 1)}>
+                        Previous
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" disabled={historyPage === historyTotalPages} onClick={() => setHistoryPage((p) => p + 1)}>
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

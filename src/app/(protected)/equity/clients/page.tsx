@@ -78,7 +78,7 @@ export default function EquityClientsPage() {
     fetch(`/api/clients?${params}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d.success) { setClients(d.data.clients); setTotal(d.data.total) }
+        if (d.success) { setClients(d.data.clients); setTotal(d.data.pagination.total) }
       })
       .finally(() => setLoading(false))
   }, [search, status, remark, page])

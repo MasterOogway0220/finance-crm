@@ -16,6 +16,7 @@ import {
   Plus,
   X,
   ClipboardList,
+  RotateCcw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -458,6 +459,8 @@ export default function CalendarPage() {
 
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
   const year = currentMonth.getFullYear()
+  const [viewYear, setViewYear] = useState(new Date().getFullYear())
+  const [resettingYear, setResettingYear] = useState(false)
 
   const [holidays, setHolidays] = useState<HolidayEntry[]>([])
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null)
@@ -491,14 +494,30 @@ export default function CalendarPage() {
   }, [currentMonth, year])
 
   const fetchApplications = useCallback(() => {
-    fetch('/api/leaves')
+    fetch(`/api/leaves?year=${viewYear}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setApplications(d.data) })
-  }, [])
+  }, [viewYear])
 
   useEffect(() => {
     fetchApplications()
   }, [fetchApplications])
+
+  async function handleYearReset() {
+    if (!confirm(`This will initialise leave balances for all active employees for ${new Date().getFullYear()} (set to 0 if not already set). Continue?`)) return
+    setResettingYear(true)
+    try {
+      const res = await fetch('/api/leaves/year-reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const data = await res.json()
+      if (data.success) {
+        toast.success(data.message)
+      } else {
+        toast.error(data.error || 'Reset failed')
+      }
+    } finally {
+      setResettingYear(false)
+    }
+  }
 
   useEffect(() => {
     if (!isAdmin) {
@@ -593,13 +612,35 @@ export default function CalendarPage() {
           </Button>
         )}
         {isAdmin && (
-          <Button
-            onClick={() => setShowMarkDialog(true)}
-            className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700"
-          >
-            <ClipboardList className="h-4 w-4" />
-            Mark Leave
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Year selector for viewing past/future year applications */}
+            <select
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              value={viewYear}
+              onChange={(e) => setViewYear(Number(e.target.value))}
+            >
+              {Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - 1 + i).map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <Button
+              variant="outline"
+              onClick={handleYearReset}
+              disabled={resettingYear}
+              className="flex items-center gap-2"
+              title="Initialise leave balances for all employees for the current year (sets to 0 if not already set)"
+            >
+              <RotateCcw className="h-4 w-4" />
+              {resettingYear ? 'Resetting...' : 'Reset Year'}
+            </Button>
+            <Button
+              onClick={() => setShowMarkDialog(true)}
+              className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Mark Leave
+            </Button>
+          </div>
         )}
       </div>
 

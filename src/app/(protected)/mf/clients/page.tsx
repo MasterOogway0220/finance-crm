@@ -49,7 +49,7 @@ export default function MFClientsPage() {
     if (remark !== 'all') params.set('mfRemark', remark)
     fetch(`/api/clients?${params}`)
       .then((r) => r.json())
-      .then((d) => { if (d.success) { setClients(d.data.clients); setTotal(d.data.total) } })
+      .then((d) => { if (d.success) { setClients(d.data.clients); setTotal(d.data.pagination.total) } })
       .finally(() => setLoading(false))
   }, [search, status, remark, page])
 

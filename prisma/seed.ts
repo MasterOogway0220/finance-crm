@@ -1,4 +1,4 @@
-import { PrismaClient, Department, Role, ClientStatus, ClientRemark, MFClientStatus, MFClientRemark, TaskStatus, TaskPriority } from '@prisma/client'
+import { PrismaClient, Department, Role, ClientStatus, ClientRemark } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import fs from 'fs'
 import path from 'path'
@@ -334,69 +334,6 @@ async function main() {
 
   console.log(`Imported ${imported} clients from CSV (${skipped} skipped)`)
 
-  // Seed sample tasks
-  const now = new Date()
-  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-  const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-
-  const sampleTasks = [
-    {
-      title: 'Follow up with inactive equity clients',
-      description: 'Call all clients with DID_NOT_ANSWER status and update their trading status. Focus on clients who have not traded this month.',
-      assignedToId: operatorIdMap['Reshma'],
-      assignedById: admin.id,
-      deadline: nextWeek,
-      status: TaskStatus.PENDING,
-      priority: TaskPriority.HIGH,
-    },
-    {
-      title: 'Reconcile brokerage data for January',
-      description: 'Cross-check all brokerage entries for January with the SNAP ERP system and report discrepancies.',
-      assignedToId: backOffice1.id,
-      assignedById: admin.id,
-      deadline: tomorrow,
-      status: TaskStatus.PENDING,
-      priority: TaskPriority.HIGH,
-    },
-    {
-      title: 'Update client KYC documents',
-      description: 'Collect and upload updated KYC documents for all clients whose documents expire this quarter.',
-      assignedToId: operatorIdMap['Karan'],
-      assignedById: admin.id,
-      deadline: nextWeek,
-      status: TaskStatus.PENDING,
-      priority: TaskPriority.MEDIUM,
-    },
-    {
-      title: 'Monthly MF performance report',
-      description: 'Prepare the monthly mutual fund performance report for all active clients and share with the admin team.',
-      assignedToId: operatorIdMap['Reshma'],
-      assignedById: admin.id,
-      deadline: tomorrow,
-      status: TaskStatus.COMPLETED,
-      priority: TaskPriority.MEDIUM,
-      completedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
-    },
-    {
-      title: 'Process pending client transfers',
-      description: 'Process the backlog of client transfer requests that were submitted last week.',
-      assignedToId: backOffice1.id,
-      assignedById: admin.id,
-      deadline: yesterday,
-      status: TaskStatus.EXPIRED,
-      priority: TaskPriority.LOW,
-    },
-  ]
-
-  for (const task of sampleTasks) {
-    const existing = await prisma.task.findFirst({ where: { title: task.title } })
-    if (!existing) {
-      await prisma.task.create({ data: task })
-    }
-  }
-
-  console.log('Seeded tasks')
   console.log('✅ Database seeded successfully!')
   console.log('Default password for all users: Finance@123')
 }
