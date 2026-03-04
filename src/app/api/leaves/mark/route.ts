@@ -2,7 +2,7 @@ import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notifications'
-import { ANNUAL_LEAVE_DAYS } from '@/app/api/leaves/year-reset/route'
+import { ANNUAL_LEAVE_DAYS } from '@/lib/year-leave-reset'
 
 // POST /api/leaves/mark — admin marks a specific employee as absent on given date(s)
 // Creates a leave application that is immediately APPROVED, bypassing normal flow

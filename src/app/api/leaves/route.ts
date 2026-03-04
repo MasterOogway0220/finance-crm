@@ -2,7 +2,7 @@ import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notifications'
-import { ANNUAL_LEAVE_DAYS } from '@/app/api/leaves/year-reset/route'
+import { ANNUAL_LEAVE_DAYS } from '@/lib/year-leave-reset'
 
 // GET /api/leaves — list leave applications
 // Admin: all applications; Employee: only their own
