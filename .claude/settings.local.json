@@ -35,7 +35,11 @@
       "Bash(npx prisma:*)",
       "Bash(pip install:*)",
       "WebFetch(domain:date.nager.at)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx vercel:*)",
+      "Bash(curl:*)",
+      "Bash(rm:*)"
     ]
   }
 }

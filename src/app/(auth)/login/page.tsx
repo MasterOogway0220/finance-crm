@@ -180,7 +180,7 @@ export default function LoginPage() {
       })
 
       if (result?.error) {
-        setServerError('Invalid email or password. Please try again.')
+        setServerError(`Login failed (${result.error}). Check credentials or contact support.`)
         return
       }
 

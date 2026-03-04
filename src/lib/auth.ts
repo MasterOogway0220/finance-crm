@@ -18,25 +18,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
 
-        const employee = await prisma.employee.findUnique({
-          where: { email: credentials.email as string },
-        })
+        try {
+          const employee = await prisma.employee.findUnique({
+            where: { email: credentials.email as string },
+          })
 
-        if (!employee || !employee.isActive) {
+          if (!employee || !employee.isActive) {
+            return null
+          }
+
+          const isValid = await bcrypt.compare(credentials.password as string, employee.password)
+          if (!isValid) return null
+
+          return {
+            id: employee.id,
+            email: employee.email,
+            name: employee.name,
+            role: employee.role,
+            secondaryRole: employee.secondaryRole ?? null,
+            department: employee.department,
+            designation: employee.designation,
+          }
+        } catch (err) {
+          console.error('[authorize] DB error:', err)
           return null
-        }
-
-        const isValid = await bcrypt.compare(credentials.password as string, employee.password)
-        if (!isValid) return null
-
-        return {
-          id: employee.id,
-          email: employee.email,
-          name: employee.name,
-          role: employee.role,
-          secondaryRole: employee.secondaryRole ?? null,
-          department: employee.department,
-          designation: employee.designation,
         }
       },
     }),
@@ -93,6 +98,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       } catch { /* non-critical */ }
     },
   },
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: '/login',
     error: '/login',
