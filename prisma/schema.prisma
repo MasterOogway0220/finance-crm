@@ -158,6 +158,9 @@ model Task {
   @@index([assignedById])
   @@index([status])
   @@index([deadline])
+  @@index([status, deadline])
+  @@index([assignedToId, status])
+  @@index([assignedById, status])
 }
 
 model TaskCompletionProof {
@@ -214,6 +217,8 @@ model BrokerageDetail {
   @@unique([brokerageId, clientCode])
   @@index([operatorId])
   @@index([brokerageId])
+  @@index([operatorId, brokerageId])
+  @@index([clientId])
 }
 
 model MonthlyArchive {
@@ -288,6 +293,8 @@ model LeaveApplication {
   @@index([employeeId])
   @@index([status])
   @@index([fromDate])
+  @@index([employeeId, status])
+  @@index([fromDate, toDate])
 }
 
 model DocumentFolder {
@@ -338,4 +345,6 @@ model EmployeeLoginLog {
 
   @@index([employeeId])
   @@index([loginAt])
+  @@index([employeeId, loginAt])
+  @@index([loginAt, logoutAt])
 }

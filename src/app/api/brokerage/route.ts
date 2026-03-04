@@ -1,7 +1,6 @@
 import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { Role } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,30 +31,53 @@ export async function GET(request: NextRequest) {
     }
     const brokerageMonths = months.map((m) => m.label)
 
-    // Fetch all equity dealers
-    const equityDealerWhere: Record<string, unknown> = {
-      role: 'EQUITY_DEALER',
-      isActive: true,
-    }
+    // Window covering all 7 months for history query
+    const historyStart = months[0].start
+    const historyEnd = months[months.length - 1].end
 
-    if (userRole === 'EQUITY_DEALER') {
-      equityDealerWhere.id = session.user.id
-    }
+    // Fetch all equity dealers
+    const equityDealerWhere: Record<string, unknown> = { role: 'EQUITY_DEALER', isActive: true }
+    if (userRole === 'EQUITY_DEALER') equityDealerWhere.id = session.user.id
 
     const operators = await prisma.employee.findMany({
       where: equityDealerWhere,
       select: { id: true, name: true },
     })
 
-    // Fetch brokerage uploads for the month
-    const uploads = await prisma.brokerageUpload.findMany({
-      where: { uploadDate: { gte: monthStart, lte: monthEnd } },
-      include: {
-        details: { where: { clientId: { not: null } }, select: { operatorId: true, amount: true } },
-      },
-    })
+    const operatorIds = operators.map((o) => o.id)
 
-    // Flatten details with dates
+    // ── Batch all data in one parallel round-trip ──────────────────────────
+    const [
+      uploads,
+      allClientCounts, tradedCounts, dnaCounts,
+      historyDetails,
+    ] = await Promise.all([
+      // Current month brokerage uploads (for monthly total + daily breakdown)
+      prisma.brokerageUpload.findMany({
+        where: { uploadDate: { gte: monthStart, lte: monthEnd } },
+        include: {
+          details: { where: { clientId: { not: null } }, select: { operatorId: true, amount: true } },
+        },
+      }),
+      // Total clients per operator
+      prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds } }, _count: { id: true } }),
+      // Traded clients per operator
+      prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, status: 'TRADED' }, _count: { id: true } }),
+      // DID_NOT_ANSWER per operator
+      prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, remark: 'DID_NOT_ANSWER' }, _count: { id: true } }),
+      // Full 7-month history (one query replaces N×7 aggregates)
+      prisma.brokerageDetail.findMany({
+        where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: historyStart, lte: historyEnd } } },
+        select: { operatorId: true, amount: true, brokerage: { select: { uploadDate: true } } },
+      }),
+    ])
+
+    // Build O(1) lookup maps for client counts
+    const totalMap  = new Map(allClientCounts.map((r) => [r.operatorId, r._count.id]))
+    const tradedMap = new Map(tradedCounts.map((r) => [r.operatorId, r._count.id]))
+    const dnaMap    = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
+
+    // Flatten current-month upload details with day numbers
     type DetailEntry = { operatorId: string; amount: number; day: number }
     const allDetails: DetailEntry[] = []
     for (const upload of uploads) {
@@ -64,73 +86,58 @@ export async function GET(request: NextRequest) {
         allDetails.push({ operatorId: detail.operatorId, amount: detail.amount, day })
       }
     }
-
-    // Total monthly brokerage across all operators (for tradedAmountPercent)
     const totalMonthlyBrokerage = allDetails.reduce((sum, d) => sum + d.amount, 0)
 
-    // Build performance data per operator
-    const operatorPerformance = await Promise.all(
-      operators.map(async (op) => {
-        const opDetails = allDetails.filter((d) => d.operatorId === op.id)
-        const monthlyTotal = opDetails.reduce((sum, d) => sum + d.amount, 0)
+    // Group monthly total + daily breakdown per operator
+    const monthlyTotalMap = new Map<string, number>()
+    const dailyMap        = new Map<string, Record<number, number>>()
+    for (const d of allDetails) {
+      monthlyTotalMap.set(d.operatorId, (monthlyTotalMap.get(d.operatorId) ?? 0) + d.amount)
+      const daily = dailyMap.get(d.operatorId) ?? {}
+      daily[d.day] = (daily[d.day] ?? 0) + d.amount
+      dailyMap.set(d.operatorId, daily)
+    }
 
-        // Daily breakdown with number keys
-        const dailyBreakdown: Record<number, number> = {}
-        for (const d of opDetails) {
-          dailyBreakdown[d.day] = (dailyBreakdown[d.day] ?? 0) + d.amount
-        }
+    // Group 7-month history per operator + month label
+    const historyMap = new Map<string, Record<string, number>>()
+    for (const d of historyDetails) {
+      const label = new Date(d.brokerage.uploadDate).toLocaleString('default', { month: 'short', year: '2-digit' })
+      const opHist = historyMap.get(d.operatorId) ?? {}
+      opHist[label] = (opHist[label] ?? 0) + d.amount
+      historyMap.set(d.operatorId, opHist)
+    }
 
-        // Client stats
-        const [totalClients, tradedClients, didNotAnswer] = await Promise.all([
-          prisma.client.count({ where: { operatorId: op.id } }),
-          prisma.client.count({ where: { operatorId: op.id, status: 'TRADED' } }),
-          prisma.client.count({ where: { operatorId: op.id, remark: 'DID_NOT_ANSWER' } }),
-        ])
+    // Assemble per-operator performance from maps
+    const operatorPerformance = operators.map((op) => {
+      const totalClients  = totalMap.get(op.id)  ?? 0
+      const tradedClients = tradedMap.get(op.id) ?? 0
+      const didNotAnswer  = dnaMap.get(op.id)    ?? 0
+      const monthlyTotal  = monthlyTotalMap.get(op.id) ?? 0
+      const dailyBreakdown = dailyMap.get(op.id) ?? {}
+      const opHist        = historyMap.get(op.id) ?? {}
+      const monthlyHistory: Record<string, number> = {}
+      for (const m of months) monthlyHistory[m.label] = opHist[m.label] ?? 0
 
-        const notTraded = totalClients - tradedClients
-        const tradedPercentage = totalClients > 0 ? (tradedClients / totalClients) * 100 : 0
-        const tradedAmountPercent = totalMonthlyBrokerage > 0 ? (monthlyTotal / totalMonthlyBrokerage) * 100 : 0
-
-        // Monthly history for chart (last 7 months)
-        const monthlyHistoryRaw = await Promise.all(
-          months.map((m) =>
-            prisma.brokerageDetail.aggregate({
-              _sum: { amount: true },
-              where: { clientId: { not: null }, operatorId: op.id, brokerage: { uploadDate: { gte: m.start, lte: m.end } } },
-            })
-          )
-        )
-        const monthlyHistory: Record<string, number> = {}
-        for (let i = 0; i < months.length; i++) {
-          monthlyHistory[months[i].label] = monthlyHistoryRaw[i]._sum.amount ?? 0
-        }
-
-        return {
-          operatorId: op.id,
-          operatorName: op.name,
-          totalClients,
-          tradedClients,
-          notTraded,
-          tradedPercentage,
-          tradedAmountPercent,
-          didNotAnswer,
-          monthlyTotal,
-          dailyBreakdown,
-          monthlyHistory,
-        }
-      })
-    )
+      return {
+        operatorId: op.id,
+        operatorName: op.name,
+        totalClients,
+        tradedClients,
+        notTraded: totalClients - tradedClients,
+        tradedPercentage: totalClients > 0 ? (tradedClients / totalClients) * 100 : 0,
+        tradedAmountPercent: totalMonthlyBrokerage > 0 ? (monthlyTotal / totalMonthlyBrokerage) * 100 : 0,
+        didNotAnswer,
+        monthlyTotal,
+        dailyBreakdown,
+        monthlyHistory,
+      }
+    })
 
     // Build brokerage chart data — one row per operator
-    const brokerageChartData = operatorPerformance.map((op) => ({
-      name: op.operatorName,
-      ...op.monthlyHistory,
-    }))
+    const brokerageChartData = operatorPerformance.map((op) => ({ name: op.operatorName, ...op.monthlyHistory }))
 
     // Strip monthlyHistory before returning operatorPerformance
-    const operatorPerformanceOut = operatorPerformance.map(
-      ({ monthlyHistory: _mh, ...rest }) => rest
-    )
+    const operatorPerformanceOut = operatorPerformance.map(({ monthlyHistory: _mh, ...rest }) => rest)
 
     return NextResponse.json({
       success: true,
