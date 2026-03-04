@@ -56,20 +56,21 @@ export async function POST(request: NextRequest) {
   }
 }
 
+function isAuthorized(request: NextRequest): boolean {
+  const authHeader = request.headers.get('authorization')
+  if (authHeader === `Bearer ${process.env.CRON_SECRET}`) return true
+  const manualSecret = request.headers.get('x-cron-secret')
+  if (manualSecret && manualSecret === process.env.CRON_SECRET) return true
+  return false
+}
+
 // GET /api/leaves/year-reset
 // Cron-triggered on Jan 1. Secured by CRON_SECRET env var (Authorization: Bearer <secret>).
 export async function GET(request: NextRequest) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
   try {
-    const cronSecret = process.env.CRON_SECRET
-    if (!cronSecret) {
-      return NextResponse.json({ success: false, error: 'CRON_SECRET not configured' }, { status: 500 })
-    }
-
-    const authHeader = request.headers.get('authorization')
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
     const year = new Date().getFullYear()
     const result = await runYearReset(year)
 
