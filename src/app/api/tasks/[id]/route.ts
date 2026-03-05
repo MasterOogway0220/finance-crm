@@ -285,6 +285,7 @@ export async function PATCH(
     return NextResponse.json({ success: true, data: task })
   } catch (error) {
     console.error('[PATCH /api/tasks/[id]]', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    const message = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }
