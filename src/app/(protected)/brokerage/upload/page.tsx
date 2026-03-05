@@ -35,7 +35,7 @@ export default function BrokerageUploadPage() {
     setProcessing(true)
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('date', date.toISOString())
+    formData.append('date', format(date, 'yyyy-MM-dd'))
     formData.append('preview', 'true')
     try {
       const res = await fetch('/api/brokerage/upload', { method: 'POST', body: formData })
@@ -56,7 +56,7 @@ export default function BrokerageUploadPage() {
     setConfirming(true)
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('date', date.toISOString())
+    formData.append('date', format(date, 'yyyy-MM-dd'))
     formData.append('preview', 'false')
     try {
       const res = await fetch('/api/brokerage/upload', { method: 'POST', body: formData })

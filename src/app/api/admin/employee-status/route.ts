@@ -59,6 +59,13 @@ export async function GET() {
       // Most recent logout today (if any log has a logoutAt)
       const lastLogout = todayLogs.find((l) => l.logoutAt)?.logoutAt ?? null
 
+      // Sessions in chronological order (oldest first)
+      const todaySessions = [...todayLogs].reverse().map((l) => ({
+        id: l.id,
+        loginAt: l.loginAt,
+        logoutAt: l.logoutAt,
+      }))
+
       return {
         id: emp.id,
         name: emp.name,
@@ -69,6 +76,7 @@ export async function GET() {
         firstLoginToday: firstLogin,
         lastLogoutToday: lastLogout,
         todaySessionCount: todayLogs.length,
+        todaySessions,
       }
     })
 

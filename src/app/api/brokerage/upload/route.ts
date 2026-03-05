@@ -78,9 +78,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Date is required' }, { status: 400 })
     }
 
-    const uploadDate = new Date(dateParam)
+    // Accept YYYY-MM-DD only — parse as UTC midnight to avoid timezone shifts
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return NextResponse.json({ success: false, error: 'Date must be in YYYY-MM-DD format' }, { status: 400 })
+    }
+    const uploadDate = new Date(`${dateParam}T00:00:00.000Z`)
     if (isNaN(uploadDate.getTime())) {
-      return NextResponse.json({ success: false, error: 'Invalid date format' }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'Invalid date' }, { status: 400 })
     }
 
     // Parse xlsx/csv with SheetJS
