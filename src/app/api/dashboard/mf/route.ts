@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getCurrentMonthRange } from '@/lib/utils'
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,18 +10,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check both primary and secondary role — dual-role users must be able to
-    // access the dashboard they selected even if their other role has higher priority.
     const userRoles = [session.user.role, session.user.secondaryRole].filter(Boolean) as string[]
     if (!userRoles.some(r => r === 'MF_DEALER' || r === 'SUPER_ADMIN' || r === 'ADMIN')) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
-    const [totalClients, activeClients, inactiveClients] =
+    const { searchParams } = new URL(request.url)
+    const myBusinessOnly = searchParams.get('myBusinessOnly') === 'true'
+
+    const { start, end } = getCurrentMonthRange()
+
+    const businessWhere: Record<string, unknown> = {
+      employeeId: session.user.id,
+      businessDate: { gte: start, lte: end },
+    }
+    if (myBusinessOnly) {
+      businessWhere.referredById = null
+    }
+
+    const [totalClients, activeClients, inactiveClients, businessAgg] =
       await Promise.all([
         prisma.client.count({ where: { department: 'MUTUAL_FUND' } }),
         prisma.client.count({ where: { department: 'MUTUAL_FUND', mfStatus: 'ACTIVE' } }),
         prisma.client.count({ where: { department: 'MUTUAL_FUND', mfStatus: 'INACTIVE' } }),
+        prisma.mFBusiness.aggregate({
+          where: businessWhere,
+          _sum: { yearlyContribution: true, commissionAmount: true },
+        }),
       ])
 
     return NextResponse.json({
@@ -29,6 +45,8 @@ export async function GET(request: NextRequest) {
         totalClients,
         activeClients,
         inactiveClients,
+        totalSales: businessAgg._sum.yearlyContribution ?? 0,
+        totalCommission: businessAgg._sum.commissionAmount ?? 0,
       },
     })
   } catch (error) {

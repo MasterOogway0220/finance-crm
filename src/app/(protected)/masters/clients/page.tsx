@@ -81,10 +81,12 @@ export default function ClientMasterPage() {
   // Delete
   const [deleteTarget, setDeleteTarget] = useState<ClientWithOperator | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteFromMF, setDeleteFromMF] = useState(false)
 
   // Bulk delete
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkDeleteFromMF, setBulkDeleteFromMF] = useState(false)
 
   // Bulk status update
   const [bulkStatusAction, setBulkStatusAction] = useState<null | 'traded' | 'not_traded'>(null)
@@ -229,9 +231,10 @@ export default function ClientMasterPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
-    const res = await fetch(`/api/clients/${deleteTarget.id}`, { method: 'DELETE' })
+    const params = deleteFromMF ? '?deleteFromMF=true' : ''
+    const res = await fetch(`/api/clients/${deleteTarget.id}${params}`, { method: 'DELETE' })
     const data = await res.json()
-    if (data.success) { toast.success('Client deleted'); setDeleteTarget(null); setSelected(prev => { const n = new Set(prev); n.delete(deleteTarget.id); return n }); fetchClients() }
+    if (data.success) { toast.success(deleteFromMF ? 'Client deleted from both masters' : 'Client deleted'); setDeleteTarget(null); setDeleteFromMF(false); setSelected(prev => { const n = new Set(prev); n.delete(deleteTarget.id); return n }); fetchClients() }
     else toast.error(data.error || 'Delete failed')
     setDeleting(false)
   }
@@ -242,12 +245,13 @@ export default function ClientMasterPage() {
     const res = await fetch('/api/clients/bulk', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientIds: Array.from(selected) }),
+      body: JSON.stringify({ clientIds: Array.from(selected), deleteFromMF: bulkDeleteFromMF }),
     })
     const data = await res.json()
     if (data.success) {
-      toast.success(`${data.data.deletedCount} clients deleted`)
+      toast.success(bulkDeleteFromMF ? `${data.data.deletedCount} clients deleted from both masters` : `${data.data.deletedCount} clients deleted`)
       setBulkDeleteOpen(false)
+      setBulkDeleteFromMF(false)
       setSelected(new Set())
       fetchClients()
     } else {
@@ -635,7 +639,7 @@ export default function ClientMasterPage() {
       </Dialog>
 
       {/* Single Delete Confirm Dialog */}
-      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+      <Dialog open={!!deleteTarget} onOpenChange={() => { setDeleteTarget(null); setDeleteFromMF(false) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Delete Client</DialogTitle></DialogHeader>
           {deleteTarget && (
@@ -646,8 +650,19 @@ export default function ClientMasterPage() {
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
                 This will permanently delete the client. Historical brokerage records will be preserved.
               </p>
+              {deleteTarget.department === 'EQUITY' && (
+                <label className="flex items-center gap-2 cursor-pointer bg-blue-50 border border-blue-200 rounded px-3 py-2.5">
+                  <input
+                    type="checkbox"
+                    checked={deleteFromMF}
+                    onChange={(e) => setDeleteFromMF(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-sm text-blue-800">Also delete from Mutual Fund Master?</span>
+                </label>
+              )}
               <div className="flex gap-2 pt-1">
-                <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+                <Button variant="outline" className="flex-1" onClick={() => { setDeleteTarget(null); setDeleteFromMF(false) }}>Cancel</Button>
                 <Button variant="destructive" className="flex-1" onClick={handleDelete} disabled={deleting}>
                   {deleting ? 'Deleting…' : 'Delete'}
                 </Button>
@@ -658,7 +673,7 @@ export default function ClientMasterPage() {
       </Dialog>
 
       {/* Bulk Delete Confirm Dialog */}
-      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+      <Dialog open={bulkDeleteOpen} onOpenChange={(open) => { setBulkDeleteOpen(open); if (!open) setBulkDeleteFromMF(false) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Delete {selected.size} Client{selected.size > 1 ? 's' : ''}</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -668,8 +683,17 @@ export default function ClientMasterPage() {
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
               This action cannot be undone. Historical brokerage records will be preserved.
             </p>
+            <label className="flex items-center gap-2 cursor-pointer bg-blue-50 border border-blue-200 rounded px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={bulkDeleteFromMF}
+                onChange={(e) => setBulkDeleteFromMF(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <span className="text-sm text-blue-800">Also delete from Mutual Fund Master?</span>
+            </label>
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
+              <Button variant="outline" className="flex-1" onClick={() => { setBulkDeleteOpen(false); setBulkDeleteFromMF(false) }}>Cancel</Button>
               <Button variant="destructive" className="flex-1" onClick={handleBulkDelete} disabled={bulkDeleting}>
                 {bulkDeleting ? 'Deleting…' : `Delete ${selected.size} Client${selected.size > 1 ? 's' : ''}`}
               </Button>

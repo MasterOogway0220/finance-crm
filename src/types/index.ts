@@ -76,6 +76,8 @@ export interface ClientWithOperator {
   remark: ClientRemark
   mfStatus: MFClientStatus
   mfRemark: MFClientRemark
+  mfProduct?: string | null
+  mfInvestmentType?: string | null
   notes?: string | null
   followUpDate?: Date | null
   createdAt: Date
@@ -86,4 +88,23 @@ export interface BrokerageUploadSummary {
   operatorName: string
   clientCount: number
   totalAmount: number
+}
+
+export interface MFBusinessRecord {
+  id: string
+  clientCode: string
+  clientName: string
+  employeeId: string
+  employeeName: string
+  referredById: string | null
+  referredByName: string | null
+  productName: string
+  subProduct: string | null
+  investmentType: string
+  sipAmount: number | null
+  yearlyContribution: number
+  commissionPercent: number
+  commissionAmount: number
+  businessDate: string
+  createdAt: string
 }

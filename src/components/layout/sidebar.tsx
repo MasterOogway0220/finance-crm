@@ -66,6 +66,14 @@ const MF_DEALER_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/mf/dashboard', icon: LayoutDashboard },
   { label: 'My Clients', href: '/mf/clients', icon: Users },
   {
+    label: 'Business',
+    icon: IndianRupee,
+    children: [
+      { label: 'Record Business', href: '/mf/business/record', icon: IndianRupee },
+      { label: 'Business Log', href: '/mf/business/log', icon: IndianRupee },
+    ],
+  },
+  {
     label: 'Tasks',
     icon: CheckSquare,
     children: [

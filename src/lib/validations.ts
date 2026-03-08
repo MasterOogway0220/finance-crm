@@ -52,8 +52,22 @@ export const clientUpdateSchema = z.object({
   remark: z.enum(['SUCCESSFULLY_TRADED', 'NOT_TRADED', 'NO_FUNDS_FOR_TRADING', 'DID_NOT_ANSWER', 'SELF_TRADING']).optional(),
   mfStatus: z.enum(['ACTIVE', 'INACTIVE']).optional(),
   mfRemark: z.enum(['INVESTMENT_DONE', 'INTERESTED', 'NOT_INTERESTED', 'DID_NOT_ANSWER', 'FOLLOW_UP_REQUIRED']).optional(),
+  mfProduct: z.string().optional().nullable(),
+  mfInvestmentType: z.string().optional().nullable(),
   notes: z.string().optional(),
   followUpDate: z.coerce.date().optional().nullable(),
+})
+
+export const mfBusinessSchema = z.object({
+  clientCode: z.string().min(1, 'Client code is required'),
+  clientName: z.string().min(1, 'Client name is required'),
+  referredById: z.string().optional().nullable(),
+  productName: z.string().min(1, 'Product is required'),
+  subProduct: z.string().optional().nullable(),
+  investmentType: z.enum(['Lump Sum', 'SIP'], { message: 'Investment type is required' }),
+  sipAmount: z.number().positive('SIP amount must be positive').optional().nullable(),
+  yearlyContribution: z.number().positive('Yearly contribution must be positive'),
+  commissionPercent: z.number().min(0, 'Commission % must be 0 or more').max(100, 'Commission % cannot exceed 100'),
 })
 
 export const bulkClientUpdateSchema = z.object({

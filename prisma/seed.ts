@@ -1,4 +1,4 @@
-import { PrismaClient, Department, Role, ClientStatus, ClientRemark } from '@prisma/client'
+import { PrismaClient, Department, Role, ClientStatus, ClientRemark, MFClientStatus, MFClientRemark } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import fs from 'fs'
 import path from 'path'
@@ -315,7 +315,7 @@ async function main() {
     const { firstName, middleName, lastName } = parseName(clientName)
 
     await prisma.client.upsert({
-      where: { clientCode },
+      where: { clientCode_department: { clientCode, department: Department.EQUITY } },
       update: {},
       create: {
         clientCode,
@@ -332,7 +332,81 @@ async function main() {
     imported++
   }
 
-  console.log(`Imported ${imported} clients from CSV (${skipped} skipped)`)
+  console.log(`Imported ${imported} equity clients from CSV (${skipped} skipped)`)
+
+  // Load MF clients from MutualFund_client_master.csv
+  const mfDealers = await prisma.employee.findMany({
+    where: { role: Role.MF_DEALER },
+  })
+
+  if (mfDealers.length === 0) {
+    console.warn('No MF dealers found, skipping MF client import')
+  } else {
+    const mfCsvPath = path.join(__dirname, '..', 'crm-documents', 'MutualFund_client_master.csv')
+    const mfCsvContent = fs.readFileSync(mfCsvPath, 'utf8')
+    const mfCsvLines = mfCsvContent.split('\n').slice(1).filter(l => l.trim())
+
+    let mfImported = 0
+    let mfSkipped = 0
+
+    for (let i = 0; i < mfCsvLines.length; i++) {
+      const line = mfCsvLines[i]
+      const cols = line.replace(/\r/g, '').replace(/\uFEFF/g, '').split(',')
+      const clientCode = (cols[0] || '').trim()
+      const clientName = (cols[1] || '').trim()
+
+      if (!clientCode || !clientName) {
+        mfSkipped++
+        continue
+      }
+
+      // Distribute clients evenly among MF dealers
+      const dealer = mfDealers[i % mfDealers.length]
+      const { firstName, middleName, lastName } = parseName(clientName)
+
+      await prisma.client.upsert({
+        where: { clientCode_department: { clientCode, department: Department.MUTUAL_FUND } },
+        update: {},
+        create: {
+          clientCode,
+          firstName,
+          middleName,
+          lastName,
+          phone: '0000000000',
+          department: Department.MUTUAL_FUND,
+          operatorId: dealer.id,
+          mfStatus: MFClientStatus.INACTIVE,
+          mfRemark: MFClientRemark.DID_NOT_ANSWER,
+        },
+      })
+      mfImported++
+    }
+
+    console.log(`Imported ${mfImported} MF clients from CSV (${mfSkipped} skipped)`)
+  }
+
+  // Load MF products from Mutual_Fund_Product_Master.csv
+  const mfProductCsvPath = path.join(__dirname, '..', 'crm-documents', 'Mutual_Fund_Product_Master.csv')
+  const mfProductCsvContent = fs.readFileSync(mfProductCsvPath, 'utf8')
+  const mfProductLines = mfProductCsvContent.split('\n').slice(1).filter(l => l.trim())
+
+  let productsImported = 0
+  for (const line of mfProductLines) {
+    const cols = line.replace(/\r/g, '').replace(/\uFEFF/g, '').split(',')
+    const name = (cols[0] || '').trim()
+    const investmentType = (cols[1] || '').trim()
+
+    if (!name || !investmentType) continue
+
+    await prisma.mFProduct.upsert({
+      where: { name },
+      update: { investmentType },
+      create: { name, investmentType },
+    })
+    productsImported++
+  }
+
+  console.log(`Imported ${productsImported} MF products from CSV`)
 
   console.log('✅ Database seeded successfully!')
   console.log('Default password for all users: Finance@123')

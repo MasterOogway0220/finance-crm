@@ -2,7 +2,7 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
-import { IndianRupee, CheckSquare, Users, ArrowRight, CalendarDays } from 'lucide-react'
+import { IndianRupee, CheckSquare, Users, ArrowRight, CalendarDays, TrendingUp } from 'lucide-react'
 import { getEffectiveRole } from '@/lib/roles'
 
 const ADMIN_REPORTS = [
@@ -10,6 +10,7 @@ const ADMIN_REPORTS = [
   { title: 'Task Completion Report', desc: 'Task performance across all departments', icon: CheckSquare, color: 'text-blue-600 bg-blue-50', href: '/reports/tasks' },
   { title: 'Client Engagement Report', desc: 'Client trading status and follow-up data', icon: Users, color: 'text-purple-600 bg-purple-50', href: '/reports/engagement' },
   { title: 'Employee Leave Report', desc: 'Leave balance and usage across departments', icon: CalendarDays, color: 'text-amber-600 bg-amber-50', href: '/reports/leave' },
+  { title: 'MF Business Report', desc: 'Mutual fund sales and commission by department', icon: TrendingUp, color: 'text-emerald-600 bg-emerald-50', href: '/reports/mf-business' },
 ]
 
 const EQUITY_REPORTS = [

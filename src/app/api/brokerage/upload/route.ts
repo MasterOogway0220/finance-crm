@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
     // Map client codes to operators via Client table
     const allCodes = Array.from(codeAmountMap.keys())
     const clientRecords = await prisma.client.findMany({
-      where: { clientCode: { in: allCodes } },
+      where: { clientCode: { in: allCodes }, department: 'EQUITY' },
       select: { id: true, clientCode: true, operatorId: true },
     })
 

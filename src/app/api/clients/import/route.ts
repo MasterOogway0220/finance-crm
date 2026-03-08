@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { validateClientCode } from '@/lib/client-code-validator'
-import { Department } from '@prisma/client'
+import { Department, Role } from '@prisma/client'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -118,13 +118,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Pre-fetch existing client codes
+    // Pre-fetch existing client codes (per department)
     const codesInFile = rows.map(r => getField(r, 'Client Code', 'clientCode', 'client_code', 'ClientCode', 'code', 'Code', 'Clients').toUpperCase()).filter(Boolean)
     const existingClients = await prisma.client.findMany({
       where: { clientCode: { in: codesInFile } },
-      select: { clientCode: true },
+      select: { clientCode: true, department: true },
     })
-    const existingCodes = new Set(existingClients.map(c => c.clientCode))
+    // Build a set of "clientCode:department" for duplicate checking
+    const existingCodeDeptSet = new Set(existingClients.map(c => `${c.clientCode}:${c.department}`))
 
     const validRows: ReturnType<typeof normaliseRow>[] = []
     const invalidRows: { row: number; data: ReturnType<typeof normaliseRow>; errors: string[] }[] = []
@@ -134,10 +135,11 @@ export async function POST(request: NextRequest) {
       const norm = normaliseRow(rows[i], operatorNameToId)
       const errors: string[] = []
 
+      const codeDeptKey = `${norm.clientCode}:${norm.department}`
       if (!norm.clientCode) errors.push('Client code is required')
       else if (!validateClientCode(norm.clientCode)) errors.push('Invalid client code format')
-      else if (existingCodes.has(norm.clientCode)) errors.push('Client code already exists in database')
-      else if (seenCodes.has(norm.clientCode)) errors.push('Duplicate client code in file')
+      else if (existingCodeDeptSet.has(codeDeptKey)) errors.push('Client code already exists in database for this department')
+      else if (seenCodes.has(codeDeptKey)) errors.push('Duplicate client code in file')
 
       if (!norm.firstName) errors.push('First name is required')
       if (!norm.lastName) errors.push('Last name is required')
@@ -153,7 +155,7 @@ export async function POST(request: NextRequest) {
         invalidRows.push({ row: i + 2, data: norm, errors })
       } else {
         validRows.push(norm)
-        seenCodes.add(norm.clientCode)
+        seenCodes.add(codeDeptKey)
       }
     }
 
@@ -189,6 +191,30 @@ export async function POST(request: NextRequest) {
       })),
       skipDuplicates: true,
     })
+
+    // Auto-add equity clients to MF master
+    const equityRows = validRows.filter(r => r.department === 'EQUITY')
+    if (equityRows.length > 0) {
+      const mfDealers = await prisma.employee.findMany({
+        where: { role: Role.MF_DEALER, isActive: true },
+        select: { id: true },
+      })
+
+      if (mfDealers.length > 0) {
+        await prisma.client.createMany({
+          data: equityRows.map((r, i) => ({
+            clientCode: r.clientCode,
+            firstName: r.firstName,
+            middleName: r.middleName,
+            lastName: r.lastName,
+            phone: r.phone || '0000000000',
+            department: Department.MUTUAL_FUND as Department,
+            operatorId: mfDealers[i % mfDealers.length].id,
+          })),
+          skipDuplicates: true,
+        })
+      }
+    }
 
     await logActivity({
       userId: session.user.id,

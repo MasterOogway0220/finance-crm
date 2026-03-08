@@ -3,10 +3,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { bulkClientUpdateSchema } from '@/lib/validations'
+import { Department } from '@prisma/client'
 import { z } from 'zod'
 
 const bulkDeleteSchema = z.object({
   clientIds: z.array(z.string()).min(1, 'Select at least one client'),
+  deleteFromMF: z.boolean().optional(),
 })
 
 export async function PATCH(request: NextRequest) {
@@ -109,13 +111,31 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const { clientIds } = parsed.data
+    const { clientIds, deleteFromMF } = parsed.data
 
     // Unlink clients from brokerage records to preserve history
     await prisma.brokerageDetail.updateMany({
       where: { clientId: { in: clientIds } },
       data: { clientId: null },
     })
+
+    // If deleting equity clients and user chose to also delete from MF
+    if (deleteFromMF) {
+      const equityClients = await prisma.client.findMany({
+        where: { id: { in: clientIds }, department: Department.EQUITY },
+        select: { clientCode: true },
+      })
+      const equityCodes = equityClients.map(c => c.clientCode)
+
+      if (equityCodes.length > 0) {
+        await prisma.client.deleteMany({
+          where: {
+            clientCode: { in: equityCodes },
+            department: Department.MUTUAL_FUND,
+          },
+        })
+      }
+    }
 
     const result = await prisma.client.deleteMany({
       where: { id: { in: clientIds } },
@@ -125,7 +145,7 @@ export async function DELETE(request: NextRequest) {
       userId: session.user.id,
       action: 'BULK_DELETE',
       module: 'CLIENTS',
-      details: `Bulk deleted ${result.count} clients. Brokerage records preserved.`,
+      details: `Bulk deleted ${result.count} clients. Brokerage records preserved.${deleteFromMF ? ' Also removed from MF master.' : ''}`,
     })
 
     return NextResponse.json({

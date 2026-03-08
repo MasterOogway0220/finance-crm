@@ -27,6 +27,12 @@ const REMARK_OPTIONS = [
   { value: 'FOLLOW_UP_REQUIRED', label: 'Follow-up Required' },
 ]
 
+interface MFProduct {
+  id: string
+  name: string
+  investmentType: string
+}
+
 export default function MFClientsPage() {
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,7 +42,14 @@ export default function MFClientsPage() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [products, setProducts] = useState<MFProduct[]>([])
   const limit = 25
+
+  useEffect(() => {
+    fetch('/api/mf-products')
+      .then(r => r.json())
+      .then(d => { if (d.success) setProducts(d.data) })
+  }, [])
 
   const fetchClients = useCallback(() => {
     setLoading(true)
@@ -109,6 +122,8 @@ export default function MFClientsPage() {
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Code</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Name</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Contact</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Product</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Inv. Type</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Remark</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Follow-up</th>
@@ -118,15 +133,15 @@ export default function MFClientsPage() {
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}><td colSpan={7} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
+                <tr key={i}><td colSpan={9} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
               ))
             ) : clients.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">
                 <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No clients found</p>
               </td></tr>
             ) : clients.map((client) => (
-              <MFClientRow key={client.id} client={client} onUpdate={updateClient} />
+              <MFClientRow key={client.id} client={client} products={products} onUpdate={updateClient} />
             ))}
           </tbody>
         </table>
@@ -145,10 +160,31 @@ export default function MFClientsPage() {
   )
 }
 
-function MFClientRow({ client, onUpdate }: { client: ClientWithOperator; onUpdate: (id: string, updates: Record<string, unknown>) => void }) {
+function MFClientRow({ client, products, onUpdate }: { client: ClientWithOperator; products: MFProduct[]; onUpdate: (id: string, updates: Record<string, unknown>) => void }) {
   const [notes, setNotes] = useState(client.notes || '')
   const [editingNotes, setEditingNotes] = useState(false)
   const [followUp, setFollowUp] = useState<Date | undefined>(client.followUpDate ? new Date(client.followUpDate) : undefined)
+
+  const selectedProduct = products.find(p => p.name === client.mfProduct)
+  const currentMfProduct = client.mfProduct || ''
+  const currentMfInvestmentType = client.mfInvestmentType || ''
+
+  // Determine investment type options based on selected product
+  const hasOnlyLumpSum = selectedProduct?.investmentType?.trim() === 'Lump Sum'
+  const hasSIPAndLumpSum = selectedProduct?.investmentType?.includes('SIP')
+
+  const handleProductChange = (productName: string) => {
+    const product = products.find(p => p.name === productName)
+    if (product) {
+      const isLumpSumOnly = product.investmentType.trim() === 'Lump Sum'
+      onUpdate(client.id, {
+        mfProduct: productName,
+        mfInvestmentType: isLumpSumOnly ? 'Lump Sum' : '',
+      })
+    } else {
+      onUpdate(client.id, { mfProduct: '', mfInvestmentType: '' })
+    }
+  }
 
   return (
     <tr className={cn('border-b border-gray-100 hover:bg-gray-50 transition-colors', client.mfStatus === 'ACTIVE' ? 'bg-green-50' : 'bg-white')}>
@@ -162,6 +198,33 @@ function MFClientRow({ client, onUpdate }: { client: ClientWithOperator; onUpdat
         </div>
       </td>
       <td className="px-4 py-3 text-xs"><a href={`tel:${client.phone}`} className="text-gray-600 hover:text-blue-600">{client.phone}</a></td>
+      <td className="px-4 py-3">
+        <Select value={currentMfProduct || 'none'} onValueChange={(v) => handleProductChange(v === 'none' ? '' : v)}>
+          <SelectTrigger className="h-7 text-xs w-40"><SelectValue placeholder="Select product" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">-- None --</SelectItem>
+            {products.map(p => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </td>
+      <td className="px-4 py-3">
+        {currentMfProduct ? (
+          hasOnlyLumpSum ? (
+            <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600 font-medium">Lump Sum</span>
+          ) : hasSIPAndLumpSum ? (
+            <Select value={currentMfInvestmentType || 'none'} onValueChange={(v) => onUpdate(client.id, { mfInvestmentType: v === 'none' ? '' : v })}>
+              <SelectTrigger className="h-7 text-xs w-28"><SelectValue placeholder="Select type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">-- Select --</SelectItem>
+                <SelectItem value="Lump Sum">Lump Sum</SelectItem>
+                <SelectItem value="SIP">SIP</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : null
+        ) : (
+          <span className="text-xs text-gray-300">--</span>
+        )}
+      </td>
       <td className="px-4 py-3">
         <Select value={client.mfStatus} onValueChange={(v) => onUpdate(client.id, { mfStatus: v })}>
           <SelectTrigger className={cn('h-7 text-xs w-24', client.mfStatus === 'ACTIVE' ? 'border-green-400 text-green-700' : 'border-gray-300')}><SelectValue /></SelectTrigger>

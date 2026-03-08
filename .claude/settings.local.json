@@ -41,7 +41,19 @@
       "Bash(curl:*)",
       "Bash(rm:*)",
       "Bash(gh api:*)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(npx next:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(node_modules/.bin/next lint:*)",
+      "Bash(bun run:*)",
+      "Bash(python3:*)",
+      "Bash(bun install:*)",
+      "Bash(xargs cat:*)",
+      "Bash(bunx prisma:*)",
+      "Bash(cat:*)",
+      "Bash(wc:*)",
+      "Bash(npx tsx:*)",
+      "Bash(file:*)"
     ]
   }
 }

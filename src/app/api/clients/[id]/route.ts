@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { clientUpdateSchema } from '@/lib/validations'
-import { Role } from '@prisma/client'
+import { Department, Role } from '@prisma/client'
 
 export async function DELETE(
   request: NextRequest,
@@ -21,6 +21,8 @@ export async function DELETE(
     }
 
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const deleteFromMF = searchParams.get('deleteFromMF') === 'true'
 
     const existing = await prisma.client.findUnique({
       where: { id },
@@ -38,11 +40,21 @@ export async function DELETE(
 
     await prisma.client.delete({ where: { id } })
 
+    // If equity client deleted and user chose to also delete from MF master
+    if (existing.department === Department.EQUITY && deleteFromMF) {
+      const mfClient = await prisma.client.findUnique({
+        where: { clientCode_department: { clientCode: existing.clientCode, department: Department.MUTUAL_FUND } },
+      })
+      if (mfClient) {
+        await prisma.client.delete({ where: { id: mfClient.id } })
+      }
+    }
+
     await logActivity({
       userId: session.user.id,
       action: 'DELETE',
       module: 'CLIENTS',
-      details: `Deleted client: ${existing.clientCode} - ${existing.firstName} ${existing.lastName}. Historical brokerage records preserved.`,
+      details: `Deleted client: ${existing.clientCode} - ${existing.firstName} ${existing.lastName}. Historical brokerage records preserved.${deleteFromMF ? ' Also removed from MF master.' : ''}`,
     })
 
     return NextResponse.json({ success: true })

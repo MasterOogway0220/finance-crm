@@ -95,6 +95,8 @@ model Employee {
   leaveApplications    LeaveApplication[] @relation("LeaveApplicant")
   reviewedLeaves       LeaveApplication[] @relation("LeaveReviewer")
   loginLogs            EmployeeLoginLog[]
+  mfBusinessRecorded   MFBusiness[]       @relation("MFBusinessEmployee")
+  mfBusinessReferred   MFBusiness[]       @relation("MFBusinessReferrer")
 
   @@index([department])
   @@index([role])
@@ -102,7 +104,7 @@ model Employee {
 
 model Client {
   id              String          @id @default(cuid())
-  clientCode      String          @unique
+  clientCode      String
   firstName       String
   middleName      String?
   lastName        String
@@ -116,6 +118,8 @@ model Client {
 
   mfStatus        MFClientStatus  @default(INACTIVE)
   mfRemark        MFClientRemark  @default(DID_NOT_ANSWER)
+  mfProduct       String?
+  mfInvestmentType String?
 
   notes           String?         @db.Text
   followUpDate    DateTime?
@@ -123,7 +127,9 @@ model Client {
   updatedAt       DateTime        @updatedAt
 
   brokerageDetails BrokerageDetail[]
+  mfBusinesses     MFBusiness[]
 
+  @@unique([clientCode, department])
   @@index([operatorId])
   @@index([clientCode])
   @@index([department])
@@ -347,4 +353,40 @@ model EmployeeLoginLog {
   @@index([loginAt])
   @@index([employeeId, loginAt])
   @@index([loginAt, logoutAt])
+}
+
+model MFProduct {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  investmentType String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model MFBusiness {
+  id                 String    @id @default(cuid())
+  clientCode         String
+  clientName         String
+  clientId           String?
+  client             Client?   @relation(fields: [clientId], references: [id])
+  employeeId         String
+  employee           Employee  @relation("MFBusinessEmployee", fields: [employeeId], references: [id])
+  referredById       String?
+  referredBy         Employee? @relation("MFBusinessReferrer", fields: [referredById], references: [id])
+  productName        String
+  subProduct         String?
+  investmentType     String
+  sipAmount          Float?
+  yearlyContribution Float
+  commissionPercent  Float
+  commissionAmount   Float
+  businessDate       DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([employeeId])
+  @@index([referredById])
+  @@index([businessDate])
+  @@index([employeeId, businessDate])
 }

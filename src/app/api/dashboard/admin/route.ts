@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const [
       totalEmployees, equityCount, mfCount, tradedClients,
       pendingTasks, overdueTasks, completedTasks, expiredTasks,
-      brokerageSum, lastMonthBrokerageSum, operators,
+      brokerageSum, lastMonthBrokerageSum, operators, mfBusinessAgg,
     ] = await Promise.all([
       prisma.employee.count({ where: { isActive: true } }),
       prisma.client.count({ where: { department: 'EQUITY' } }),
@@ -52,6 +52,10 @@ export async function GET(request: NextRequest) {
       prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { uploadDate: { gte: start, lte: end } } } }),
       prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { uploadDate: { gte: lastStart, lte: lastEnd } } } }),
       prisma.employee.findMany({ where: { role: 'EQUITY_DEALER', isActive: true }, select: { id: true, name: true } }),
+      prisma.mFBusiness.aggregate({
+        _sum: { yearlyContribution: true, commissionAmount: true },
+        where: { businessDate: { gte: start, lte: end } },
+      }),
     ])
 
     const monthlyBrokerage    = brokerageSum._sum.amount ?? 0
@@ -63,18 +67,13 @@ export async function GET(request: NextRequest) {
       allClientCounts, tradedCounts, dnaCounts,
       currentMonthDetails, yearDetails,
     ] = await Promise.all([
-      // Total clients per operator
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds } }, _count: { id: true } }),
-      // Traded clients per operator
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, status: 'TRADED' }, _count: { id: true } }),
-      // DID_NOT_ANSWER per operator
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, remark: 'DID_NOT_ANSWER' }, _count: { id: true } }),
-      // Current-month brokerage details (for monthly total + daily breakdown)
       prisma.brokerageDetail.findMany({
         where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: start, lte: end } } },
         select: { operatorId: true, amount: true, brokerage: { select: { uploadDate: true } } },
       }),
-      // Full-year brokerage details (for 12-month chart — replaces 12 aggregates per operator)
       prisma.brokerageDetail.findMany({
         where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: yearStart, lte: yearEnd } } },
         select: { operatorId: true, amount: true, brokerage: { select: { uploadDate: true } } },
@@ -86,7 +85,6 @@ export async function GET(request: NextRequest) {
     const tradedMap  = new Map(tradedCounts.map((r) => [r.operatorId, r._count.id]))
     const dnaMap     = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
 
-    // Group current-month details by operator → monthly total + daily breakdown
     const monthlyTotalMap = new Map<string, number>()
     const dailyMap        = new Map<string, Record<number, number>>()
     for (const d of currentMonthDetails) {
@@ -97,7 +95,6 @@ export async function GET(request: NextRequest) {
       dailyMap.set(d.operatorId, daily)
     }
 
-    // Group year details by operator + month label
     const historyMap = new Map<string, Record<string, number>>()
     for (const d of yearDetails) {
       const label = new Date(d.brokerage.uploadDate).toLocaleString('default', { month: 'short', year: '2-digit' })
@@ -106,7 +103,6 @@ export async function GET(request: NextRequest) {
       historyMap.set(d.operatorId, opHist)
     }
 
-    // Assemble per-operator performance from maps
     const operatorPerformance = operators.map((op) => {
       const opTotal       = totalMap.get(op.id)   ?? 0
       const opTraded      = tradedMap.get(op.id)  ?? 0
@@ -145,6 +141,8 @@ export async function GET(request: NextRequest) {
       totalEquityClients: equityCount,
       pendingTasks,
       overdueTasks,
+      mfTotalSales: mfBusinessAgg._sum.yearlyContribution ?? 0,
+      mfTotalCommission: mfBusinessAgg._sum.commissionAmount ?? 0,
       taskStats: { pending: pendingTasks, completed: completedTasks, expired: expiredTasks },
       operatorPerformance: operatorPerformance.map(({ monthlyHistory: _mh, ...rest }) => rest),
       brokerageChartData,

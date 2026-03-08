@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { clientSchema } from '@/lib/validations'
 import { validateClientCode } from '@/lib/client-code-validator'
-import { ClientRemark, ClientStatus, Department, MFClientRemark, MFClientStatus, Role } from '@prisma/client'
+import { ClientRemark, ClientStatus, Department, MFClientRemark, MFClientStatus, Role, Prisma } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
   try {
@@ -115,7 +115,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const existing = await prisma.client.findUnique({ where: { clientCode: data.clientCode } })
+    const dept = data.department as Department
+    const existing = await prisma.client.findUnique({
+      where: { clientCode_department: { clientCode: data.clientCode, department: dept } },
+    })
     if (existing) {
       return NextResponse.json({ success: false, error: 'Client with this code already exists' }, { status: 409 })
     }
@@ -132,7 +135,7 @@ export async function POST(request: NextRequest) {
         middleName: data.middleName,
         lastName: data.lastName,
         phone: data.phone,
-        department: data.department as Department,
+        department: dept,
         operatorId: data.operatorId,
       },
       include: {
@@ -141,6 +144,36 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+
+    // Auto-add to MF master when equity client is created
+    if (dept === Department.EQUITY) {
+      try {
+        // Find an MF dealer to assign as operator (pick one with fewest clients)
+        const mfDealer = await prisma.employee.findFirst({
+          where: { role: Role.MF_DEALER, isActive: true },
+          orderBy: { assignedClients: { _count: 'asc' } },
+        })
+
+        if (mfDealer) {
+          await prisma.client.create({
+            data: {
+              clientCode: data.clientCode,
+              firstName: data.firstName,
+              middleName: data.middleName,
+              lastName: data.lastName,
+              phone: data.phone || '0000000000',
+              department: Department.MUTUAL_FUND,
+              operatorId: mfDealer.id,
+            },
+          })
+        }
+      } catch (e) {
+        // MF client may already exist - ignore duplicate errors
+        if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) {
+          console.error('Failed to auto-create MF client:', e)
+        }
+      }
+    }
 
     await logActivity({
       userId: session.user.id,

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import {
-  Users, Briefcase, IndianRupee, Clock, AlertTriangle, UserCheck,
+  Users, Briefcase, IndianRupee, TrendingUp, Clock, AlertTriangle, UserCheck,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -30,6 +30,8 @@ interface DashboardData {
   totalEquityClients: number
   pendingTasks: number
   overdueTasks: number
+  mfTotalSales: number
+  mfTotalCommission: number
   taskStats: { pending: number; completed: number; expired: number }
   operatorPerformance: Array<{
     operatorId: string
@@ -138,11 +140,11 @@ export default function AdminDashboardPage() {
 
       {/* KPI Cards */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
         </div>
       ) : data && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
             title="Total Employees"
             value={data.totalEmployees}
@@ -185,6 +187,20 @@ export default function AdminDashboardPage() {
             subtitle="Requires attention"
             icon={AlertTriangle}
             accent="red"
+          />
+          <KpiCard
+            title="MF Total Sales"
+            value={formatCurrency(data.mfTotalSales)}
+            subtitle="Current month"
+            icon={TrendingUp}
+            accent="emerald"
+          />
+          <KpiCard
+            title="MF Total Commission"
+            value={formatCurrency(data.mfTotalCommission)}
+            subtitle="Current month"
+            icon={IndianRupee}
+            accent="indigo"
           />
         </div>
       )}
