@@ -1,10 +1,23 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
 import type { MFBusinessRecord } from '@/types'
 
@@ -23,8 +36,10 @@ export default function BusinessLogPage() {
   const [myBusinessOnly, setMyBusinessOnly] = useState(false)
   const [records, setRecords] = useState<MFBusinessRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
+  const fetchRecords = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams({ month, year })
     if (myBusinessOnly) params.set('myBusinessOnly', 'true')
@@ -33,6 +48,28 @@ export default function BusinessLogPage() {
       .then((d) => { if (d.success) setRecords(d.data) })
       .finally(() => setLoading(false))
   }, [month, year, myBusinessOnly])
+
+  useEffect(() => { fetchRecords() }, [fetchRecords])
+
+  const handleDelete = async () => {
+    if (!deleteId) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/mf-business/${deleteId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        toast.success('Entry deleted')
+        setRecords((prev) => prev.filter((r) => r.id !== deleteId))
+      } else {
+        toast.error(data.error || 'Failed to delete entry')
+      }
+    } catch {
+      toast.error('Failed to delete entry')
+    } finally {
+      setDeleting(false)
+      setDeleteId(null)
+    }
+  }
 
   const totalSales = records.reduce((s, r) => s + r.yearlyContribution, 0)
   const totalCommission = records.reduce((s, r) => s + r.commissionAmount, 0)
@@ -93,6 +130,7 @@ export default function BusinessLogPage() {
                 <th className="px-3 py-2.5 text-right font-semibold">Yearly</th>
                 <th className="px-3 py-2.5 text-right font-semibold">Comm %</th>
                 <th className="px-3 py-2.5 text-right font-semibold">Comm Amt</th>
+                <th className="px-3 py-2.5 text-center font-semibold">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -108,12 +146,43 @@ export default function BusinessLogPage() {
                   <td className="px-3 py-2 text-right font-medium text-gray-800">{formatCurrency(r.yearlyContribution)}</td>
                   <td className="px-3 py-2 text-right text-gray-600">{r.commissionPercent}%</td>
                   <td className="px-3 py-2 text-right font-medium text-green-700">{formatCurrency(r.commissionAmount)}</td>
+                  <td className="px-3 py-2 text-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => setDeleteId(r.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Entry</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this business entry? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

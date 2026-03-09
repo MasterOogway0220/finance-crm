@@ -76,6 +76,8 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     const confirm = formData.get('confirm') === 'true'
+    // defaultDepartment: used when file has no Department column (e.g. MF-only CSV)
+    const defaultDepartment = (formData.get('defaultDepartment') as string | null) ?? ''
 
     if (!file) {
       return NextResponse.json({ success: false, error: 'No file uploaded' }, { status: 400 })
@@ -143,13 +145,14 @@ export async function POST(request: NextRequest) {
 
       if (!norm.firstName) errors.push('First name is required')
       if (!norm.lastName) errors.push('Last name is required')
-      if (!norm.phone || !/^\d{10}$/.test(norm.phone)) errors.push('Phone must be 10 digits')
+      // Phone is optional — default to placeholder if missing
+      if (norm.phone && !/^\d{10}$/.test(norm.phone)) errors.push('Phone must be 10 digits if provided')
+      // Fall back to defaultDepartment if file has no Department column
+      if (!norm.department && defaultDepartment) norm.department = defaultDepartment
       if (!norm.department || !VALID_DEPARTMENTS.includes(norm.department)) {
         errors.push('Department must be EQUITY or MUTUAL_FUND')
       }
-      if (!norm.operatorId) {
-        errors.push(norm.operatorName ? `Operator "${norm.operatorName}" not found` : 'Operator is required')
-      }
+      // Operator is validated later; missing operator will be auto-assigned for MF rows
 
       if (errors.length > 0) {
         invalidRows.push({ row: i + 2, data: norm, errors })
@@ -179,16 +182,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'No valid rows to import' }, { status: 400 })
     }
 
+    // Resolve missing operators for MF rows via auto-assign
+    const mfDealersForAutoAssign = await prisma.employee.findMany({
+      where: { role: Role.MF_DEALER, isActive: true },
+      select: { id: true },
+    })
+    let mfAutoIdx = 0
+
     const created = await prisma.client.createMany({
-      data: validRows.map(r => ({
-        clientCode: r.clientCode,
-        firstName: r.firstName,
-        middleName: r.middleName,
-        lastName: r.lastName,
-        phone: r.phone,
-        department: r.department as Department,
-        operatorId: r.operatorId,
-      })),
+      data: validRows.map(r => {
+        let operatorId = r.operatorId
+        if (!operatorId && r.department === 'MUTUAL_FUND' && mfDealersForAutoAssign.length > 0) {
+          operatorId = mfDealersForAutoAssign[mfAutoIdx++ % mfDealersForAutoAssign.length].id
+        }
+        return {
+          clientCode: r.clientCode,
+          firstName: r.firstName,
+          middleName: r.middleName,
+          lastName: r.lastName,
+          phone: r.phone || '0000000000',
+          department: r.department as Department,
+          operatorId,
+        }
+      }).filter(r => r.operatorId), // skip rows with no operator resolved
       skipDuplicates: true,
     })
 

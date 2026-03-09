@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { Users, TrendingUp, TrendingDown, Percent, IndianRupee } from 'lucide-react'
+import { Users, TrendingUp, TrendingDown, Percent, IndianRupee, ShoppingBag } from 'lucide-react'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDateLong } from '@/lib/utils'
@@ -13,18 +13,32 @@ interface EquityDashData {
   mtdBrokerage: number
 }
 
+interface MFStats {
+  totalSales: number
+  totalCommission: number
+}
+
 export default function EquityDashboardPage() {
   const { data: session } = useSession()
   const [data, setData] = useState<EquityDashData | null>(null)
+  const [mfStats, setMfStats] = useState<MFStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [mfLoading, setMfLoading] = useState(true)
   const today = new Date()
+  const currentMonth = today.getMonth() + 1
+  const currentYear = today.getFullYear()
 
   useEffect(() => {
     fetch('/api/dashboard/equity')
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
       .finally(() => setLoading(false))
-  }, [])
+
+    fetch(`/api/mf-business/stats?month=${currentMonth}&year=${currentYear}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setMfStats(d.data) })
+      .finally(() => setMfLoading(false))
+  }, [currentMonth, currentYear])
 
   return (
     <div className="p-6 space-y-6">
@@ -37,6 +51,7 @@ export default function EquityDashboardPage() {
         <p className="text-sm text-gray-500 hidden md:block">{formatDateLong(today)}</p>
       </div>
 
+      {/* Equity KPIs */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-lg" />)}
@@ -50,6 +65,38 @@ export default function EquityDashboardPage() {
           <KpiCard title="Total Brokerage" value={formatCurrency(data.mtdBrokerage)} subtitle="This month" icon={IndianRupee} accent="green" />
         </div>
       )}
+
+      {/* My Mutual Fund Business */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="h-5 w-5 text-indigo-600" />
+          <h2 className="text-lg font-semibold text-gray-800">My Mutual Fund Business</h2>
+          <span className="text-xs text-gray-400 ml-1">— this month</span>
+        </div>
+
+        {mfLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-lg" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <KpiCard
+              title="Total Sales"
+              value={formatCurrency(mfStats?.totalSales ?? 0)}
+              subtitle="Yearly contribution from your referrals"
+              icon={IndianRupee}
+              accent="indigo"
+            />
+            <KpiCard
+              title="Total Commission"
+              value={formatCurrency(mfStats?.totalCommission ?? 0)}
+              subtitle="Commission earned on referred MF business"
+              icon={IndianRupee}
+              accent="green"
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 }

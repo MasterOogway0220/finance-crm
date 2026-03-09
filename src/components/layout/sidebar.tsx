@@ -40,7 +40,8 @@ const ADMIN_NAV: NavItem[] = [
     icon: Database,
     children: [
       { label: 'Employee Master', href: '/masters/employees', icon: Database },
-      { label: 'Client Master', href: '/masters/clients', icon: Database },
+      { label: 'Equity Client Master', href: '/masters/clients', icon: Database },
+      { label: 'MF Client Master', href: '/masters/clients/mf', icon: Database },
     ],
   },
 ]
@@ -49,6 +50,7 @@ const EQUITY_DEALER_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/equity/dashboard', icon: LayoutDashboard },
   { label: 'My Clients', href: '/equity/clients', icon: Users },
   { label: 'My Brokerage', href: '/equity/brokerage', icon: IndianRupee },
+  { label: 'Mutual Fund Log', href: '/equity/mf-log', icon: IndianRupee },
   {
     label: 'Tasks',
     icon: CheckSquare,
@@ -83,7 +85,6 @@ const MF_DEALER_NAV: NavItem[] = [
   },
   { label: 'Document Pool', href: '/documents', icon: FolderOpen },
   { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
-  { label: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 
 const BACK_OFFICE_NAV: NavItem[] = [

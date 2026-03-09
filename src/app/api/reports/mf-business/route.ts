@@ -63,9 +63,9 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Build per-employee aggregates for MF department
+    // Build per-employee aggregates for MF department (own business only — exclude equity-referred)
     const mfStats = mfEmployees.map((emp) => {
-      const own = records.filter((r) => r.employeeId === emp.id)
+      const own = records.filter((r) => r.employeeId === emp.id && r.referredById === null)
       return {
         name: emp.name,
         totalSales: own.reduce((s, r) => s + r.yearlyContribution, 0),

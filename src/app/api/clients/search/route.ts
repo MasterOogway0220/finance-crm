@@ -29,15 +29,24 @@ export async function GET(request: NextRequest) {
         middleName: true,
         lastName: true,
       },
-      take: 20,
+      take: 40,
       orderBy: { clientCode: 'asc' },
     })
 
-    const data = clients.map((c) => ({
-      id: c.id,
-      clientCode: c.clientCode,
-      name: [c.firstName, c.middleName, c.lastName].filter(Boolean).join(' '),
-    }))
+    // Deduplicate by clientCode — same code can exist in multiple departments
+    const seen = new Set<string>()
+    const data = clients
+      .filter((c) => {
+        if (seen.has(c.clientCode)) return false
+        seen.add(c.clientCode)
+        return true
+      })
+      .slice(0, 20)
+      .map((c) => ({
+        id: c.id,
+        clientCode: c.clientCode,
+        name: [c.firstName, c.middleName, c.lastName].filter(Boolean).join(' '),
+      }))
 
     return NextResponse.json({ success: true, data })
   } catch (error) {

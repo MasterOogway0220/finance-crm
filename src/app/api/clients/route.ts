@@ -52,6 +52,17 @@ export async function GET(request: NextRequest) {
       ]
     }
 
+    // idsOnly mode — return just IDs for select-all functionality
+    const idsOnly = searchParams.get('idsOnly') === 'true'
+    if (idsOnly) {
+      const ids = await prisma.client.findMany({
+        where,
+        select: { id: true },
+        orderBy: { updatedAt: 'desc' },
+      })
+      return NextResponse.json({ success: true, data: { ids: ids.map((c) => c.id) } })
+    }
+
     const [clients, total] = await Promise.all([
       prisma.client.findMany({
         where,

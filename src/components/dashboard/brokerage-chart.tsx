@@ -87,8 +87,9 @@ export function BrokerageChart({ data, months }: BrokerageChartProps) {
             <YAxis
               type="category"
               dataKey="name"
-              width={100}
+              width={140}
               tick={{ fontSize: 11 }}
+              tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 17) + '…' : v}
             />
             <Tooltip
               formatter={(value: number | undefined, name: string | undefined) => [formatCurrency(value ?? 0), name ?? '']}

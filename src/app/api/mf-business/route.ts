@@ -33,6 +33,9 @@ export async function GET(request: NextRequest) {
       if (myBusinessOnly) {
         where.referredById = null
       }
+    } else if (role === 'EQUITY_DEALER') {
+      // Equity dealer sees only records where they are the referrer (read-only view)
+      where.referredById = session.user.id
     }
 
     const [records, total] = await Promise.all([

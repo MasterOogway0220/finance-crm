@@ -31,6 +31,9 @@ export async function GET(request: NextRequest) {
       if (myBusinessOnly) {
         where.referredById = null
       }
+    } else if (role === 'EQUITY_DEALER') {
+      // Equity dealer sees records where they are the referrer
+      where.referredById = session.user.id
     } else if (employeeId) {
       // Admin filtering by specific employee
       where.employeeId = employeeId

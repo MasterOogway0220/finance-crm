@@ -95,9 +95,9 @@ export default function TasksReportPage() {
           {/* Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card><CardContent className="pt-4"><p className="text-xs text-gray-500">Total Completed</p><p className="text-2xl font-bold text-green-700 mt-1">{data.summary.totalCompleted}</p></CardContent></Card>
-            <Card><CardContent className="pt-4"><p className="text-xs text-gray-500">Pending / Expired</p><p className="text-2xl font-bold text-amber-600 mt-1">{data.summary.totalPending + data.summary.totalExpired}</p></CardContent></Card>
-            <Card><CardContent className="pt-4"><p className="text-xs text-gray-500">Completion Rate</p><p className="text-2xl font-bold text-blue-700 mt-1">{data.summary.completionRate.toFixed(1)}%</p></CardContent></Card>
+            <Card><CardContent className="pt-4"><p className="text-xs text-gray-500">Pending</p><p className="text-2xl font-bold text-amber-600 mt-1">{data.summary.totalPending}</p></CardContent></Card>
             <Card><CardContent className="pt-4"><p className="text-xs text-gray-500">Expired</p><p className="text-2xl font-bold text-red-600 mt-1">{data.summary.totalExpired}</p></CardContent></Card>
+            <Card><CardContent className="pt-4"><p className="text-xs text-gray-500">Completion Rate</p><p className="text-2xl font-bold text-blue-700 mt-1">{data.summary.completionRate.toFixed(1)}%</p></CardContent></Card>
           </div>
 
           {/* Chart */}
