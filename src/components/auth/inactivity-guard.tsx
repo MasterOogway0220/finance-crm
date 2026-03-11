@@ -81,29 +81,6 @@ export default function InactivityGuard() {
     resetTimer()
   }, [resetTimer])
 
-  // Warn on browser/tab close and record logout time via beacon
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isLoggingOut.current) return
-      e.preventDefault()
-      e.returnValue = 'If you close this tab, you will be logged out of your session.'
-      return e.returnValue
-    }
-
-    const handlePageHide = (e: PageTransitionEvent) => {
-      if (isLoggingOut.current) return
-      if (e.persisted) return // page is going into BFCache, not closing
-      navigator.sendBeacon('/api/auth/signout-page')
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    window.addEventListener('pagehide', handlePageHide)
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      window.removeEventListener('pagehide', handlePageHide)
-    }
-  }, [])
-
   // Start timers on mount; reset on activity
   useEffect(() => {
     resetTimer()

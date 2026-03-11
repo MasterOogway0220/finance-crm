@@ -208,10 +208,10 @@ export default function AdminDashboardPage() {
       {/* Charts Row */}
       {!loading && data && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-4">
             <BrokerageChart data={data.brokerageChartData} months={data.brokerageMonths} />
           </div>
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-1">
             <TaskPieChart
               pending={data.taskStats?.pending ?? 0}
               completed={data.taskStats?.completed ?? 0}

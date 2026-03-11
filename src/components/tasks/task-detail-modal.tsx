@@ -255,6 +255,9 @@ export function TaskDetailModal({
               <div>
                 <span className="text-gray-500 text-xs uppercase tracking-wide">Date Assigned</span>
                 <p className="font-medium text-gray-800">{formatDate(task.startDate)}</p>
+                <p className="text-xs text-gray-500">
+                  Assigned at {format(new Date(task.createdAt), 'h:mm a, d MMM yyyy')}
+                </p>
               </div>
               <div>
                 <span className="text-gray-500 text-xs uppercase tracking-wide">Deadline</span>

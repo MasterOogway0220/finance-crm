@@ -84,6 +84,19 @@ function calcWorkingDays(from: Date, to: Date, holidays: string[]): number {
   return count
 }
 
+// Counts all calendar days (includes Sat/Sun), excludes only public holidays
+// Used for sandwich leave where weekends between two leave days are also deducted
+function calcAllDays(from: Date, to: Date, holidays: string[]): number {
+  const holidaySet = new Set(holidays)
+  let count = 0
+  const days = eachDayOfInterval({ start: from, end: to })
+  for (const d of days) {
+    const dateStr = format(d, 'yyyy-MM-dd')
+    if (!holidaySet.has(dateStr)) count++
+  }
+  return count
+}
+
 function statusBadge(status: LeaveApplication['status']) {
   switch (status) {
     case 'APPROVED':
@@ -292,6 +305,7 @@ function MarkLeaveDialog({ onClose, onSuccess, allHolidays }: MarkLeaveDialogPro
   const [days, setDays] = useState(0)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
+  const [includeSatSun, setIncludeSatSun] = useState(false)
 
   useEffect(() => {
     if (!department) return
@@ -300,14 +314,14 @@ function MarkLeaveDialog({ onClose, onSuccess, allHolidays }: MarkLeaveDialogPro
       .then((d) => { if (d.success) setEmployees(d.data) })
   }, [department])
 
-  // Auto-calculate working days whenever dates change
+  // Auto-calculate days whenever dates or sandwich toggle changes
   useEffect(() => {
     if (!fromDate || !toDate) { setDays(0); return }
     const from = new Date(fromDate)
     const to = new Date(toDate)
     if (from > to) { setDays(0); return }
-    setDays(calcWorkingDays(from, to, allHolidays))
-  }, [fromDate, toDate, allHolidays])
+    setDays(includeSatSun ? calcAllDays(from, to, allHolidays) : calcWorkingDays(from, to, allHolidays))
+  }, [fromDate, toDate, allHolidays, includeSatSun])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -405,14 +419,32 @@ function MarkLeaveDialog({ onClose, onSuccess, allHolidays }: MarkLeaveDialogPro
             </div>
           </div>
 
-          {/* Auto-calculated working days */}
-          <div className="rounded-lg bg-orange-50 px-4 py-2.5">
-            <p className="text-sm text-orange-700">
-              Working days:{' '}
-              <span className="font-bold text-orange-900">{days}</span>
-              {fromDate && toDate && days > 0 && ' (weekends & holidays excluded)'}
+          {/* Sandwich leave toggle */}
+          <label className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded accent-orange-600"
+              checked={includeSatSun}
+              onChange={(e) => setIncludeSatSun(e.target.checked)}
+            />
+            <span className="text-sm text-orange-800">
+              Include Sat/Sun in count{' '}
+              <span className="font-normal text-orange-600">(sandwich leave rule)</span>
+            </span>
+          </label>
+
+          {/* Auto-calculated days */}
+          <div className="rounded-lg bg-gray-50 px-4 py-2.5">
+            <p className="text-sm text-gray-700">
+              Days to deduct:{' '}
+              <span className="font-bold text-gray-900">{days}</span>
+              {fromDate && toDate && days > 0 && (
+                <span className="ml-1 text-gray-500 font-normal">
+                  {includeSatSun ? '(Sat/Sun included, public holidays excluded)' : '(weekends & holidays excluded)'}
+                </span>
+              )}
               {fromDate && toDate && days === 0 && (
-                <span className="ml-1 text-red-600 font-normal">— no working days in this range</span>
+                <span className="ml-1 text-red-600 font-normal">— no days in this range</span>
               )}
             </p>
           </div>

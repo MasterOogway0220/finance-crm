@@ -56,6 +56,12 @@ export function BrokerageChart({ data, months }: BrokerageChartProps) {
     })
   }, [data, filteredMonths])
 
+  // Dynamically size chart so every operator row has enough vertical space
+  const chartHeight = Math.max(300, data.length * 44)
+  // Give the Y-axis label column enough width for the longest name (approx 7px per char)
+  const maxNameLen = data.reduce((max, row) => Math.max(max, String(row.name).length), 0)
+  const yAxisWidth = Math.min(220, Math.max(160, maxNameLen * 7))
+
   return (
     <Card className="h-full">
       <CardHeader className="pb-2">
@@ -71,12 +77,12 @@ export function BrokerageChart({ data, months }: BrokerageChartProps) {
           </Select>
         </div>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={280}>
+      <CardContent className="overflow-y-auto">
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart
             data={filteredData}
             layout="vertical"
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            margin={{ top: 5, right: 30, left: 8, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
             <XAxis
@@ -87,9 +93,8 @@ export function BrokerageChart({ data, months }: BrokerageChartProps) {
             <YAxis
               type="category"
               dataKey="name"
-              width={140}
+              width={yAxisWidth}
               tick={{ fontSize: 11 }}
-              tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 17) + '…' : v}
             />
             <Tooltip
               formatter={(value: number | undefined, name: string | undefined) => [formatCurrency(value ?? 0), name ?? '']}
