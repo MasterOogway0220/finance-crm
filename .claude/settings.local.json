@@ -42,18 +42,12 @@
       "Bash(rm:*)",
       "Bash(gh api:*)",
       "Bash(gh auth:*)",
-      "Bash(npx next:*)",
-      "Bash(./node_modules/.bin/tsc:*)",
-      "Bash(node_modules/.bin/next lint:*)",
-      "Bash(bun run:*)",
+      "Bash(DATABASE_URL=\"mysql://u150393620_kesar:Kesar-crm1@145.79.212.111:3306/u150393620_crm?connection_limit=10\" npx prisma:*)",
+      "Bash(sed:*)",
       "Bash(python3:*)",
-      "Bash(bun install:*)",
-      "Bash(xargs cat:*)",
-      "Bash(bunx prisma:*)",
-      "Bash(cat:*)",
-      "Bash(wc:*)",
-      "Bash(npx tsx:*)",
-      "Bash(file:*)"
+      "Bash(test:*)",
+      "Bash(E:/freelance/finance-crm/tsconfig.scripts.json:*)",
+      "Bash(find \"E:\\\\freelance\\\\finance-crm\\\\src\\\\app\\\\\\(protected\\)\" -type d -name admin 2>/dev/null)"
     ]
   }
 }
