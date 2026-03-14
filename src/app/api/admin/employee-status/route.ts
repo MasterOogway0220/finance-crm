@@ -17,6 +17,13 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
+    // Use IST (UTC+5:30) for "today" calculation
+    const nowUtc = new Date()
+    const istOffsetMs = 5.5 * 60 * 60 * 1000
+    const istNow = new Date(nowUtc.getTime() + istOffsetMs)
+    const istMidnight = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()))
+    const todayStart = new Date(istMidnight.getTime() - istOffsetMs) // Convert IST midnight back to UTC
+
     const employees = await prisma.employee.findMany({
       where: { isActive: true },
       select: {
@@ -28,11 +35,11 @@ export async function GET() {
         loginLogs: {
           where: {
             loginAt: {
-              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+              gte: todayStart,
             },
           },
           orderBy: { loginAt: 'desc' },
-          take: 5,
+          take: 20,
           select: {
             id: true,
             loginAt: true,

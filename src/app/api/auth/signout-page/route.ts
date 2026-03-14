@@ -3,21 +3,19 @@ import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 
 export async function POST() {
-  const session = await auth()
-  if (!session?.user?.id) return NextResponse.json({ ok: false })
-
   try {
-    const openLog = await prisma.employeeLoginLog.findFirst({
-      where: { employeeId: session.user.id, logoutAt: null },
-      orderBy: { loginAt: 'desc' },
-    })
-    if (openLog) {
-      await prisma.employeeLoginLog.update({
-        where: { id: openLog.id },
-        data: { logoutAt: new Date() },
-      })
-    }
-  } catch { /* non-critical */ }
+    const session = await auth()
+    if (!session?.user?.id) return NextResponse.json({ ok: false })
 
-  return NextResponse.json({ ok: true })
+    // Close all open login logs for this user
+    await prisma.employeeLoginLog.updateMany({
+      where: { employeeId: session.user.id, logoutAt: null },
+      data: { logoutAt: new Date() },
+    })
+
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error('[signout-page]', err)
+    return NextResponse.json({ ok: false })
+  }
 }

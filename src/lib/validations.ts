@@ -70,6 +70,12 @@ export const mfBusinessSchema = z.object({
   commissionPercent: z.number().min(0, 'Commission % must be 0 or more').max(100, 'Commission % cannot exceed 100'),
 })
 
+export const mfServiceSchema = z.object({
+  clientCode: z.string().min(1, 'Client code is required'),
+  clientName: z.string().min(1, 'Client name is required'),
+  description: z.string().min(1, 'Description is required'),
+})
+
 export const bulkClientUpdateSchema = z.object({
   clientIds: z.array(z.string()).min(1, 'Select at least one client'),
   status: z.enum(['TRADED', 'NOT_TRADED']).optional(),

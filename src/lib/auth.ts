@@ -71,31 +71,37 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   events: {
     async signIn({ user }) {
       try {
+        const userId = user.id!
+        // Close any previously open login logs (orphaned from crashes / missed logouts)
+        await prisma.employeeLoginLog.updateMany({
+          where: { employeeId: userId, logoutAt: null },
+          data: { logoutAt: new Date() },
+        })
+        // Create fresh login log
         await prisma.employeeLoginLog.create({
-          data: { employeeId: user.id! },
+          data: { employeeId: userId },
         })
         await prisma.employee.update({
-          where: { id: user.id! },
+          where: { id: userId },
           data: { lastSeenAt: new Date() },
         })
-      } catch { /* non-critical */ }
+      } catch (err) {
+        console.error('[auth:signIn event]', err)
+      }
     },
     async signOut(message) {
       const token = 'token' in message ? message.token : null
       const userId = token?.id as string | undefined
       if (!userId) return
       try {
-        const openLog = await prisma.employeeLoginLog.findFirst({
+        // Close all open login logs for this user
+        await prisma.employeeLoginLog.updateMany({
           where: { employeeId: userId, logoutAt: null },
-          orderBy: { loginAt: 'desc' },
+          data: { logoutAt: new Date() },
         })
-        if (openLog) {
-          await prisma.employeeLoginLog.update({
-            where: { id: openLog.id },
-            data: { logoutAt: new Date() },
-          })
-        }
-      } catch { /* non-critical */ }
+      } catch (err) {
+        console.error('[auth:signOut event]', err)
+      }
     },
   },
   secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,

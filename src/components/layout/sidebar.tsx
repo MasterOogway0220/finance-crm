@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronRight,
   LogOut,
+  Headset,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { useActiveRoleStore } from '@/stores/active-role-store'
@@ -73,6 +74,14 @@ const MF_DEALER_NAV: NavItem[] = [
     children: [
       { label: 'Record Business', href: '/mf/business/record', icon: IndianRupee },
       { label: 'Business Log', href: '/mf/business/log', icon: IndianRupee },
+    ],
+  },
+  {
+    label: 'Service',
+    icon: Headset,
+    children: [
+      { label: 'Record Service', href: '/mf/service/record', icon: Headset },
+      { label: 'Service Log', href: '/mf/service/log', icon: Headset },
     ],
   },
   {

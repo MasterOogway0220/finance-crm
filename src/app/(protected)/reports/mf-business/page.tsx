@@ -16,6 +16,10 @@ const MFDepartmentPieChart = dynamic(
   () => import('@/components/reports/mf-department-pie-chart').then((m) => ({ default: m.MFDepartmentPieChart })),
   { ssr: false, loading: () => <Skeleton className="h-[320px] rounded-lg" /> }
 )
+const ServiceBusinessSplitChart = dynamic(
+  () => import('@/components/reports/service-business-split-chart').then((m) => ({ default: m.ServiceBusinessSplitChart })),
+  { ssr: false, loading: () => <Skeleton className="h-[320px] rounded-lg" /> }
+)
 
 const MONTHS = [
   { value: '1', label: 'January' }, { value: '2', label: 'February' }, { value: '3', label: 'March' },
@@ -130,6 +134,9 @@ export default function MFBusinessReportPage() {
               valueLabel={metricLabel}
             />
           </div>
+
+          {/* Service-Business Split */}
+          <ServiceBusinessSplitChart month={month} year={year} />
 
           {/* Pie Chart */}
           <div className="max-w-lg mx-auto">

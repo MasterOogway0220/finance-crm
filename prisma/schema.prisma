@@ -97,6 +97,7 @@ model Employee {
   loginLogs            EmployeeLoginLog[]
   mfBusinessRecorded   MFBusiness[]       @relation("MFBusinessEmployee")
   mfBusinessReferred   MFBusiness[]       @relation("MFBusinessReferrer")
+  mfServicesRecorded   MFService[]        @relation("MFServiceEmployee")
 
   @@index([department])
   @@index([role])
@@ -128,6 +129,7 @@ model Client {
 
   brokerageDetails BrokerageDetail[]
   mfBusinesses     MFBusiness[]
+  mfServices       MFService[]
 
   @@unique([clientCode, department])
   @@index([operatorId])
@@ -389,4 +391,23 @@ model MFBusiness {
   @@index([referredById])
   @@index([businessDate])
   @@index([employeeId, businessDate])
+}
+
+model MFService {
+  id           String   @id @default(cuid())
+  clientCode   String
+  clientName   String
+  clientId     String?
+  client       Client?  @relation(fields: [clientId], references: [id])
+  employeeId   String
+  employee     Employee @relation("MFServiceEmployee", fields: [employeeId], references: [id])
+  description  String   @db.Text
+  serviceDate  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([employeeId])
+  @@index([serviceDate])
+  @@index([employeeId, serviceDate])
 }

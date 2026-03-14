@@ -11,16 +11,21 @@ import InactivityGuard from '@/components/auth/inactivity-guard'
 const HEARTBEAT_INTERVAL = 5 * 60 * 1000 // 5 minutes
 
 function HeartbeatProvider() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   useEffect(() => {
-    if (!session?.user) return
+    if (status !== 'authenticated' || !session?.user?.id) return
+
+    const sendHeartbeat = () => {
+      fetch('/api/heartbeat', { method: 'POST' }).catch((err) => {
+        console.error('[heartbeat] failed:', err)
+      })
+    }
+
     // Fire immediately on mount (page load = presence)
-    fetch('/api/heartbeat', { method: 'POST' }).catch(() => {})
-    const id = setInterval(() => {
-      fetch('/api/heartbeat', { method: 'POST' }).catch(() => {})
-    }, HEARTBEAT_INTERVAL)
+    sendHeartbeat()
+    const id = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL)
     return () => clearInterval(id)
-  }, [session?.user?.id])
+  }, [status, session?.user?.id])
   return null
 }
 

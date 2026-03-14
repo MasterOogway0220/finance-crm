@@ -90,6 +90,17 @@ export interface BrokerageUploadSummary {
   totalAmount: number
 }
 
+export interface MFServiceRecord {
+  id: string
+  clientCode: string
+  clientName: string
+  employeeId: string
+  employeeName: string
+  description: string
+  serviceDate: string
+  createdAt: string
+}
+
 export interface MFBusinessRecord {
   id: string
   clientCode: string
