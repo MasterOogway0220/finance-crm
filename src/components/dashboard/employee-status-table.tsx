@@ -164,11 +164,11 @@ export function EmployeeStatusTable() {
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm animate-pulse">
-        <div className="h-4 w-48 bg-gray-200 rounded mb-4" />
+      <div className="rounded-xl border border-border bg-card p-6 shadow-sm animate-pulse">
+        <div className="h-4 w-48 skeleton mb-4" />
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-10 bg-gray-100 rounded" />
+            <div key={i} className="h-10 skeleton" />
           ))}
         </div>
       </div>
@@ -176,15 +176,15 @@ export function EmployeeStatusTable() {
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-4 border-b px-6 py-4">
-        <h2 className="font-semibold text-gray-900 flex-1">Employee Status</h2>
-        <span className="flex items-center gap-1.5 text-xs font-medium text-green-600">
-          <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+      <div className="flex items-center gap-4 border-b border-border px-6 py-4">
+        <h2 className="font-semibold text-foreground flex-1">Employee Status</h2>
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           {onlineCount} Online
         </span>
-        <span className="flex items-center gap-1.5 text-xs font-medium text-gray-400">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
           <span className="h-2 w-2 rounded-full bg-gray-300" />
           {offlineCount} Offline
         </span>

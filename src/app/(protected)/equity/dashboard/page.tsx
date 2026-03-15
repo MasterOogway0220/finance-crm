@@ -41,11 +41,11 @@ export default function EquityDashboardPage() {
   }, [currentMonth, currentYear])
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="page-container space-y-6">
       {/* Welcome Banner */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome, {session?.user?.name?.split(' ')[0]}</h1>
+          <h1 className="page-title">Welcome, {session?.user?.name?.split(' ')[0]}</h1>
           <p className="text-sm text-gray-500 mt-0.5">Here's your work overview for today</p>
         </div>
         <p className="text-sm text-gray-500 hidden md:block">{formatDateLong(today)}</p>

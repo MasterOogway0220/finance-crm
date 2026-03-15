@@ -55,7 +55,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   return (
     <SessionProvider>
-      <div className="flex min-h-screen" style={{ backgroundColor: '#F5F5F5' }}>
+      <div className="flex min-h-screen bg-background">
 
         {/* Backdrop — mobile only */}
         {isSidebarOpen && !isDesktop && (
@@ -77,7 +77,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
         {/* Main area — lg:ml-64 offsets for the always-visible desktop sidebar */}
         <div className="flex flex-1 flex-col min-w-0 lg:ml-64">
           <TopBar onMenuClick={toggleSidebar} />
-          <main className="flex-1 overflow-y-auto" style={{ backgroundColor: '#F5F5F5' }}>
+          <main className="flex-1 overflow-y-auto bg-background">
             {children}
           </main>
         </div>

@@ -56,9 +56,9 @@ export default function LeaveReportPage() {
   const totalRemaining = data.reduce((s, r) => s + r.leavesRemaining, 0)
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="page-container space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Employee Leave Report</h1>
+        <h1 className="page-title">Employee Leave Report</h1>
         <p className="text-sm text-gray-500">Leave balance and usage overview</p>
       </div>
 

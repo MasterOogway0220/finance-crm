@@ -46,9 +46,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl">
+    <div className="page-container space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">My Account</h1>
+        <h1 className="page-title">My Account</h1>
         <p className="text-sm text-gray-500">View your profile and manage your password</p>
       </div>
 

@@ -226,10 +226,10 @@ export default function MFClientMasterPage() {
   const allCurrentPageSelected = clients.length > 0 && clients.every(c => selected.has(c.id))
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="page-container space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mutual Fund Client Master</h1>
+          <h1 className="page-title">Mutual Fund Client Master</h1>
           <p className="text-sm text-gray-500">{total > 0 ? `${total} MF clients` : 'Manage mutual fund department clients'}</p>
         </div>
         <div className="flex gap-2">

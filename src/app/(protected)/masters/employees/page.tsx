@@ -139,10 +139,10 @@ export default function EmployeeMasterPage() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="page-container space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Employee Master</h1>
+          <h1 className="page-title">Employee Master</h1>
           <p className="text-sm text-gray-500">Manage all employees and their access</p>
         </div>
         <Button onClick={openAdd} className="gap-2">

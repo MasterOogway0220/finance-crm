@@ -142,17 +142,19 @@ export default function RecordBusinessPage() {
   const investmentTypeFixed = selectedProduct && (selectedProduct.investmentType === 'Lump Sum' || selectedProduct.investmentType === 'SIP')
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Record Business</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Record a new mutual fund business entry</p>
+    <div className="page-container">
+      <div className="page-header mb-6">
+        <div>
+          <h1 className="page-title">Record Business</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Record a new mutual fund business entry</p>
+        </div>
       </div>
 
       <Card className="max-w-2xl">
-        <CardContent className="p-6 space-y-5">
+        <CardContent className="p-6 sm:p-8 space-y-5">
           {/* Client Code */}
-          <div className="space-y-1.5">
-            <Label>Client Code *</Label>
+          <div className="form-group">
+            <Label>Client Code <span className="text-destructive">*</span></Label>
             <ClientSearchCombobox
               value={clientCode}
               onSelect={(client) => {
@@ -168,19 +170,19 @@ export default function RecordBusinessPage() {
           </div>
 
           {/* Client Name (auto-filled) */}
-          <div className="space-y-1.5">
+          <div className="form-group">
             <Label>Client Name</Label>
             <Input value={clientName} readOnly className="bg-gray-50" />
           </div>
 
           {/* MF Employee Name (read-only from session) */}
-          <div className="space-y-1.5">
+          <div className="form-group">
             <Label>MF Employee Name</Label>
             <Input value={session?.user?.name || ''} readOnly className="bg-gray-50" />
           </div>
 
           {/* Referred By */}
-          <div className="space-y-1.5">
+          <div className="form-group">
             <Label>Referred By</Label>
             <Select value={referredById} onValueChange={setReferredById}>
               <SelectTrigger>
@@ -196,8 +198,8 @@ export default function RecordBusinessPage() {
           </div>
 
           {/* Product */}
-          <div className="space-y-1.5">
-            <Label>Product *</Label>
+          <div className="form-group">
+            <Label>Product <span className="text-destructive">*</span></Label>
             <Select value={productName} onValueChange={setProductName}>
               <SelectTrigger>
                 <SelectValue placeholder="Select product" />
@@ -211,7 +213,7 @@ export default function RecordBusinessPage() {
           </div>
 
           {/* Sub-Product */}
-          <div className="space-y-1.5">
+          <div className="form-group">
             <Label>Sub-Product</Label>
             <Input
               value={subProduct}
@@ -221,8 +223,8 @@ export default function RecordBusinessPage() {
           </div>
 
           {/* Investment Type */}
-          <div className="space-y-1.5">
-            <Label>Investment Type *</Label>
+          <div className="form-group">
+            <Label>Investment Type <span className="text-destructive">*</span></Label>
             {investmentTypeFixed ? (
               <Input value={investmentType} readOnly className="bg-gray-50" />
             ) : (
@@ -240,8 +242,8 @@ export default function RecordBusinessPage() {
 
           {/* SIP Amount (conditional) */}
           {investmentType === 'SIP' && (
-            <div className="space-y-1.5">
-              <Label>SIP Amount (Monthly) *</Label>
+            <div className="form-group">
+              <Label>SIP Amount (Monthly) <span className="text-destructive">*</span></Label>
               <Input
                 type="number"
                 value={sipAmount}
@@ -253,8 +255,8 @@ export default function RecordBusinessPage() {
           )}
 
           {/* Yearly Contribution */}
-          <div className="space-y-1.5">
-            <Label>Yearly Contribution *</Label>
+          <div className="form-group">
+            <Label>Yearly Contribution <span className="text-destructive">*</span></Label>
             <Input
               type="number"
               value={yearlyContribution}
@@ -268,8 +270,8 @@ export default function RecordBusinessPage() {
 
           {/* Commission % */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Commission % *</Label>
+            <div className="form-group">
+              <Label>Commission % <span className="text-destructive">*</span></Label>
               <div className="relative">
                 <Input
                   type="number"
@@ -284,7 +286,7 @@ export default function RecordBusinessPage() {
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">%</span>
               </div>
             </div>
-            <div className="space-y-1.5">
+            <div className="form-group">
               <Label>Commission Amount</Label>
               <Input
                 value={commissionAmount > 0 ? commissionAmount.toFixed(2) : ''}

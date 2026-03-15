@@ -138,17 +138,17 @@ function NavLink({ item, pathname, depth = 0, onClose }: NavLinkProps) {
       href={item.href}
       onClick={onClose}
       className={cn(
-        'relative flex items-center gap-3 py-2.5 text-sm transition-colors',
-        depth === 0 ? 'px-4' : 'px-4 pl-8',
+        'relative flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium transition-all duration-200',
+        depth === 0 ? 'px-3' : 'px-3 pl-9',
         isActive
-          ? 'bg-slate-800 text-white'
-          : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+          ? 'bg-blue-600/15 text-blue-400'
+          : 'text-slate-400 hover:bg-white/5 hover:text-slate-200',
       )}
     >
       {isActive && (
-        <span className="absolute left-0 top-0 h-full w-1 rounded-r bg-blue-500" />
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-blue-500" />
       )}
-      <Icon className="h-4 w-4 shrink-0" />
+      <Icon className={cn('h-[18px] w-[18px] shrink-0', isActive && 'text-blue-400')} />
       {item.label}
     </Link>
   )
@@ -173,21 +173,21 @@ function ExpandableNavItem({ item, pathname, onClose }: ExpandableNavItemProps) 
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
-          'relative flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors',
+          'relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
           hasActiveChild
-            ? 'bg-slate-800 text-white'
-            : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+            ? 'bg-blue-600/15 text-blue-400'
+            : 'text-slate-400 hover:bg-white/5 hover:text-slate-200',
         )}
       >
         {hasActiveChild && (
-          <span className="absolute left-0 top-0 h-full w-1 rounded-r bg-blue-500" />
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-blue-500" />
         )}
-        <Icon className="h-4 w-4 shrink-0" />
+        <Icon className={cn('h-[18px] w-[18px] shrink-0', hasActiveChild && 'text-blue-400')} />
         <span className="flex-1 text-left">{item.label}</span>
         {open ? (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform duration-200" />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform duration-200" />
         )}
       </button>
 
@@ -226,23 +226,22 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const initials = getInitials(userName)
 
   return (
-    <aside
-      className="flex h-full w-64 flex-col"
-      style={{ backgroundColor: '#0f172a' }}
-    >
+    <aside className="flex h-full w-64 flex-col bg-sidebar">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-5">
-        <TrendingUp className="h-6 w-6 text-blue-400 shrink-0" />
+      <div className="flex items-center gap-3 px-5 py-5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
+          <TrendingUp className="h-5 w-5 text-white shrink-0" />
+        </div>
         <div>
-          <p className="text-xl font-bold leading-none text-white">FinanceCRM</p>
-          <p className="mt-0.5 text-xs text-slate-400">Financial CRM</p>
+          <p className="text-lg font-bold leading-none text-white" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>FinanceCRM</p>
+          <p className="mt-0.5 text-[11px] text-slate-400 tracking-wide uppercase">Brokerage Platform</p>
         </div>
       </div>
 
-      <div className="mx-4 h-px bg-slate-700" />
+      <div className="mx-4 h-px bg-slate-700/60" />
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-2">
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
         {navItems.map((item) =>
           item.children ? (
             <ExpandableNavItem key={item.label} item={item} pathname={pathname} onClose={onClose} />
@@ -253,9 +252,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
       </nav>
 
       {/* User section */}
-      <div className="border-t border-slate-700 p-4">
+      <div className="border-t border-slate-700/60 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-sm font-semibold text-white shadow-sm">
             {initials}
           </div>
           <div className="min-w-0 flex-1">
@@ -268,7 +267,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
             type="button"
             title="Sign out"
             onClick={() => signOut({ callbackUrl: '/login' })}
-            className="shrink-0 rounded p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+            className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-all duration-200 hover:bg-white/10 hover:text-white"
           >
             <LogOut className="h-4 w-4" />
           </button>

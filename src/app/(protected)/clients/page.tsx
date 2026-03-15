@@ -87,10 +87,10 @@ export default function AllClientsPage() {
   const totalPages = Math.ceil(total / limit)
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="page-container space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">All Clients</h1>
+          <h1 className="page-title">All Clients</h1>
           <p className="text-sm text-gray-500">All clients across all operators</p>
         </div>
         <Link href="/masters/clients/new">

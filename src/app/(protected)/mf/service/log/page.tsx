@@ -31,10 +31,10 @@ export default function ServiceLogPage() {
   }, [month, year])
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="page-container space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Service Log</h1>
+          <h1 className="page-title">Service Log</h1>
           <p className="text-sm text-gray-500">Your recorded MF service entries</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">

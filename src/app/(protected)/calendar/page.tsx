@@ -628,11 +628,11 @@ export default function CalendarPage() {
     : []
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="page-container space-y-6">
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Calendar &amp; Leave</h1>
+          <h1 className="page-title">Calendar &amp; Leave</h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {isAdmin ? 'Manage leave applications and view team availability.' : 'View holidays and manage your leave.'}
           </p>
@@ -686,7 +686,7 @@ export default function CalendarPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Leaves</p>
-                <p className="text-2xl font-bold text-gray-900">{leaveBalance.totalLeaves}</p>
+                <p className="stat-value text-foreground">{leaveBalance.totalLeaves}</p>
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-400">Allocated for {leaveBalance.year}</p>
@@ -699,7 +699,7 @@ export default function CalendarPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Leaves Taken</p>
-                <p className="text-2xl font-bold text-gray-900">{leaveBalance.takenLeaves}</p>
+                <p className="stat-value text-foreground">{leaveBalance.takenLeaves}</p>
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-400">Approved this year</p>
@@ -712,7 +712,7 @@ export default function CalendarPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Leaves Remaining</p>
-                <p className="text-2xl font-bold text-gray-900">{leaveBalance.pendingLeaves}</p>
+                <p className="stat-value text-foreground">{leaveBalance.pendingLeaves}</p>
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-400">Available to use</p>

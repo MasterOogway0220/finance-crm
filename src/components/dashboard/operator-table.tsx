@@ -22,7 +22,6 @@ interface OperatorTableProps {
 }
 
 export function OperatorTable({ data, daysInMonth, currentDay }: OperatorTableProps) {
-  // Compute totals row
   const totals = data.reduce(
     (acc, row) => {
       acc.totalClients += row.totalClients
@@ -50,23 +49,19 @@ export function OperatorTable({ data, daysInMonth, currentDay }: OperatorTablePr
     : '0%'
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <table className="w-full text-sm border-collapse">
         <thead>
-          <tr style={{ backgroundColor: '#2E7D32' }}>
-            <th className="sticky left-0 z-10 text-left px-3 py-3 text-white font-semibold min-w-[150px]" style={{ backgroundColor: '#2E7D32' }}>
+          <tr className="bg-slate-800">
+            <th className="sticky left-0 z-10 text-left px-4 py-3 text-white text-xs font-semibold uppercase tracking-wider min-w-[150px] bg-slate-800">
               Operator
             </th>
-            <th className="px-3 py-3 text-white font-semibold text-center whitespace-nowrap">Clients</th>
-            <th className="px-3 py-3 text-white font-semibold text-center whitespace-nowrap">Traded</th>
-            <th className="px-3 py-3 text-white font-semibold text-center whitespace-nowrap">Not Traded</th>
-            <th className="px-3 py-3 text-white font-semibold text-center whitespace-nowrap">Traded %</th>
-            <th className="px-3 py-3 text-white font-semibold text-center whitespace-nowrap">Amount %</th>
-            <th className="px-3 py-3 text-white font-semibold text-center whitespace-nowrap">DNA</th>
-            <th className="px-3 py-3 text-white font-semibold text-center whitespace-nowrap min-w-[100px]">Monthly (₹)</th>
+            {['Clients', 'Traded', 'Not Traded', 'Traded %', 'Amount %', 'DNA', 'Monthly (₹)'].map((h) => (
+              <th key={h} className="px-3 py-3 text-white text-xs font-semibold uppercase tracking-wider text-center whitespace-nowrap">{h}</th>
+            ))}
             {Array.from({ length: currentDay }, (_, i) => i + 1).map((day) => (
-              <th key={day} className="px-2 py-3 text-white font-semibold text-center whitespace-nowrap min-w-[70px]">
-                {day}
+              <th key={day} className="px-2 py-3 text-white text-xs font-semibold text-center whitespace-nowrap min-w-[72px]">
+                Day {day}
               </th>
             ))}
           </tr>
@@ -75,20 +70,23 @@ export function OperatorTable({ data, daysInMonth, currentDay }: OperatorTablePr
           {data.map((row, idx) => (
             <tr
               key={row.operatorId}
-              className={cn('border-b border-gray-100 hover:bg-blue-50 transition-colors', idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')}
+              className={cn(
+                'border-b border-border/50 hover:bg-accent/50 transition-colors',
+                idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'
+              )}
             >
-              <td className={cn('sticky left-0 z-10 px-3 py-2.5 font-semibold text-gray-800', idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')}>
+              <td className={cn('sticky left-0 z-10 px-4 py-3 font-semibold text-foreground', idx % 2 === 0 ? 'bg-card' : 'bg-muted/30')}>
                 {row.operatorName}
               </td>
-              <td className="px-3 py-2.5 text-center text-gray-700">{row.totalClients}</td>
-              <td className="px-3 py-2.5 text-center text-green-700 font-medium">{row.tradedClients}</td>
-              <td className="px-3 py-2.5 text-center text-red-600">{row.notTraded}</td>
-              <td className="px-3 py-2.5 text-center text-gray-700">{row.tradedPercentage.toFixed(2)}%</td>
-              <td className="px-3 py-2.5 text-center text-gray-700">{row.tradedAmountPercent.toFixed(2)}%</td>
-              <td className="px-3 py-2.5 text-center text-amber-700">{row.didNotAnswer}</td>
-              <td className="px-3 py-2.5 text-center font-semibold text-gray-800">{formatCurrency(row.monthlyTotal)}</td>
+              <td className="px-3 py-3 text-center text-foreground tabular-nums">{row.totalClients}</td>
+              <td className="px-3 py-3 text-center text-emerald-600 font-semibold tabular-nums">{row.tradedClients}</td>
+              <td className="px-3 py-3 text-center text-red-600 tabular-nums">{row.notTraded}</td>
+              <td className="px-3 py-3 text-center text-foreground tabular-nums">{row.tradedPercentage.toFixed(2)}%</td>
+              <td className="px-3 py-3 text-center text-foreground tabular-nums">{row.tradedAmountPercent.toFixed(2)}%</td>
+              <td className="px-3 py-3 text-center text-amber-600 tabular-nums">{row.didNotAnswer}</td>
+              <td className="px-3 py-3 text-center font-semibold text-foreground tabular-nums">{formatCurrency(row.monthlyTotal)}</td>
               {Array.from({ length: currentDay }, (_, i) => i + 1).map((day) => (
-                <td key={day} className="px-2 py-2.5 text-center text-gray-600 text-xs">
+                <td key={day} className="px-2 py-3 text-center text-muted-foreground text-xs tabular-nums">
                   {row.dailyBreakdown[day] ? formatCurrency(row.dailyBreakdown[day]) : '—'}
                 </td>
               ))}
@@ -96,19 +94,19 @@ export function OperatorTable({ data, daysInMonth, currentDay }: OperatorTablePr
           ))}
         </tbody>
         <tfoot>
-          <tr className="font-bold" style={{ backgroundColor: '#e8f5e9' }}>
-            <td className="sticky left-0 z-10 px-3 py-3 text-gray-900" style={{ backgroundColor: '#e8f5e9' }}>
-              TOTAL
+          <tr className="font-bold bg-blue-50 border-t-2 border-blue-200">
+            <td className="sticky left-0 z-10 px-4 py-3 text-foreground bg-blue-50 uppercase text-xs tracking-wider">
+              Total
             </td>
-            <td className="px-3 py-3 text-center text-gray-900">{totals.totalClients}</td>
-            <td className="px-3 py-3 text-center text-green-800">{totals.tradedClients}</td>
-            <td className="px-3 py-3 text-center text-red-700">{totals.notTraded}</td>
-            <td className="px-3 py-3 text-center text-gray-900">{totalTradedPct}</td>
-            <td className="px-3 py-3 text-center text-gray-900">100%</td>
-            <td className="px-3 py-3 text-center text-amber-800">{totals.didNotAnswer}</td>
-            <td className="px-3 py-3 text-center text-gray-900">{formatCurrency(totals.monthlyTotal)}</td>
+            <td className="px-3 py-3 text-center text-foreground tabular-nums">{totals.totalClients}</td>
+            <td className="px-3 py-3 text-center text-emerald-700 tabular-nums">{totals.tradedClients}</td>
+            <td className="px-3 py-3 text-center text-red-700 tabular-nums">{totals.notTraded}</td>
+            <td className="px-3 py-3 text-center text-foreground tabular-nums">{totalTradedPct}</td>
+            <td className="px-3 py-3 text-center text-foreground tabular-nums">100%</td>
+            <td className="px-3 py-3 text-center text-amber-700 tabular-nums">{totals.didNotAnswer}</td>
+            <td className="px-3 py-3 text-center text-foreground tabular-nums">{formatCurrency(totals.monthlyTotal)}</td>
             {Array.from({ length: currentDay }, (_, i) => i + 1).map((day) => (
-              <td key={day} className="px-2 py-3 text-center text-gray-800 text-xs">
+              <td key={day} className="px-2 py-3 text-center text-foreground text-xs tabular-nums">
                 {totals.dailyBreakdown[day] ? formatCurrency(totals.dailyBreakdown[day]) : '—'}
               </td>
             ))}

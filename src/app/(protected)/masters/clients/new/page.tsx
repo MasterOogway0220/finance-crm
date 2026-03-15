@@ -67,9 +67,9 @@ export default function AddClientPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="page-container">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Add New Client</h1>
+        <h1 className="page-title">Add New Client</h1>
         <p className="text-sm text-gray-500">Add a client to the master database</p>
       </div>
       <Card className="max-w-2xl">

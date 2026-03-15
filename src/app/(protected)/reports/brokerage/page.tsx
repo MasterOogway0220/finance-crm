@@ -121,11 +121,11 @@ export default function BrokerageReportPage() {
   const pageSubtitle = isEquityDealer ? 'Your annual brokerage performance' : 'Monthly operator performance'
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="page-container space-y-6">
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
-          <p className="text-sm text-gray-500">{pageSubtitle}</p>
+          <h1 className="page-title">{pageTitle}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{pageSubtitle}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Operator selector: only for admins */}
@@ -173,13 +173,13 @@ export default function BrokerageReportPage() {
           </div>
 
           {/* Chart */}
-          <div className="bg-white rounded-lg border p-4">
-            <h2 className="text-base font-semibold text-gray-700 mb-4">
+          <div className="card-base">
+            <h2 className="text-base font-semibold text-foreground mb-4">
               {chartHeading}
             </h2>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={chartData} margin={{ left: 10, right: 10, top: 5, bottom: 5 }} barSize={40}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis
                   tickFormatter={formatYAxis}
@@ -187,7 +187,11 @@ export default function BrokerageReportPage() {
                   domain={[0, yAxisMax]}
                   allowDecimals={false}
                 />
-                <Tooltip formatter={(v: number | undefined) => [formatCurrency(v ?? 0), 'Brokerage']} />
+                <Tooltip
+                  formatter={(v: number | undefined) => [formatCurrency(v ?? 0), 'Brokerage']}
+                  contentStyle={{ borderRadius: '10px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '13px', padding: '8px 12px' }}
+                  cursor={{ fill: '#F1F5F9' }}
+                />
                 <Bar dataKey="amount" name="Brokerage" radius={[4, 4, 0, 0]}>
                   {chartData.map((_, idx) => (
                     <Cell key={idx} fill={BAR_COLORS[idx % BAR_COLORS.length]} />
@@ -198,27 +202,27 @@ export default function BrokerageReportPage() {
           </div>
 
           {/* Matrix Table */}
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="table-responsive">
             <table className="w-full text-sm">
-              <thead style={{ backgroundColor: '#2E7D32' }}>
+              <thead className="bg-slate-800">
                 <tr>
-                  <th className="px-3 py-3 text-white text-left font-semibold">{isEquityDealer ? 'Name' : 'Operator'}</th>
-                  {data.months.map((m) => <th key={m} className="px-3 py-3 text-white text-center font-semibold whitespace-nowrap">{m}</th>)}
-                  <th className="px-3 py-3 text-white text-center font-semibold">Total</th>
+                  <th className="px-4 py-3 text-white text-left text-xs font-semibold uppercase tracking-wider">{isEquityDealer ? 'Name' : 'Operator'}</th>
+                  {data.months.map((m) => <th key={m} className="px-3 py-3 text-white text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap">{m}</th>)}
+                  <th className="px-3 py-3 text-white text-center text-xs font-semibold uppercase tracking-wider">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {data.operators.map((op, idx) => {
                   const opTotal = Object.values(data.matrix[op] || {}).reduce((a, b) => a + b, 0)
                   return (
-                    <tr key={op} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="px-3 py-2.5 font-medium text-gray-800">{op}</td>
+                    <tr key={op} className={`border-b border-border/50 ${idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}`}>
+                      <td className="px-4 py-3 font-medium text-foreground">{op}</td>
                       {data.months.map((m) => (
-                        <td key={m} className="px-3 py-2.5 text-center text-gray-700 text-xs">
+                        <td key={m} className="px-3 py-3 text-center text-muted-foreground text-xs tabular-nums">
                           {data.matrix[op]?.[m] ? formatCurrency(data.matrix[op][m]) : '—'}
                         </td>
                       ))}
-                      <td className="px-3 py-2.5 text-center font-semibold text-gray-800">{formatCurrency(opTotal)}</td>
+                      <td className="px-3 py-3 text-center font-semibold text-foreground tabular-nums">{formatCurrency(opTotal)}</td>
                     </tr>
                   )
                 })}

@@ -59,10 +59,10 @@ export default function TasksReportPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="page-container space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Task Report</h1>
+          <h1 className="page-title">Task Report</h1>
           <p className="text-sm text-gray-500">Task completion performance</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

@@ -54,7 +54,7 @@ function KpiCard({ icon: Icon, label, value, sub, color }: {
         </div>
         <div>
           <p className="text-xs text-gray-500 font-medium">{label}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-0.5">{value}</p>
+          <p className="text-2xl font-bold text-foreground mt-0.5 tabular-nums">{value}</p>
           {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
         </div>
       </CardContent>
@@ -113,7 +113,7 @@ export default function EngagementReportPage() {
   useEffect(() => { fetchData() }, [])
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="page-container space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -123,7 +123,7 @@ export default function EngagementReportPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Client Engagement Report</h1>
+            <h1 className="page-title">Client Engagement Report</h1>
             <p className="text-sm text-gray-500">Trading status and follow-up data per operator</p>
           </div>
         </div>

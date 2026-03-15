@@ -65,9 +65,9 @@ export default function RecordServicePage() {
   } : null
 
   return (
-    <div className="p-6">
+    <div className="page-container">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Record Service</h1>
+        <h1 className="page-title">Record Service</h1>
         <p className="text-sm text-gray-500 mt-0.5">Record a new mutual fund service entry</p>
       </div>
 

@@ -162,11 +162,11 @@ export default function BrokeragePage() {
   const totalMonthly = data?.operatorPerformance.reduce((s, r) => s + r.monthlyTotal, 0) ?? 0
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
+    <div className="page-container space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Brokerage Dashboard</h1>
+          <h1 className="page-title">Brokerage Dashboard</h1>
           <p className="text-sm text-gray-500">Equity brokerage performance</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
@@ -313,7 +313,7 @@ export default function BrokeragePage() {
             <div className="rounded-lg border border-gray-200 overflow-hidden">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr style={{ backgroundColor: '#2E7D32' }}>
+                  <tr className="bg-slate-800">
                     <th className="px-3 py-2.5 text-left text-white font-semibold text-xs">Operator</th>
                     <th className={TH}>Clients</th>
                     <th className={TH}>Traded</th>

@@ -290,11 +290,11 @@ export default function ClientMasterPage() {
   const allCurrentPageSelected = clients.length > 0 && clients.every(c => selected.has(c.id))
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="page-container space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Equity Client Master</h1>
+          <h1 className="page-title">Equity Client Master</h1>
           <p className="text-sm text-gray-500">{total > 0 ? `${total} equity clients` : 'Manage equity department clients'}</p>
         </div>
         <div className="flex gap-2">

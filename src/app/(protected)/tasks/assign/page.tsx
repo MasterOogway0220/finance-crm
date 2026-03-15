@@ -11,9 +11,9 @@ export default async function AssignTaskPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="page-container">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Assign Task</h1>
+        <h1 className="page-title">Assign Task</h1>
         <p className="text-sm text-gray-500 mt-0.5">Create and assign a task to a Back Office team member</p>
       </div>
       <TaskAssignmentForm />

@@ -77,9 +77,9 @@ function BackofficeTasksContent() {
   const handleTaskCompleted = () => { setSelectedTask(null); fetchTasks() }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="page-container space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">My Tasks</h1>
+        <h1 className="page-title">My Tasks</h1>
         <p className="text-sm text-gray-500">Tasks assigned to you</p>
       </div>
 
