@@ -18,6 +18,7 @@ import {
   ChevronRight,
   LogOut,
   Headset,
+  ClipboardList,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { useActiveRoleStore } from '@/stores/active-role-store'
@@ -36,6 +37,7 @@ const ADMIN_NAV: NavItem[] = [
   { label: 'Document Pool', href: '/documents', icon: FolderOpen },
   { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
+  { label: 'Login/Logoff History', href: '/login-history', icon: ClipboardList },
   {
     label: 'Masters',
     icon: Database,
