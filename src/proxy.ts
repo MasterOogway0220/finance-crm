@@ -6,7 +6,7 @@ export default auth((req) => {
   const { nextUrl, auth: session } = req
   const isLoggedIn = !!session
 
-  const isAuthRoute = nextUrl.pathname.startsWith('/login')
+  const isAuthRoute = nextUrl.pathname === '/login' || nextUrl.pathname.startsWith('/login/')
   const isApiRoute = nextUrl.pathname.startsWith('/api')
   const isPublicRoute = isAuthRoute || isApiRoute
 
