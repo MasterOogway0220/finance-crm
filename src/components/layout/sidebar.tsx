@@ -45,6 +45,7 @@ const ADMIN_NAV: NavItem[] = [
       { label: 'Employee Master', href: '/masters/employees', icon: Database },
       { label: 'Equity Client Master', href: '/masters/clients', icon: Database },
       { label: 'MF Client Master', href: '/masters/clients/mf', icon: Database },
+      { label: 'Closed Account Master', href: '/masters/clients/closed', icon: Database },
     ],
   },
 ]
