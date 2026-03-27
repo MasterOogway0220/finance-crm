@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { notifyEmployeeWhatsApp } from '@/lib/whatsapp'
 
 export async function createNotification(params: {
   userId: string
@@ -7,7 +8,7 @@ export async function createNotification(params: {
   message: string
   link?: string
 }) {
-  return prisma.notification.create({
+  const notification = await prisma.notification.create({
     data: {
       userId: params.userId,
       type: params.type,
@@ -16,6 +17,21 @@ export async function createNotification(params: {
       link: params.link,
     },
   })
+
+  // Fire-and-forget WhatsApp notification
+  try {
+    const employee = await prisma.employee.findUnique({
+      where: { id: params.userId },
+      select: { phone: true },
+    })
+    if (employee?.phone) {
+      notifyEmployeeWhatsApp(employee.phone, params.title, params.message)
+    }
+  } catch (error) {
+    console.error('[WhatsApp] Failed to send notification:', error)
+  }
+
+  return notification
 }
 
 export async function createNotificationForMany(params: {
@@ -25,7 +41,7 @@ export async function createNotificationForMany(params: {
   message: string
   link?: string
 }) {
-  return prisma.notification.createMany({
+  const result = await prisma.notification.createMany({
     data: params.userIds.map((userId) => ({
       userId,
       type: params.type,
@@ -34,4 +50,21 @@ export async function createNotificationForMany(params: {
       link: params.link,
     })),
   })
+
+  // Fire-and-forget WhatsApp notifications to all recipients
+  try {
+    const employees = await prisma.employee.findMany({
+      where: { id: { in: params.userIds } },
+      select: { phone: true },
+    })
+    for (const emp of employees) {
+      if (emp.phone) {
+        notifyEmployeeWhatsApp(emp.phone, params.title, params.message)
+      }
+    }
+  } catch (error) {
+    console.error('[WhatsApp] Failed to send bulk notifications:', error)
+  }
+
+  return result
 }

@@ -28,13 +28,16 @@ function parseName(fullName: string) {
 }
 
 function normaliseRow(row: RawRow, operatorNameToId: Map<string, string>) {
-  const clientCode = getField(row, 'Client Code', 'clientCode', 'client_code', 'ClientCode', 'code', 'Code', 'Clients').toUpperCase()
-  const phone = getField(row, 'Phone number', 'Phone', 'phone', 'Phone Number', 'phone_number', 'PhoneNumber', 'Mobile', 'mobile')
+  const clientCode = getField(row, 'Client Code', 'clientCode', 'client_code', 'ClientCode', 'code', 'Code', 'CODE', 'Clients').toUpperCase()
+  const phone = getField(row, 'Phone number', 'Phone', 'phone', 'Phone Number', 'phone_number', 'PhoneNumber', 'Mobile', 'mobile', 'MOBILE')
+  const email = getField(row, 'Email', 'email', 'Mail', 'MAIL', 'mail', 'E-Mail') || undefined
+  const dob = getField(row, 'DOB', 'dob', 'Date of Birth', 'DateOfBirth', 'date_of_birth') || undefined
+  const pan = getField(row, 'PAN', 'pan', 'Pan', 'PAN Number', 'pan_number') || undefined
   const deptRaw = getField(row, 'Department', 'department', 'dept', 'Dept').toUpperCase()
   const department = deptRaw === 'MF' || deptRaw === 'MUTUAL FUND' ? 'MUTUAL_FUND' : deptRaw === 'EQ' ? 'EQUITY' : deptRaw
 
   // Support both full name and separate first/middle/last
-  const fullName = getField(row, 'Name of client', 'Name', 'name', 'Client Name', 'client_name', 'ClientName', 'Full Name', 'full_name')
+  const fullName = getField(row, 'Name of client', 'Name', 'name', 'NAME', 'Client Name', 'client_name', 'ClientName', 'Full Name', 'full_name')
   let firstName: string, middleName: string | undefined, lastName: string
 
   if (fullName) {
@@ -49,14 +52,27 @@ function normaliseRow(row: RawRow, operatorNameToId: Map<string, string>) {
   }
 
   // Support operator name (resolve to ID) or direct operator ID
-  const operatorName = getField(row, 'Assigned Operator', 'Operator', 'operator', 'assigned_operator', 'AssignedOperator')
+  const operatorName = getField(row, 'Assigned Operator', 'Operator', 'operator', 'OPERATOR', 'assigned_operator', 'AssignedOperator')
   const operatorIdDirect = getField(row, 'operatorId', 'operator_id', 'OperatorId', 'Operator ID')
   let operatorId = operatorIdDirect
   if (!operatorId && operatorName) {
     operatorId = operatorNameToId.get(operatorName.toLowerCase()) || ''
   }
 
-  return { clientCode, firstName, middleName, lastName, phone, department, operatorId, operatorName }
+  // Clean up email/dob/pan (remove zeros used as placeholders)
+  const cleanEmail = (email === '0' || !email) ? undefined : email.split(';')[0].trim()
+  let cleanDob: Date | undefined = undefined
+  if (dob && dob !== '0' && dob !== '00-01-1900') {
+    const [dd, mm, yyyy] = dob.split('-').map(Number)
+    if (dd && mm && yyyy && dd > 0 && yyyy >= 1900 && yyyy <= 2100) {
+      const d = new Date(yyyy, mm - 1, dd)
+      if (!isNaN(d.getTime())) cleanDob = d
+    }
+  }
+  const cleanPan = (pan === '0' || !pan) ? undefined : pan
+  const cleanPhone = (!phone || phone === '0') ? '' : phone
+
+  return { clientCode, firstName, middleName, lastName, phone: cleanPhone, email: cleanEmail, dob: cleanDob, pan: cleanPan, department, operatorId, operatorName }
 }
 
 const VALID_DEPARTMENTS: string[] = ['EQUITY', 'MUTUAL_FUND']
@@ -201,6 +217,9 @@ export async function POST(request: NextRequest) {
           middleName: r.middleName,
           lastName: r.lastName,
           phone: r.phone || '0000000000',
+          email: r.email,
+          dob: r.dob,
+          pan: r.pan,
           department: r.department as Department,
           operatorId,
         }
@@ -208,29 +227,6 @@ export async function POST(request: NextRequest) {
       skipDuplicates: true,
     })
 
-    // Auto-add equity clients to MF master
-    const equityRows = validRows.filter(r => r.department === 'EQUITY')
-    if (equityRows.length > 0) {
-      const mfDealers = await prisma.employee.findMany({
-        where: { role: Role.MF_DEALER, isActive: true },
-        select: { id: true },
-      })
-
-      if (mfDealers.length > 0) {
-        await prisma.client.createMany({
-          data: equityRows.map((r, i) => ({
-            clientCode: r.clientCode,
-            firstName: r.firstName,
-            middleName: r.middleName,
-            lastName: r.lastName,
-            phone: r.phone || '0000000000',
-            department: Department.MUTUAL_FUND as Department,
-            operatorId: mfDealers[i % mfDealers.length].id,
-          })),
-          skipDuplicates: true,
-        })
-      }
-    }
 
     await logActivity({
       userId: session.user.id,

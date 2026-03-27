@@ -47,7 +47,14 @@
       "Bash(python3:*)",
       "Bash(test:*)",
       "Bash(E:/freelance/finance-crm/tsconfig.scripts.json:*)",
-      "Bash(find \"E:\\\\freelance\\\\finance-crm\\\\src\\\\app\\\\\\(protected\\)\" -type d -name admin 2>/dev/null)"
+      "Bash(find \"E:\\\\freelance\\\\finance-crm\\\\src\\\\app\\\\\\(protected\\)\" -type d -name admin 2>/dev/null)",
+      "Bash(git add:*)",
+      "Bash(npx next:*)",
+      "Bash(cat:*)",
+      "Bash(cat \"/Users/adi0220/projects/finance-crm/src/app/\\(protected\\)/login-history/page.tsx\")",
+      "Bash(wc:*)",
+      "Bash(ls -la /Users/adi0220/projects/finance-crm/src/app/\\\\\\(auth\\\\\\)/)",
+      "Bash(cat /Users/adi0220/projects/finance-crm/src/app/\\\\\\(protected\\\\\\)/masters/clients/page.tsx)"
     ]
   }
 }

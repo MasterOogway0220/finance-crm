@@ -2,6 +2,7 @@ import { PrismaClient, Department, Role, ClientStatus, ClientRemark, MFClientSta
 import bcrypt from 'bcryptjs'
 import fs from 'fs'
 import path from 'path'
+import Papa from 'papaparse'
 
 const prisma = new PrismaClient()
 
@@ -256,7 +257,7 @@ async function main() {
   for (const [name, email] of Object.entries(operatorEmailMap)) {
     const emp = await prisma.employee.findUnique({ where: { email } })
     if (!emp) throw new Error(`Employee not found for operator "${name}" (${email})`)
-    operatorIdMap[name] = emp.id
+    operatorIdMap[name.toLowerCase()] = emp.id
   }
 
   const admin = await prisma.employee.findUnique({ where: { email: 'vishakha.kul.work@gmail.com' } })
@@ -274,105 +275,151 @@ async function main() {
   await prisma.client.deleteMany({})
   console.log('Cleared existing clients')
 
-  // Load clients from CLIENT_MASTER.csv
-  const csvPath = path.join(__dirname, '..', 'crm-documents', 'CLIENT_MASTER.csv')
-  const csvContent = fs.readFileSync(csvPath, 'utf8')
-  const csvLines = csvContent.split('\n').slice(1).filter(l => l.trim())
-
+  // Helper to parse full name into parts
   function parseName(fullName: string) {
     const parts = fullName.trim().split(/\s+/).filter(Boolean)
-    if (parts.length === 2) {
-      return { firstName: parts[0], middleName: undefined, lastName: parts[1] }
-    }
-    // 3+ words: first = firstName, last = lastName, middle = everything in between
-    const firstName = parts[0]
-    const lastName = parts[parts.length - 1]
-    const middleName = parts.slice(1, -1).join(' ')
-    return { firstName, middleName, lastName }
+    if (parts.length === 0) return { firstName: 'Unknown', middleName: undefined as string | undefined, lastName: '' }
+    if (parts.length === 1) return { firstName: parts[0], middleName: undefined as string | undefined, lastName: parts[0] }
+    if (parts.length === 2) return { firstName: parts[0], middleName: undefined as string | undefined, lastName: parts[1] }
+    return { firstName: parts[0], middleName: parts.slice(1, -1).join(' '), lastName: parts[parts.length - 1] }
   }
 
-  let imported = 0
-  let skipped = 0
+  function normaliseEmail(raw: string): string | undefined {
+    const cleaned = (raw || '').trim()
+    if (!cleaned || cleaned === '0') return undefined
+    return cleaned.split(';')[0].trim() || undefined
+  }
 
-  for (const line of csvLines) {
-    const cols = line.replace(/\r/g, '').replace(/\uFEFF/g, '').split(',')
-    const clientCode = (cols[0] || '').trim()
-    const clientName = (cols[1] || '').trim()
-    const operator = (cols[2] || '').trim()
+  function normalisePan(raw: string): string | undefined {
+    const cleaned = (raw || '').trim()
+    if (!cleaned || cleaned === '0') return undefined
+    return cleaned
+  }
 
-    if (!clientCode || !clientName || !operator) {
-      skipped++
+  function normaliseDob(raw: string): Date | undefined {
+    const cleaned = (raw || '').trim()
+    if (!cleaned || cleaned === '0' || cleaned === '00-01-1900') return undefined
+    const [dd, mm, yyyy] = cleaned.split('-').map(Number)
+    if (!dd || !mm || !yyyy || dd === 0 || yyyy < 1900 || yyyy > 2100) return undefined
+    const d = new Date(yyyy, mm - 1, dd)
+    if (isNaN(d.getTime())) return undefined
+    return d
+  }
+
+  function normalisePhone(raw: string): string {
+    const cleaned = (raw || '').trim()
+    if (!cleaned || cleaned === '0') return '0000000000'
+    return cleaned
+  }
+
+  function stripBOM(s: string): string {
+    return s.replace(/^\uFEFF/, '')
+  }
+
+  function readCsv(filePath: string): Record<string, string>[] {
+    const rawCsv = fs.readFileSync(filePath, 'utf8')
+    const parsed = Papa.parse<Record<string, string>>(rawCsv, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (h: string) => stripBOM(h).trim(),
+    })
+    return parsed.data
+  }
+
+  // --- Import Equity clients from equity_client_master.csv ---
+  const eqCsvPath = path.join(__dirname, '..', 'equity_client_master.csv')
+  const eqRows = readCsv(eqCsvPath)
+  let eqImported = 0
+  let eqSkipped = 0
+
+  for (const row of eqRows) {
+    const clientCode = (row['CODE'] || '').trim().toUpperCase()
+    const fullName = (row['NAME'] || '').trim()
+    const operatorName = (row['OPERATOR'] || '').trim()
+
+    if (!clientCode || !fullName || !operatorName) {
+      eqSkipped++
       continue
     }
 
-    const operatorId = operatorIdMap[operator]
+    const operatorId = operatorIdMap[operatorName.toLowerCase()]
     if (!operatorId) {
-      console.warn(`Skipping client ${clientCode}: unknown operator "${operator}"`)
-      skipped++
+      console.warn(`Skipping client ${clientCode}: unknown operator "${operatorName}"`)
+      eqSkipped++
       continue
     }
 
-    const { firstName, middleName, lastName } = parseName(clientName)
+    const { firstName, middleName, lastName } = parseName(fullName)
 
     await prisma.client.upsert({
       where: { clientCode_department: { clientCode, department: Department.EQUITY } },
-      update: {},
+      update: {
+        firstName, middleName, lastName,
+        phone: normalisePhone(row['MOBILE'] || ''),
+        email: normaliseEmail(row['MAIL'] || ''),
+        dob: normaliseDob(row['DOB'] || ''),
+        pan: normalisePan(row['PAN'] || ''),
+        operatorId,
+      },
       create: {
-        clientCode,
-        firstName,
-        middleName,
-        lastName,
-        phone: '0000000000',
+        clientCode, firstName, middleName, lastName,
+        phone: normalisePhone(row['MOBILE'] || ''),
+        email: normaliseEmail(row['MAIL'] || ''),
+        dob: normaliseDob(row['DOB'] || ''),
+        pan: normalisePan(row['PAN'] || ''),
         department: Department.EQUITY,
         operatorId,
         status: ClientStatus.NOT_TRADED,
         remark: ClientRemark.DID_NOT_ANSWER,
       },
     })
-    imported++
+    eqImported++
   }
 
-  console.log(`Imported ${imported} equity clients from CSV (${skipped} skipped)`)
+  console.log(`Imported ${eqImported} equity clients (${eqSkipped} skipped)`)
 
-  // Load MF clients from MutualFund_client_master.csv
+  // --- Import MF clients from Mutual_fund_client_master_new.csv ---
   const mfDealers = await prisma.employee.findMany({
     where: { role: Role.MF_DEALER },
+    orderBy: { name: 'asc' },
   })
 
   if (mfDealers.length === 0) {
     console.warn('No MF dealers found, skipping MF client import')
   } else {
-    const mfCsvPath = path.join(__dirname, '..', 'crm-documents', 'MutualFund_client_master.csv')
-    const mfCsvContent = fs.readFileSync(mfCsvPath, 'utf8')
-    const mfCsvLines = mfCsvContent.split('\n').slice(1).filter(l => l.trim())
-
+    const mfCsvPath = path.join(__dirname, '..', 'Mutual_fund_client_master_new.csv')
+    const mfRows = readCsv(mfCsvPath)
     let mfImported = 0
     let mfSkipped = 0
 
-    for (let i = 0; i < mfCsvLines.length; i++) {
-      const line = mfCsvLines[i]
-      const cols = line.replace(/\r/g, '').replace(/\uFEFF/g, '').split(',')
-      const clientCode = (cols[0] || '').trim()
-      const clientName = (cols[1] || '').trim()
+    for (let i = 0; i < mfRows.length; i++) {
+      const row = mfRows[i]
+      const clientCode = (row['CODE'] || '').trim().toUpperCase()
+      const fullName = (row['NAME'] || '').trim()
 
-      if (!clientCode || !clientName) {
+      if (!clientCode || !fullName) {
         mfSkipped++
         continue
       }
 
-      // Distribute clients evenly among MF dealers
       const dealer = mfDealers[i % mfDealers.length]
-      const { firstName, middleName, lastName } = parseName(clientName)
+      const { firstName, middleName, lastName } = parseName(fullName)
 
       await prisma.client.upsert({
         where: { clientCode_department: { clientCode, department: Department.MUTUAL_FUND } },
-        update: {},
+        update: {
+          firstName, middleName, lastName,
+          phone: normalisePhone(row['MOBILE'] || ''),
+          email: normaliseEmail(row['MAIL'] || ''),
+          dob: normaliseDob(row['DOB'] || ''),
+          pan: normalisePan(row['PAN'] || ''),
+        },
         create: {
-          clientCode,
-          firstName,
-          middleName,
-          lastName,
-          phone: '0000000000',
+          clientCode, firstName, middleName, lastName,
+          phone: normalisePhone(row['MOBILE'] || ''),
+          email: normaliseEmail(row['MAIL'] || ''),
+          dob: normaliseDob(row['DOB'] || ''),
+          pan: normalisePan(row['PAN'] || ''),
           department: Department.MUTUAL_FUND,
           operatorId: dealer.id,
           mfStatus: MFClientStatus.INACTIVE,
@@ -382,7 +429,22 @@ async function main() {
       mfImported++
     }
 
-    console.log(`Imported ${mfImported} MF clients from CSV (${mfSkipped} skipped)`)
+    console.log(`Imported ${mfImported} MF clients (${mfSkipped} skipped)`)
+  }
+
+  // --- Mark Account Closed clients ---
+  const closedCsvPath = path.join(__dirname, '..', 'Account_closed_master.csv')
+  if (fs.existsSync(closedCsvPath)) {
+    const closedRows = readCsv(closedCsvPath)
+    const closedCodes = closedRows
+      .map(r => (r['CODE'] || '').trim().toUpperCase())
+      .filter(Boolean)
+
+    const closedResult = await prisma.client.updateMany({
+      where: { clientCode: { in: closedCodes } },
+      data: { notes: 'ACCOUNT CLOSED' },
+    })
+    console.log(`Marked ${closedResult.count} records as ACCOUNT CLOSED (${closedCodes.length} codes)`)
   }
 
   // Load MF products from Mutual_Fund_Product_Master.csv

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -33,6 +34,7 @@ interface ImportPreview {
 
 export default function MFClientMasterPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const isMFDealer = session?.user?.role === 'MF_DEALER'
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,6 +44,17 @@ export default function MFClientMasterPage() {
   const [operatorFilter, setOperatorFilter] = useState('all')
   const [ageFilter, setAgeFilter] = useState('all')
   const [page, setPage] = useState(1)
+
+  // Block MF dealers from accessing client master
+  useEffect(() => {
+    if (session?.user) {
+      const role = session.user.role
+      const secondaryRole = session.user.secondaryRole
+      if (role === 'MF_DEALER' && secondaryRole !== 'ADMIN' && secondaryRole !== 'SUPER_ADMIN') {
+        router.replace('/mf/dashboard')
+      }
+    }
+  }, [session, router])
   const [total, setTotal] = useState(0)
   const [filterOperators, setFilterOperators] = useState<Employee[]>([])
 

@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -37,8 +37,8 @@ interface ImportPreview {
 }
 
 export default function ClientMasterPage() {
-  const router = useRouter()
   const { data: session } = useSession()
+  const router = useRouter()
   const isMFDealer = session?.user?.role === 'MF_DEALER'
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,6 +50,18 @@ export default function ClientMasterPage() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [filterOperators, setFilterOperators] = useState<Employee[]>([])
+
+  // Block non-admin roles from accessing client master
+  useEffect(() => {
+    if (session?.user) {
+      const role = session.user.role
+      const secondaryRole = session.user.secondaryRole
+      const allowed = ['ADMIN', 'SUPER_ADMIN']
+      if (!allowed.includes(role) && (!secondaryRole || !allowed.includes(secondaryRole))) {
+        router.replace('/dashboard')
+      }
+    }
+  }, [session, router])
 
   // Selection — persists across filter/search changes
   const [selected, setSelected] = useState<Set<string>>(new Set())
