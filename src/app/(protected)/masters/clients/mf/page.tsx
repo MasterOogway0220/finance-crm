@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -31,12 +32,15 @@ interface ImportPreview {
 }
 
 export default function MFClientMasterPage() {
+  const { data: session } = useSession()
+  const isMFDealer = session?.user?.role === 'MF_DEALER'
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
   const [searchInput, setSearchInput] = useState('')
   const search = useDebounce(searchInput, 400)
   const [statusFilter, setStatusFilter] = useState('all')
   const [operatorFilter, setOperatorFilter] = useState('all')
+  const [ageFilter, setAgeFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [filterOperators, setFilterOperators] = useState<Employee[]>([])
@@ -87,8 +91,9 @@ export default function MFClientMasterPage() {
     if (search) params.set('search', search)
     if (operatorFilter !== 'all') params.set('operatorId', operatorFilter)
     if (statusFilter !== 'all') params.set('mfStatus', statusFilter)
+    if (ageFilter !== 'all') params.set('ageRange', ageFilter)
     return params
-  }, [search, operatorFilter, statusFilter])
+  }, [search, operatorFilter, statusFilter, ageFilter])
 
   const fetchClients = useCallback(() => {
     setLoading(true)
@@ -102,10 +107,10 @@ export default function MFClientMasterPage() {
   }, [buildParams, page])
 
   useEffect(() => { fetchClients() }, [fetchClients])
-  useEffect(() => { setPage(1) }, [search, statusFilter, operatorFilter])
+  useEffect(() => { setPage(1) }, [search, statusFilter, operatorFilter, ageFilter])
 
-  const hasActiveFilters = statusFilter !== 'all' || operatorFilter !== 'all' || searchInput !== ''
-  const clearFilters = () => { setSearchInput(''); setStatusFilter('all'); setOperatorFilter('all'); setPage(1) }
+  const hasActiveFilters = statusFilter !== 'all' || operatorFilter !== 'all' || searchInput !== '' || ageFilter !== 'all'
+  const clearFilters = () => { setSearchInput(''); setStatusFilter('all'); setOperatorFilter('all'); setAgeFilter('all'); setPage(1) }
 
   const toggleSelect = (id: string) => {
     setSelected(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
@@ -232,13 +237,15 @@ export default function MFClientMasterPage() {
           <h1 className="page-title">Mutual Fund Client Master</h1>
           <p className="text-sm text-gray-500">{total > 0 ? `${total} MF clients` : 'Manage mutual fund department clients'}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2"><Upload className="h-4 w-4" />Bulk Import</Button>
-        </div>
+        {!isMFDealer && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2"><Upload className="h-4 w-4" />Bulk Import</Button>
+          </div>
+        )}
       </div>
 
       {/* Selection bar */}
-      {selected.size > 0 && (
+      {!isMFDealer && selected.size > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm font-medium text-green-800">{selected.size} client{selected.size > 1 ? 's' : ''} selected</span>
           <div className="flex gap-2">
@@ -269,6 +276,16 @@ export default function MFClientMasterPage() {
               {filterOperators.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Select value={ageFilter} onValueChange={setAgeFilter}>
+            <SelectTrigger className="w-36 h-9 text-sm"><SelectValue placeholder="Age Range" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Ages</SelectItem>
+              <SelectItem value="10-25">10–25 yrs</SelectItem>
+              <SelectItem value="25-40">25–40 yrs</SelectItem>
+              <SelectItem value="50-70">50–70 yrs</SelectItem>
+              <SelectItem value="70-100">70–100 yrs</SelectItem>
+            </SelectContent>
+          </Select>
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1.5 text-gray-500 hover:text-gray-800"><X className="h-3.5 w-3.5" />Clear</Button>
           )}
@@ -280,10 +297,12 @@ export default function MFClientMasterPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-3 py-3 w-10">
-                <input type="checkbox" checked={allCurrentPageSelected} onChange={toggleAll} disabled={selectingAll} title="Select all matching clients" className="rounded border-gray-300 cursor-pointer" />
-              </th>
-              {['Code', 'Name', 'Phone', 'Operator', 'MF Status', 'Added', 'Actions'].map(h => (
+              {!isMFDealer && (
+                <th className="px-3 py-3 w-10">
+                  <input type="checkbox" checked={allCurrentPageSelected} onChange={toggleAll} disabled={selectingAll} title="Select all matching clients" className="rounded border-gray-300 cursor-pointer" />
+                </th>
+              )}
+              {['Code', 'Name', 'Phone', 'Operator', 'MF Status', 'Added', ...(isMFDealer ? [] : ['Actions'])].map(h => (
                 <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -295,7 +314,9 @@ export default function MFClientMasterPage() {
               ? <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">No clients found{hasActiveFilters ? ' for the selected filters' : ''}</td></tr>
               : clients.map(c => (
                   <tr key={c.id} className={`border-b border-gray-100 hover:bg-gray-50 ${selected.has(c.id) ? 'bg-green-50/50' : ''}`}>
-                    <td className="px-3 py-3"><input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} className="rounded border-gray-300" /></td>
+                    {!isMFDealer && (
+                      <td className="px-3 py-3"><input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} className="rounded border-gray-300" /></td>
+                    )}
                     <td className="px-4 py-3 font-mono text-xs font-medium text-gray-700">{c.clientCode}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -309,13 +330,15 @@ export default function MFClientMasterPage() {
                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${c.mfStatus === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{c.mfStatus}</span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(c.createdAt)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <Button size="sm" variant="outline" onClick={() => openEdit(c)} className="h-7 text-xs gap-1"><Pencil className="h-3 w-3" />Edit</Button>
-                        <Button size="sm" variant="ghost" onClick={() => openTransfer(c)} className="h-7 text-xs gap-1 text-gray-600 hover:bg-gray-100"><ArrowRightLeft className="h-3 w-3" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(c)} className="h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="h-3 w-3" /></Button>
-                      </div>
-                    </td>
+                    {!isMFDealer && (
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <Button size="sm" variant="outline" onClick={() => openEdit(c)} className="h-7 text-xs gap-1"><Pencil className="h-3 w-3" />Edit</Button>
+                          <Button size="sm" variant="ghost" onClick={() => openTransfer(c)} className="h-7 text-xs gap-1 text-gray-600 hover:bg-gray-100"><ArrowRightLeft className="h-3 w-3" /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(c)} className="h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="h-3 w-3" /></Button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
           </tbody>

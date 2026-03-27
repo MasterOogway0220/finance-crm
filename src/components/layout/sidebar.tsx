@@ -96,6 +96,14 @@ const MF_DEALER_NAV: NavItem[] = [
   },
   { label: 'Document Pool', href: '/documents', icon: FolderOpen },
   { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
+  {
+    label: 'Client Masters',
+    icon: Database,
+    children: [
+      { label: 'Equity Client Master', href: '/masters/clients', icon: Database },
+      { label: 'MF Client Master', href: '/masters/clients/mf', icon: Database },
+    ],
+  },
 ]
 
 const BACK_OFFICE_NAV: NavItem[] = [

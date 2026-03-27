@@ -27,7 +27,10 @@ export const clientSchema = z.object({
   middleName: z.string().optional(),
   lastName: z.string().min(1, 'Last name is required'),
   phone: z.string().length(10, 'Phone must be 10 digits').regex(/^\d{10}$/, 'Phone must be 10 digits'),
-  department: z.enum(['EQUITY', 'MUTUAL_FUND']),
+  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  dob: z.coerce.date().optional().nullable(),
+  pan: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, 'Invalid PAN format').optional().or(z.literal('')),
+  department: z.enum(['EQUITY', 'MUTUAL_FUND', 'BOTH']),
   operatorId: z.string().min(1, 'Please select an operator'),
 })
 

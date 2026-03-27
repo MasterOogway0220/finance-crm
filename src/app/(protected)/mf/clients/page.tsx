@@ -39,6 +39,7 @@ export default function MFClientsPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [remark, setRemark] = useState('all')
+  const [ageFilter, setAgeFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -60,11 +61,12 @@ export default function MFClientsPage() {
     if (search) params.set('search', search)
     if (status !== 'all') params.set('mfStatus', status)
     if (remark !== 'all') params.set('mfRemark', remark)
+    if (ageFilter !== 'all') params.set('ageRange', ageFilter)
     fetch(`/api/clients?${params}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) { setClients(d.data.clients); setTotal(d.data.pagination.total) } })
       .finally(() => setLoading(false))
-  }, [search, status, remark, page])
+  }, [search, status, remark, ageFilter, page])
 
   useEffect(() => {
     const t = setTimeout(fetchClients, 300)
@@ -108,6 +110,16 @@ export default function MFClientsPage() {
           <Select value={remark} onValueChange={(v) => { setRemark(v); setPage(1) }}>
             <SelectTrigger className="w-48 h-9 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>{REMARK_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={ageFilter} onValueChange={(v) => { setAgeFilter(v); setPage(1) }}>
+            <SelectTrigger className="w-36 h-9 text-sm"><SelectValue placeholder="Age Range" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Ages</SelectItem>
+              <SelectItem value="10-25">10–25 yrs</SelectItem>
+              <SelectItem value="25-40">25–40 yrs</SelectItem>
+              <SelectItem value="50-70">50–70 yrs</SelectItem>
+              <SelectItem value="70-100">70–100 yrs</SelectItem>
+            </SelectContent>
           </Select>
           <Button size="sm" variant="outline" onClick={() => window.open(`/api/clients/export?department=MUTUAL_FUND`, '_blank')} className="ml-auto gap-1.5">
             <Download className="h-3.5 w-3.5" />Export CSV

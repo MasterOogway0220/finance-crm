@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import {
-  Users, Briefcase, IndianRupee, TrendingUp, Clock, AlertTriangle, UserCheck,
+  Users, Briefcase, IndianRupee, TrendingUp, Clock, AlertTriangle, UserCheck, UserX,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { KpiCard } from '@/components/dashboard/kpi-card'
@@ -24,6 +24,7 @@ interface DashboardData {
   totalClients: number
   equityClients: number
   mfClients: number
+  closedClients: number
   monthlyBrokerage: number
   lastMonthBrokerage: number
   tradedClients: number
@@ -141,7 +142,7 @@ export default function AdminDashboardPage() {
       {/* KPI Cards */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+          {Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
         </div>
       ) : data && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -201,6 +202,13 @@ export default function AdminDashboardPage() {
             subtitle="Current month"
             icon={IndianRupee}
             accent="indigo"
+          />
+          <KpiCard
+            title="Closed Accounts"
+            value={data.closedClients ?? 0}
+            subtitle="Removed from all masters"
+            icon={UserX}
+            accent="red"
           />
         </div>
       )}

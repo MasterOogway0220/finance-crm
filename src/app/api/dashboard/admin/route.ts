@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const [
       totalEmployees, equityCount, mfCount, tradedClients,
       pendingTasks, overdueTasks, completedTasks, expiredTasks,
-      brokerageSum, lastMonthBrokerageSum, operators, mfBusinessAgg,
+      brokerageSum, lastMonthBrokerageSum, operators, mfBusinessAgg, closedClientsCount,
     ] = await Promise.all([
       prisma.employee.count({ where: { isActive: true } }),
       prisma.client.count({ where: { department: 'EQUITY' } }),
@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
         _sum: { yearlyContribution: true, commissionAmount: true },
         where: { businessDate: { gte: start, lte: end } },
       }),
+      prisma.closedClient.count(),
     ])
 
     const monthlyBrokerage    = brokerageSum._sum.amount ?? 0
@@ -135,6 +136,7 @@ export async function GET(request: NextRequest) {
       totalClients: equityCount + mfCount,
       equityClients: equityCount,
       mfClients: mfCount,
+      closedClients: closedClientsCount,
       monthlyBrokerage,
       lastMonthBrokerage,
       tradedClients,

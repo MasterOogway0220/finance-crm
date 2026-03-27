@@ -103,6 +103,22 @@ model Employee {
   @@index([role])
 }
 
+model ClosedClient {
+  id          String    @id @default(cuid())
+  clientCode  String    @unique
+  firstName   String
+  middleName  String?
+  lastName    String
+  phone       String?
+  email       String?
+  dob         DateTime?
+  pan         String?
+  closedAt    DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([clientCode])
+}
+
 model Client {
   id              String          @id @default(cuid())
   clientCode      String
@@ -110,6 +126,9 @@ model Client {
   middleName      String?
   lastName        String
   phone           String
+  email           String?
+  dob             DateTime?
+  pan             String?
   department      Department
   operatorId      String
   operator        Employee        @relation("OperatorClients", fields: [operatorId], references: [id])

@@ -123,17 +123,30 @@ export async function DELETE(request: NextRequest) {
     if (deleteFromMF) {
       const equityClients = await prisma.client.findMany({
         where: { id: { in: clientIds }, department: Department.EQUITY },
-        select: { clientCode: true },
+        select: { clientCode: true, firstName: true, middleName: true, lastName: true, phone: true, email: true, dob: true, pan: true },
       })
       const equityCodes = equityClients.map(c => c.clientCode)
 
       if (equityCodes.length > 0) {
-        await prisma.client.deleteMany({
-          where: {
-            clientCode: { in: equityCodes },
-            department: Department.MUTUAL_FUND,
-          },
+        const mfClients = await prisma.client.findMany({
+          where: { clientCode: { in: equityCodes }, department: Department.MUTUAL_FUND },
+          select: { id: true },
         })
+        const mfIds = mfClients.map(c => c.id)
+        if (mfIds.length > 0) {
+          await prisma.brokerageDetail.updateMany({ where: { clientId: { in: mfIds } }, data: { clientId: null } })
+          await prisma.client.deleteMany({ where: { clientCode: { in: equityCodes }, department: Department.MUTUAL_FUND } })
+        }
+        // Move to closed accounts
+        for (const c of equityClients) {
+          try {
+            await prisma.closedClient.upsert({
+              where: { clientCode: c.clientCode },
+              update: {},
+              create: { clientCode: c.clientCode, firstName: c.firstName, middleName: c.middleName, lastName: c.lastName, phone: c.phone, email: c.email, dob: c.dob, pan: c.pan },
+            })
+          } catch { /* ignore */ }
+        }
       }
     }
 

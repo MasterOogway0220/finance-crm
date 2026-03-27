@@ -15,7 +15,8 @@ import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { z } from 'zod'
 
-type FormData = z.infer<typeof clientSchema>
+// Use string for dob in form to match HTML date input
+type FormData = Omit<z.infer<typeof clientSchema>, 'dob'> & { dob?: string }
 
 interface Employee { id: string; name: string }
 
@@ -26,9 +27,7 @@ export default function AddClientPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [submitting, setSubmitting] = useState(false)
 
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(clientSchema),
-  })
+  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>()
 
   const department = watch('department')
 
@@ -36,8 +35,9 @@ export default function AddClientPage() {
     if (!department) return
     setEmployees([])
     setValue('operatorId', '')
-    const role = department === 'EQUITY' ? 'EQUITY_DEALER' : 'MF_DEALER'
-    fetch(`/api/employees?department=${department}&role=${role}&isActive=true`)
+    // For BOTH or EQUITY, load equity dealers; for MUTUAL_FUND, load MF dealers
+    const deptParam = (department === 'BOTH' || department === 'EQUITY') ? 'EQUITY' : 'MUTUAL_FUND'
+    fetch(`/api/employees?department=${deptParam}&isActive=true`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setEmployees(d.data) })
   }, [department, setValue])
@@ -52,11 +52,11 @@ export default function AddClientPage() {
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, clientCode }),
+        body: JSON.stringify({ ...data, clientCode, dob: data.dob ? new Date(data.dob).toISOString() : null }),
       })
       const result = await res.json()
       if (result.success) {
-        toast.success('Client added successfully')
+        toast.success(data.department === 'BOTH' ? 'Client added to both Equity & MF masters' : 'Client added successfully')
         router.push('/masters/clients')
       } else {
         toast.error(result.error || 'Failed to add client')
@@ -92,31 +92,57 @@ export default function AddClientPage() {
                   <Label>{label}</Label>
                   <Input {...register(name as keyof FormData)} placeholder={placeholder}
                     className={errors[name as keyof FormData] ? 'border-red-500' : ''} />
-                  {errors[name as keyof FormData] && <p className="text-xs text-red-500">{errors[name as keyof FormData]?.message}</p>}
+                  {errors[name as keyof FormData] && <p className="text-xs text-red-500">{errors[name as keyof FormData]?.message as string}</p>}
                 </div>
               ))}
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Phone Number *</Label>
-              <Input {...register('phone')} placeholder="10-digit mobile number" className={errors.phone ? 'border-red-500' : ''} />
-              {errors.phone && <p className="text-xs text-red-500">{errors.phone.message}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Phone Number *</Label>
+                <Input {...register('phone')} placeholder="10-digit mobile number" className={errors.phone ? 'border-red-500' : ''} />
+                {errors.phone && <p className="text-xs text-red-500">{errors.phone.message}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input {...register('email')} type="email" placeholder="client@example.com" className={errors.email ? 'border-red-500' : ''} />
+                {errors.email && <p className="text-xs text-red-500">{errors.email.message as string}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Date of Birth</Label>
+                <Input {...register('dob')} type="date" className={errors.dob ? 'border-red-500' : ''} />
+                {errors.dob && <p className="text-xs text-red-500">{errors.dob.message as string}</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label>PAN</Label>
+                <Input {...register('pan')} placeholder="ABCDE1234F" className={`uppercase ${errors.pan ? 'border-red-500' : ''}`} maxLength={10} />
+                {errors.pan && <p className="text-xs text-red-500">{errors.pan.message as string}</p>}
+              </div>
             </div>
 
             <div className="space-y-1.5">
               <Label>Department *</Label>
-              <Select onValueChange={(v) => setValue('department', v as 'EQUITY' | 'MUTUAL_FUND')}>
+              <Select onValueChange={(v) => setValue('department', v as 'EQUITY' | 'MUTUAL_FUND' | 'BOTH')}>
                 <SelectTrigger className={errors.department ? 'border-red-500' : ''}><SelectValue placeholder="Select department" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="EQUITY">Equity</SelectItem>
                   <SelectItem value="MUTUAL_FUND">Mutual Fund</SelectItem>
+                  <SelectItem value="BOTH">Both (Equity + MF)</SelectItem>
                 </SelectContent>
               </Select>
               {errors.department && <p className="text-xs text-red-500">{errors.department.message}</p>}
+              {department === 'BOTH' && (
+                <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-3 py-1.5">
+                  Client will be added to both Equity and MF masters. MF operator auto-assigned. Select equity operator below.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
-              <Label>Assigned Operator *</Label>
+              <Label>{department === 'BOTH' ? 'Equity Operator *' : 'Assigned Operator *'}</Label>
               <Select disabled={!department || employees.length === 0} onValueChange={(v) => setValue('operatorId', v)}>
                 <SelectTrigger className={errors.operatorId ? 'border-red-500' : ''}>
                   <SelectValue placeholder={!department ? 'Select department first' : 'Select operator'} />
@@ -132,7 +158,7 @@ export default function AddClientPage() {
               <Button type="button" variant="outline" className="flex-1" onClick={() => router.push('/masters/clients')}>Cancel</Button>
               <Button type="submit" className="flex-1" disabled={submitting}>
                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Add Client
+                {department === 'BOTH' ? 'Add to Both Masters' : 'Add Client'}
               </Button>
             </div>
           </form>

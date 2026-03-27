@@ -46,7 +46,25 @@ export async function DELETE(
         where: { clientCode_department: { clientCode: existing.clientCode, department: Department.MUTUAL_FUND } },
       })
       if (mfClient) {
+        await prisma.brokerageDetail.updateMany({ where: { clientId: mfClient.id }, data: { clientId: null } })
         await prisma.client.delete({ where: { id: mfClient.id } })
+        // Move to closed accounts master (skip if already exists)
+        try {
+          await prisma.closedClient.upsert({
+            where: { clientCode: existing.clientCode },
+            update: {},
+            create: {
+              clientCode: existing.clientCode,
+              firstName: existing.firstName,
+              middleName: existing.middleName,
+              lastName: existing.lastName,
+              phone: existing.phone,
+              email: existing.email,
+              dob: existing.dob,
+              pan: existing.pan,
+            },
+          })
+        } catch { /* ignore */ }
       }
     }
 
@@ -54,7 +72,7 @@ export async function DELETE(
       userId: session.user.id,
       action: 'DELETE',
       module: 'CLIENTS',
-      details: `Deleted client: ${existing.clientCode} - ${existing.firstName} ${existing.lastName}. Historical brokerage records preserved.${deleteFromMF ? ' Also removed from MF master.' : ''}`,
+      details: `Deleted client: ${existing.clientCode} - ${existing.firstName} ${existing.lastName}. Historical brokerage records preserved.${deleteFromMF ? ' Also removed from MF master and added to closed accounts.' : ''}`,
     })
 
     return NextResponse.json({ success: true })
