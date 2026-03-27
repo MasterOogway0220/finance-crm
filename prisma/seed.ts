@@ -432,19 +432,49 @@ async function main() {
     console.log(`Imported ${mfImported} MF clients (${mfSkipped} skipped)`)
   }
 
-  // --- Mark Account Closed clients ---
+  // --- Import Account Closed clients into ClosedClient table ---
   const closedCsvPath = path.join(__dirname, '..', 'Account_closed_master.csv')
   if (fs.existsSync(closedCsvPath)) {
+    await prisma.closedClient.deleteMany({})
     const closedRows = readCsv(closedCsvPath)
-    const closedCodes = closedRows
-      .map(r => (r['CODE'] || '').trim().toUpperCase())
-      .filter(Boolean)
+    let closedImported = 0
+    let closedSkipped = 0
 
-    const closedResult = await prisma.client.updateMany({
+    for (const row of closedRows) {
+      const clientCode = (row['CODE'] || '').trim().toUpperCase()
+      const fullName = (row['NAME'] || '').trim()
+      if (!clientCode || !fullName) { closedSkipped++; continue }
+
+      const { firstName, middleName, lastName } = parseName(fullName)
+
+      await prisma.closedClient.upsert({
+        where: { clientCode },
+        update: {
+          firstName, middleName, lastName,
+          phone: normalisePhone(row['MOBILE'] || ''),
+          email: normaliseEmail(row['MAIL'] || ''),
+          dob: normaliseDob(row['DOB'] || ''),
+          pan: normalisePan(row['PAN'] || ''),
+        },
+        create: {
+          clientCode, firstName, middleName, lastName,
+          phone: normalisePhone(row['MOBILE'] || ''),
+          email: normaliseEmail(row['MAIL'] || ''),
+          dob: normaliseDob(row['DOB'] || ''),
+          pan: normalisePan(row['PAN'] || ''),
+        },
+      })
+      closedImported++
+    }
+
+    // Also mark matching active clients
+    const closedCodes = closedRows.map(r => (r['CODE'] || '').trim().toUpperCase()).filter(Boolean)
+    await prisma.client.updateMany({
       where: { clientCode: { in: closedCodes } },
       data: { notes: 'ACCOUNT CLOSED' },
     })
-    console.log(`Marked ${closedResult.count} records as ACCOUNT CLOSED (${closedCodes.length} codes)`)
+
+    console.log(`Imported ${closedImported} closed accounts (${closedSkipped} skipped)`)
   }
 
   // Load MF products from Mutual_Fund_Product_Master.csv

@@ -19,7 +19,11 @@ export async function GET(request: NextRequest) {
 
     const clients = await prisma.client.findMany({
       where: {
-        clientCode: { startsWith: q },
+        OR: [
+          { clientCode: { startsWith: q } },
+          { firstName: { contains: q } },
+          { lastName: { contains: q } },
+        ],
         ...(department ? { department: department as 'EQUITY' | 'MUTUAL_FUND' } : {}),
       },
       select: {
