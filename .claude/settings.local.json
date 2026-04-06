@@ -54,7 +54,13 @@
       "Bash(cat \"/Users/adi0220/projects/finance-crm/src/app/\\(protected\\)/login-history/page.tsx\")",
       "Bash(wc:*)",
       "Bash(ls -la /Users/adi0220/projects/finance-crm/src/app/\\\\\\(auth\\\\\\)/)",
-      "Bash(cat /Users/adi0220/projects/finance-crm/src/app/\\\\\\(protected\\\\\\)/masters/clients/page.tsx)"
+      "Bash(cat /Users/adi0220/projects/finance-crm/src/app/\\\\\\(protected\\\\\\)/masters/clients/page.tsx)",
+      "Bash(npx prisma@latest db push)",
+      "Bash(node_modules/.bin/prisma db:*)",
+      "Bash(where prisma:*)",
+      "Bash(where node:*)",
+      "Bash(where npx:*)",
+      "Bash(\"/c/Program Files/nodejs/npx.cmd\" prisma db push)"
     ]
   }
 }

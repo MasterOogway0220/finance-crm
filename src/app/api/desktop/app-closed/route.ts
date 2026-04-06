@@ -1,3 +1,8 @@
+// POST /api/desktop/app-closed
+// Called by the Electron desktop app's before-quit handler.
+// Updates logoutAt on all open EmployeeLoginLog entries for the current user.
+// Returns 401 silently if no session (user closed app on login screen — no log to close).
+
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
