@@ -16,6 +16,7 @@ win:
     - target: nsis
       arch:
         - x64
+  signAndEditExecutable: false
   # icon: assets/icon.ico  # Uncomment once you add your logo at electron-app/assets/icon.ico
 
 nsis:
