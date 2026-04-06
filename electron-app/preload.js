@@ -66,6 +66,8 @@ window.addEventListener('DOMContentLoaded', () => {
       transition: background 0.1s, color 0.1s;
       padding: 0;
       line-height: 1;
+      -webkit-app-region: no-drag;
+      pointer-events: auto;
     }
     #electron-titlebar .etb-btn:hover { background: #1e293b; color: #e2e8f0; }
     #electron-titlebar .etb-btn.etb-close:hover { background: #dc2626; color: #ffffff; }

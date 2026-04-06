@@ -17,7 +17,7 @@ win:
       arch:
         - x64
   signAndEditExecutable: false
-  # icon: assets/icon.ico  # Uncomment once you add your logo at electron-app/assets/icon.ico
+  icon: assets/icon.ico
 
 nsis:
   oneClick: false
@@ -25,8 +25,8 @@ nsis:
   allowElevation: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  # installerIcon: assets/icon.ico  # Uncomment once you add your logo
-  # uninstallerIcon: assets/icon.ico
+  installerIcon: assets/icon.ico
+  uninstallerIcon: assets/icon.ico
 
 publish:
   provider: github

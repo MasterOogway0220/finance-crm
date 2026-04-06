@@ -59,6 +59,7 @@ function createWindow() {
     minHeight: 600,
     frame: false,
     show: false,
+    backgroundColor: '#0f172a', // dark background while page loads — prevents white flash
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -69,7 +70,28 @@ function createWindow() {
 
   mainWindow.loadURL(CRM_URL)
 
-  mainWindow.once('ready-to-show', () => mainWindow.show())
+  // Show only after page actually renders — prevents white blank window
+  mainWindow.webContents.once('did-finish-load', () => mainWindow.show())
+  // Fallback: show after 10s in case page is slow
+  setTimeout(() => { if (mainWindow && !mainWindow.isVisible()) mainWindow.show() }, 10000)
+
+  // Handle failed page load — show retry page instead of blank white screen
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    if (errorCode === -3) return // aborted (e.g. redirect), not a real failure
+    mainWindow.webContents.loadURL(`data:text/html;charset=utf-8,
+      <html style="background:#0f172a;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
+        <div style="text-align:center">
+          <div style="font-size:48px;margin-bottom:16px">&#9888;</div>
+          <h2 style="margin:0 0 8px">Could not connect</h2>
+          <p style="color:#64748b;margin:0 0 24px">${errorDescription}</p>
+          <button onclick="window.location.href='${CRM_URL}'" style="background:#2563eb;color:white;border:none;padding:10px 24px;border-radius:6px;cursor:pointer;font-size:14px">
+            Try Again
+          </button>
+        </div>
+      </html>
+    `)
+    mainWindow.show()
+  })
 
   mainWindow.webContents.on('did-finish-load', () => recordAppOpened())
   mainWindow.webContents.on('did-navigate',    () => recordAppOpened())
@@ -112,6 +134,7 @@ app.whenReady().then(() => {
   createWindow()
 
   globalShortcut.register('F5', () => mainWindow?.webContents.reload())
+  globalShortcut.register('F12', () => mainWindow?.webContents.toggleDevTools())
 
   autoUpdater.checkForUpdatesAndNotify()
 })
