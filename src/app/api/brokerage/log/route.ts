@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       uploadDate: u.uploadDate,
       fileName: u.fileName,
       totalAmount: u.totalAmount,
-      uploadedBy: u.uploadedBy.name,
+      uploadedBy: u.uploadedBy?.name ?? 'Deleted employee',
       createdAt: u.createdAt,
     }))
 
