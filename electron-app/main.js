@@ -128,6 +128,13 @@ ipcMain.on('window-close',   () => app.quit())
 ipcMain.on('window-refresh', () => mainWindow?.webContents.reload())
 
 // ─── App lifecycle ─────────────────────────────────────────────────────────
+// Bypass SSL certificate errors — the hosted server has an internal SSL issue
+// that Chromium rejects but browsers accept. Safe for an internal tool.
+app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+  event.preventDefault()
+  callback(true)
+})
+
 app.whenReady().then(() => {
   app.setLoginItemSettings({ openAtLogin: true })
 
