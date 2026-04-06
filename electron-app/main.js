@@ -4,11 +4,18 @@ const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const fs = require('fs')
 
+// ─── Must be called before app is ready ────────────────────────────────────
+// Bypasses ALL SSL/TLS errors at the Chromium level — covers cert issues AND
+// TLS handshake failures (tlsv1 alert internal error) that the certificate-error
+// event alone does not catch.
+app.commandLine.appendSwitch('ignore-certificate-errors')
+app.commandLine.appendSwitch('ignore-ssl-errors')
+
 const CRM_URL = 'https://crm.kesarsecurities.in'
 
 let mainWindow = null
-let isQuitting = false        // prevents re-entry in before-quit
-let appOpenedRecorded = false // prevents duplicate app-opened calls per process lifetime
+let isQuitting = false
+let appOpenedRecorded = false
 let recordingInProgress = false
 
 // ─── Auto-updater ──────────────────────────────────────────────────────────
@@ -45,7 +52,7 @@ autoUpdater.on('update-downloaded', () => {
 })
 
 autoUpdater.on('error', () => {
-  // Silently ignore — update check is best-effort (no internet, no config, etc.)
+  // Silently ignore — update check is best-effort
 })
 
 // ─── Window ────────────────────────────────────────────────────────────────
@@ -59,7 +66,7 @@ function createWindow() {
     minHeight: 600,
     frame: false,
     show: false,
-    backgroundColor: '#0f172a', // dark background while page loads — prevents white flash
+    backgroundColor: '#0f172a',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -70,31 +77,37 @@ function createWindow() {
 
   mainWindow.loadURL(CRM_URL)
 
-  // Show only after page actually renders — prevents white blank window
-  mainWindow.webContents.once('did-finish-load', () => mainWindow.show())
-  // Fallback: show after 10s in case page is slow
-  setTimeout(() => { if (mainWindow && !mainWindow.isVisible()) mainWindow.show() }, 10000)
+  // Show window as soon as first paint is ready (background is dark, not white)
+  mainWindow.once('ready-to-show', () => mainWindow.show())
 
-  // Handle failed page load — show retry page instead of blank white screen
+  // Handle load failure — show a dark retry page instead of blank screen
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    if (errorCode === -3) return // aborted (e.g. redirect), not a real failure
-    mainWindow.webContents.loadURL(`data:text/html;charset=utf-8,
-      <html style="background:#0f172a;color:#e2e8f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
-        <div style="text-align:center">
-          <div style="font-size:48px;margin-bottom:16px">&#9888;</div>
-          <h2 style="margin:0 0 8px">Could not connect</h2>
-          <p style="color:#64748b;margin:0 0 24px">${errorDescription}</p>
-          <button onclick="window.location.href='${CRM_URL}'" style="background:#2563eb;color:white;border:none;padding:10px 24px;border-radius:6px;cursor:pointer;font-size:14px">
-            Try Again
-          </button>
-        </div>
-      </html>
-    `)
-    mainWindow.show()
+    if (errorCode === -3) return // -3 = ERR_ABORTED (redirect), not a real failure
+    const retryPage = `data:text/html;charset=utf-8,<!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"></head>
+        <body style="background:#0f172a;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+          display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding-top:32px;box-sizing:border-box">
+          <div style="text-align:center">
+            <div style="font-size:48px;margin-bottom:16px">&#9888;</div>
+            <h2 style="margin:0 0 8px">Could not connect</h2>
+            <p style="color:#64748b;margin:0 0 8px;font-size:13px">Error ${errorCode}: ${errorDescription}</p>
+            <p style="color:#64748b;margin:0 0 24px;font-size:13px">${CRM_URL}</p>
+            <button id="retry-btn" style="background:#2563eb;color:white;border:none;padding:10px 24px;
+              border-radius:6px;cursor:pointer;font-size:14px">Try Again</button>
+          </div>
+          <script>
+            document.getElementById('retry-btn').onclick = function() {
+              window.location.href = '${CRM_URL}'
+            }
+          <\/script>
+        </body>
+      </html>`
+    mainWindow.webContents.loadURL(retryPage)
   })
 
   mainWindow.webContents.on('did-finish-load', () => recordAppOpened())
-  mainWindow.webContents.on('did-navigate',    () => recordAppOpened())
+  mainWindow.webContents.on('did-navigate', () => recordAppOpened())
 
   mainWindow.on('closed', () => { mainWindow = null })
 }
@@ -128,19 +141,12 @@ ipcMain.on('window-close',   () => app.quit())
 ipcMain.on('window-refresh', () => mainWindow?.webContents.reload())
 
 // ─── App lifecycle ─────────────────────────────────────────────────────────
-// Bypass SSL certificate errors — the hosted server has an internal SSL issue
-// that Chromium rejects but browsers accept. Safe for an internal tool.
-app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
-  event.preventDefault()
-  callback(true)
-})
-
 app.whenReady().then(() => {
   app.setLoginItemSettings({ openAtLogin: true })
 
   createWindow()
 
-  globalShortcut.register('F5', () => mainWindow?.webContents.reload())
+  globalShortcut.register('F5',  () => mainWindow?.webContents.reload())
   globalShortcut.register('F12', () => mainWindow?.webContents.toggleDevTools())
 
   autoUpdater.checkForUpdatesAndNotify()

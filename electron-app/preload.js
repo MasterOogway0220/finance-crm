@@ -21,7 +21,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const existing = document.getElementById('electron-titlebar')
   if (existing) existing.remove()
 
-  // Inject styles via <style> element (safe with strict CSP, unlike innerHTML <style>)
+  // Inject styles via <style> element (safe with strict CSP)
   const style = document.createElement('style')
   style.textContent = `
     #electron-titlebar {
@@ -74,7 +74,6 @@ window.addEventListener('DOMContentLoaded', () => {
   `
   document.head.appendChild(style)
 
-  // Build the bar HTML (no <style> tag here)
   const bar = document.createElement('div')
   bar.id = 'electron-titlebar'
   bar.innerHTML = `
@@ -88,13 +87,12 @@ window.addEventListener('DOMContentLoaded', () => {
   `
 
   document.body.insertBefore(bar, document.body.firstChild)
-
-  // Use documentElement (html tag) instead of body to avoid fighting Next.js body styles
   document.documentElement.style.paddingTop = '32px'
 
-  // Wire up buttons with optional chaining for safety
-  document.getElementById('etb-refresh')?.addEventListener('click', () => window.electronAPI?.refresh())
-  document.getElementById('etb-min')?.addEventListener('click',     () => window.electronAPI?.minimize())
-  document.getElementById('etb-max')?.addEventListener('click',     () => window.electronAPI?.maximize())
-  document.getElementById('etb-close')?.addEventListener('click',   () => window.electronAPI?.close())
+  // Use ipcRenderer.send() directly — more reliable than window.electronAPI
+  // since ipcRenderer is captured in this closure from the preload scope
+  document.getElementById('etb-refresh')?.addEventListener('click', () => ipcRenderer.send('window-refresh'))
+  document.getElementById('etb-min')?.addEventListener('click',     () => ipcRenderer.send('window-minimize'))
+  document.getElementById('etb-max')?.addEventListener('click',     () => ipcRenderer.send('window-maximize'))
+  document.getElementById('etb-close')?.addEventListener('click',   () => ipcRenderer.send('window-close'))
 })
