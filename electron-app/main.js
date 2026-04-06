@@ -2,12 +2,14 @@
 const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
+const fs = require('fs')
 
 const CRM_URL = 'https://crm.kesarsecurities.in'
 
 let mainWindow = null
 let isQuitting = false        // prevents re-entry in before-quit
 let appOpenedRecorded = false // prevents duplicate app-opened calls per process lifetime
+let recordingInProgress = false
 
 // ─── Auto-updater ──────────────────────────────────────────────────────────
 autoUpdater.autoDownload = true
@@ -42,8 +44,14 @@ autoUpdater.on('update-downloaded', () => {
   `).catch(() => {})
 })
 
+autoUpdater.on('error', () => {
+  // Silently ignore — update check is best-effort (no internet, no config, etc.)
+})
+
 // ─── Window ────────────────────────────────────────────────────────────────
 function createWindow() {
+  const iconPath = path.join(__dirname, 'assets', 'icon.ico')
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -56,7 +64,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
   })
 
   mainWindow.loadURL(CRM_URL)
@@ -71,7 +79,8 @@ function createWindow() {
 
 // ─── Login tracking ────────────────────────────────────────────────────────
 async function recordAppOpened() {
-  if (appOpenedRecorded || !mainWindow) return
+  if (appOpenedRecorded || recordingInProgress || !mainWindow) return
+  recordingInProgress = true
   try {
     const status = await mainWindow.webContents.executeJavaScript(`
       fetch('/api/desktop/app-opened', {
@@ -80,9 +89,10 @@ async function recordAppOpened() {
       }).then(r => r.status).catch(() => 0)
     `)
     if (status === 200) appOpenedRecorded = true
-    // 401 = not logged in yet; retries on next did-finish-load / did-navigate
   } catch {
     // Silently ignore — tracking is best-effort
+  } finally {
+    recordingInProgress = false
   }
 }
 
@@ -92,7 +102,7 @@ ipcMain.on('window-maximize', () => {
   if (!mainWindow) return
   mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize()
 })
-ipcMain.on('window-close',   () => mainWindow?.close())
+ipcMain.on('window-close',   () => app.quit())
 ipcMain.on('window-refresh', () => mainWindow?.webContents.reload())
 
 // ─── App lifecycle ─────────────────────────────────────────────────────────
@@ -103,36 +113,35 @@ app.whenReady().then(() => {
 
   globalShortcut.register('F5', () => mainWindow?.webContents.reload())
 
-  try {
-    autoUpdater.checkForUpdatesAndNotify()
-  } catch {
-    // Silently ignore if no publish config or no internet
-  }
+  autoUpdater.checkForUpdatesAndNotify()
 })
 
-app.on('before-quit', async (e) => {
+app.on('before-quit', (e) => {
   if (isQuitting) return
   isQuitting = true
   e.preventDefault()
 
-  try {
-    await Promise.race([
-      (async () => {
-        if (!mainWindow) return
-        await mainWindow.webContents.executeJavaScript(`
-          fetch('/api/desktop/app-closed', {
-            method: 'POST',
-            credentials: 'include',
-          }).then(r => r.status).catch(() => 0)
-        `)
-      })(),
-      new Promise(resolve => setTimeout(resolve, 3000)),
-    ])
-  } catch {
-    // Proceed regardless
+  const recordAndQuit = async () => {
+    try {
+      await Promise.race([
+        (async () => {
+          if (!mainWindow) return
+          await mainWindow.webContents.executeJavaScript(`
+            fetch('/api/desktop/app-closed', {
+              method: 'POST',
+              credentials: 'include',
+            }).then(r => r.status).catch(() => 0)
+          `)
+        })(),
+        new Promise(resolve => setTimeout(resolve, 3000)),
+      ])
+    } catch {
+      // Proceed regardless
+    }
+    app.quit()
   }
 
-  app.quit()
+  recordAndQuit()
 })
 
 app.on('window-all-closed', () => {
