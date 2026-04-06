@@ -16,14 +16,18 @@ win:
     - target: nsis
       arch:
         - x64
+  # icon: assets/icon.ico  # Uncomment once you add your logo at electron-app/assets/icon.ico
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: false
+  allowElevation: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  # installerIcon: assets/icon.ico  # Uncomment once you add your logo
+  # uninstallerIcon: assets/icon.ico
 
 publish:
   provider: github
-  owner: GITHUB_OWNER
-  repo: GITHUB_REPO
+  owner: GITHUB_OWNER  # Replace in Task 8 with your GitHub username
+  repo: GITHUB_REPO    # Replace in Task 8 with your GitHub repository name
