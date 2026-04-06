@@ -1,0 +1,29 @@
+appId: in.kesarsecurities.crm
+productName: Kesar Securities CRM
+copyright: Copyright © 2026 Kesar Securities
+
+directories:
+  output: dist
+
+files:
+  - main.js
+  - preload.js
+  - "assets/**/*"
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+publish:
+  provider: github
+  owner: GITHUB_OWNER
+  repo: GITHUB_REPO
