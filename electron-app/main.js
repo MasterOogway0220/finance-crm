@@ -141,7 +141,7 @@ app.on('before-quit', (e) => {
     app.quit()
   }
 
-  recordAndQuit()
+  recordAndQuit().catch(() => app.quit())
 })
 
 app.on('window-all-closed', () => {
