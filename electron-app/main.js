@@ -20,8 +20,6 @@ const CRM_URL = 'https://kesar-crm.kesarsecurities.in'
 
 let mainWindow = null
 let isQuitting = false
-let appOpenedRecorded = false
-let recordingInProgress = false
 
 // ─── Auto-updater ──────────────────────────────────────────────────────────
 autoUpdater.autoDownload = true
@@ -113,29 +111,10 @@ function createWindow() {
     mainWindow.webContents.loadURL(retryPage)
   })
 
-  mainWindow.webContents.on('did-finish-load', () => recordAppOpened())
-  mainWindow.webContents.on('did-navigate', () => recordAppOpened())
+  // Login tracking is handled by NextAuth signIn/signOut events in src/lib/auth.ts
+  // No need to call app-opened since users always log in fresh (session cleared on close)
 
   mainWindow.on('closed', () => { mainWindow = null })
-}
-
-// ─── Login tracking ────────────────────────────────────────────────────────
-async function recordAppOpened() {
-  if (appOpenedRecorded || recordingInProgress || !mainWindow) return
-  recordingInProgress = true
-  try {
-    const status = await mainWindow.webContents.executeJavaScript(`
-      fetch('/api/desktop/app-opened', {
-        method: 'POST',
-        credentials: 'include',
-      }).then(r => r.status).catch(() => 0)
-    `)
-    if (status === 200) appOpenedRecorded = true
-  } catch {
-    // Silently ignore — tracking is best-effort
-  } finally {
-    recordingInProgress = false
-  }
 }
 
 // ─── IPC handlers ──────────────────────────────────────────────────────────
@@ -169,14 +148,27 @@ app.on('before-quit', (e) => {
       await Promise.race([
         (async () => {
           if (!mainWindow) return
+          // Sign out via NextAuth — this fires the signOut event (records logoutAt)
+          // AND clears the session cookie so user must log in next time app opens
           await mainWindow.webContents.executeJavaScript(`
-            fetch('/api/desktop/app-closed', {
-              method: 'POST',
-              credentials: 'include',
-            }).then(r => r.status).catch(() => 0)
+            (async () => {
+              try {
+                // Get CSRF token required by NextAuth signout
+                const csrf = await fetch('/api/auth/csrf', { credentials: 'include' })
+                  .then(r => r.json()).then(d => d.csrfToken).catch(() => null)
+                if (csrf) {
+                  await fetch('/api/auth/signout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'csrfToken=' + encodeURIComponent(csrf),
+                    credentials: 'include',
+                  })
+                }
+              } catch {}
+            })()
           `)
         })(),
-        new Promise(resolve => setTimeout(resolve, 3000)),
+        new Promise(resolve => setTimeout(resolve, 4000)),
       ])
     } catch {
       // Proceed regardless
