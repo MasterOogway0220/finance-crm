@@ -9,6 +9,7 @@ import { z } from 'zod'
 const updateEmployeeSchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   phone: z.string().length(10, 'Phone must be 10 digits').regex(/^\d{10}$/).optional(),
+  department: z.enum(['EQUITY', 'MUTUAL_FUND', 'BACK_OFFICE', 'ADMIN']).optional(),
   designation: z.string().min(1, 'Designation is required').optional(),
   role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']).optional(),
   secondaryRole: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']).nullable().optional(),
@@ -164,20 +165,45 @@ export async function DELETE(
     }
 
     const { _count } = existing
-    if (_count.assignedClients > 0 || _count.tasksReceived > 0 || _count.tasksAssigned > 0) {
+    if (
+      _count.assignedClients > 0 ||
+      _count.tasksReceived > 0 ||
+      _count.tasksAssigned > 0
+    ) {
       return NextResponse.json(
         { success: false, error: 'Cannot delete employee with assigned clients or tasks. Deactivate them instead.' },
         { status: 400 }
       )
     }
 
-    // Nullify brokerage upload references so historic data is preserved
-    await prisma.brokerageUpload.updateMany({
-      where: { uploadedById: id },
-      data: { uploadedById: null },
-    })
+    // Check for business records that cannot be safely deleted
+    const [mfBusinessCount, mfServiceCount, folderCount, docCount, commentCount] = await Promise.all([
+      prisma.mFBusiness.count({ where: { employeeId: id } }),
+      prisma.mFService.count({ where: { employeeId: id } }),
+      prisma.documentFolder.count({ where: { createdById: id } }),
+      prisma.document.count({ where: { uploadedById: id } }),
+      prisma.taskComment.count({ where: { authorId: id } }),
+    ])
 
-    await prisma.employee.delete({ where: { id } })
+    if (mfBusinessCount > 0 || mfServiceCount > 0 || folderCount > 0 || docCount > 0 || commentCount > 0) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete employee with MF business records, documents, or task comments. Deactivate them instead.' },
+        { status: 400 }
+      )
+    }
+
+    // Clean up log/tracking data and nullify nullable FK references before deleting
+    await prisma.$transaction([
+      prisma.brokerageUpload.updateMany({ where: { uploadedById: id }, data: { uploadedById: null } }),
+      prisma.leaveApplication.updateMany({ where: { reviewedById: id }, data: { reviewedById: null } }),
+      prisma.mFBusiness.updateMany({ where: { referredById: id }, data: { referredById: null } }),
+      prisma.notification.deleteMany({ where: { userId: id } }),
+      prisma.activityLog.deleteMany({ where: { userId: id } }),
+      prisma.leaveBalance.deleteMany({ where: { employeeId: id } }),
+      prisma.leaveApplication.deleteMany({ where: { employeeId: id } }),
+      prisma.employeeLoginLog.deleteMany({ where: { employeeId: id } }),
+      prisma.employee.delete({ where: { id } }),
+    ])
 
     await logActivity({
       userId: session.user.id,

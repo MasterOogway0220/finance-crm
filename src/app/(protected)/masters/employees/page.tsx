@@ -315,7 +315,7 @@ export default function EmployeeMasterPage() {
 
             <div className="space-y-1.5">
               <Label>Department</Label>
-              <Select onValueChange={(v) => setValue('department', v as FormData['department'])} defaultValue={editEmployee?.department}>
+              <Select value={watch('department') ?? ''} onValueChange={(v) => setValue('department', v as FormData['department'])}>
                 <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
                 <SelectContent>
                   {['EQUITY', 'MUTUAL_FUND', 'BACK_OFFICE', 'ADMIN'].map((d) => (
@@ -327,7 +327,7 @@ export default function EmployeeMasterPage() {
 
             <div className="space-y-1.5">
               <Label>Primary Role</Label>
-              <Select onValueChange={(v) => setValue('role', v as FormData['role'])} defaultValue={editEmployee?.role}>
+              <Select value={watch('role') ?? ''} onValueChange={(v) => setValue('role', v as FormData['role'])}>
                 <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
                 <SelectContent>
                   {ROLE_OPTIONS.map((r) => (
@@ -340,8 +340,8 @@ export default function EmployeeMasterPage() {
             <div className="space-y-1.5">
               <Label>Secondary Role <span className="text-gray-400 font-normal text-xs">(optional — for dual-role employees)</span></Label>
               <Select
+                value={watch('secondaryRole') ?? 'none'}
                 onValueChange={(v) => setValue('secondaryRole', v === 'none' ? null : v as FormData['secondaryRole'])}
-                defaultValue={editEmployee?.secondaryRole ?? 'none'}
               >
                 <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
