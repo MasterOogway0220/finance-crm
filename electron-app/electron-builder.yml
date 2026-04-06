@@ -30,5 +30,5 @@ nsis:
 
 publish:
   provider: github
-  owner: GITHUB_OWNER  # Replace in Task 8 with your GitHub username
-  repo: GITHUB_REPO    # Replace in Task 8 with your GitHub repository name
+  owner: MasterOogway0220
+  repo: finance-crm
