@@ -154,7 +154,6 @@ export async function DELETE(
             assignedClients: true,
             tasksReceived: true,
             tasksAssigned: true,
-            brokerageUploads: true,
           },
         },
       },
@@ -165,12 +164,18 @@ export async function DELETE(
     }
 
     const { _count } = existing
-    if (_count.assignedClients > 0 || _count.tasksReceived > 0 || _count.tasksAssigned > 0 || _count.brokerageUploads > 0) {
+    if (_count.assignedClients > 0 || _count.tasksReceived > 0 || _count.tasksAssigned > 0) {
       return NextResponse.json(
-        { success: false, error: 'Cannot delete employee with assigned clients, tasks, or brokerage data. Deactivate them instead.' },
+        { success: false, error: 'Cannot delete employee with assigned clients or tasks. Deactivate them instead.' },
         { status: 400 }
       )
     }
+
+    // Nullify brokerage upload references so historic data is preserved
+    await prisma.brokerageUpload.updateMany({
+      where: { uploadedById: id },
+      data: { uploadedById: null },
+    })
 
     await prisma.employee.delete({ where: { id } })
 

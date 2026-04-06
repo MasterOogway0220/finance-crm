@@ -218,8 +218,8 @@ model TaskComment {
 model BrokerageUpload {
   id            String    @id @default(cuid())
   uploadDate    DateTime
-  uploadedById  String
-  uploadedBy    Employee  @relation(fields: [uploadedById], references: [id])
+  uploadedById  String?
+  uploadedBy    Employee? @relation(fields: [uploadedById], references: [id])
   totalAmount   Float     @default(0)
   fileName      String
   createdAt     DateTime  @default(now())

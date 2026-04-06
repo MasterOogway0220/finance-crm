@@ -155,8 +155,8 @@ export default function AdminDashboardPage() {
           />
           <KpiCard
             title="Total Clients"
-            value={data.totalClients}
-            subtitle={`Equity: ${data.equityClients} | MF: ${data.mfClients}`}
+            value={data.mfClients + (data.closedClients ?? 0)}
+            subtitle={`MF: ${data.mfClients} | Closed: ${data.closedClients ?? 0}`}
             icon={Briefcase}
             accent="indigo"
           />

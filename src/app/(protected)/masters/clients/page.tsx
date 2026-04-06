@@ -81,12 +81,12 @@ export default function ClientMasterPage() {
   // Delete single
   const [deleteTarget, setDeleteTarget] = useState<ClientWithOperator | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [deleteFromMF, setDeleteFromMF] = useState(false)
+  const [deleteFromMF, setDeleteFromMF] = useState(true)
 
   // Bulk delete
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
-  const [bulkDeleteFromMF, setBulkDeleteFromMF] = useState(false)
+  const [bulkDeleteFromMF, setBulkDeleteFromMF] = useState(true)
 
   // Bulk status update
   const [bulkStatusAction, setBulkStatusAction] = useState<null | 'traded' | 'not_traded'>(null)
@@ -220,7 +220,7 @@ export default function ClientMasterPage() {
     const data = await res.json()
     if (data.success) {
       toast.success(deleteFromMF ? 'Deleted from both masters' : 'Client deleted')
-      setDeleteTarget(null); setDeleteFromMF(false)
+      setDeleteTarget(null); setDeleteFromMF(true)
       setSelected(prev => { const n = new Set(prev); n.delete(deleteTarget.id); return n })
       fetchClients()
     } else toast.error(data.error || 'Delete failed')
@@ -237,7 +237,7 @@ export default function ClientMasterPage() {
     const data = await res.json()
     if (data.success) {
       toast.success(bulkDeleteFromMF ? `${data.data.deletedCount} clients deleted from both masters` : `${data.data.deletedCount} clients deleted`)
-      setBulkDeleteOpen(false); setBulkDeleteFromMF(false); setSelected(new Set()); fetchClients()
+      setBulkDeleteOpen(false); setBulkDeleteFromMF(true); setSelected(new Set()); fetchClients()
     } else toast.error(data.error || 'Bulk delete failed')
     setBulkDeleting(false)
   }

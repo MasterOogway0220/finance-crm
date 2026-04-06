@@ -29,8 +29,8 @@ function parseName(fullName: string) {
 
 function normaliseRow(row: RawRow, operatorNameToId: Map<string, string>) {
   const clientCode = getField(row, 'Client Code', 'clientCode', 'client_code', 'ClientCode', 'code', 'Code', 'CODE', 'Clients').toUpperCase()
-  const phone = getField(row, 'Phone number', 'Phone', 'phone', 'Phone Number', 'phone_number', 'PhoneNumber', 'Mobile', 'mobile', 'MOBILE')
-  const email = getField(row, 'Email', 'email', 'Mail', 'MAIL', 'mail', 'E-Mail') || undefined
+  const phone = getField(row, 'Phone number', 'Phone', 'phone', 'Phone Number', 'phone_number', 'PhoneNumber', 'Mobile', 'mobile', 'MOBILE', 'Mobile No', 'mobile_no', 'MobileNo')
+  const email = getField(row, 'Email', 'email', 'Mail', 'MAIL', 'mail', 'E-Mail', 'e Mail', 'e_mail', 'EMail') || undefined
   const dob = getField(row, 'DOB', 'dob', 'Date of Birth', 'DateOfBirth', 'date_of_birth') || undefined
   const pan = getField(row, 'PAN', 'pan', 'Pan', 'PAN Number', 'pan_number') || undefined
   const deptRaw = getField(row, 'Department', 'department', 'dept', 'Dept').toUpperCase()
