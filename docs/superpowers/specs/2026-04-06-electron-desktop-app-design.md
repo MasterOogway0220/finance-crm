@@ -146,12 +146,55 @@ npm install
 npm run build
 # Output: electron-app/dist/Kesar Securities CRM Setup.exe
 
-# Distribute
+# Initial distribution
 Share .exe with 20 employees via WhatsApp / email / USB
 Employees: double-click → "More info → Run anyway" (SmartScreen, once only) → install → done
+
+# Future updates (after auto-updater is set up)
+npm run build → upload to GitHub Releases → employees get updated automatically
 ```
 
-**No server required** for the Electron shell. Source lives in the existing git repo. The shell is rebuilt only when window behaviour changes (rare).
+---
+
+## Auto-Update
+
+Tool: **`electron-updater`** (part of electron-builder, free)
+Host: **GitHub Releases** (free, public or private repo)
+
+### How it works
+
+```
+You release a new version:
+  1. Bump version in electron-app/package.json
+  2. npm run build
+  3. Create a GitHub Release → attach the .exe + .yml files from dist/
+
+Employee's app (already installed):
+  → On every app start → checks GitHub Releases for newer version
+  → If update found → downloads silently in background
+  → When download complete → shows a small notification:
+       "A new update is ready. Restart to apply."
+  → Employee clicks "Restart" → update installs → app reopens
+```
+
+### User experience
+- **Silent download** — no interruption while working
+- **Opt-in restart** — employee chooses when to restart (not forced)
+- **If no internet** — update check fails silently, app works normally
+- **First install** — no update mechanism needed; employees get the latest build directly
+
+### What triggers a shell update
+The Electron shell changes are rare. Updates are only needed when:
+- Window behaviour changes (title bar, size, shortcuts)
+- Auto-launch settings change
+- A new API route is added for desktop lifecycle tracking
+
+Web app changes (UI, features, bug fixes) **never** require a shell update — they reflect instantly via the URL.
+
+### GitHub repo requirement
+- A GitHub repository (can be the same repo or a dedicated one) must be public, OR
+- If private: a GitHub Personal Access Token must be embedded in the build (fine for internal tools)
+- `electron-builder.yml` points to `owner/repo` on GitHub
 
 ---
 
@@ -164,12 +207,13 @@ Employees: double-click → "More info → Run anyway" (SmartScreen, once only) 
 | API call fails on close | `app.quit()` still proceeds after 3s timeout |
 | User force-kills process | logoutAt not recorded (same limitation as Electron's before-quit) |
 | Session expires mid-session | Next.js redirects to /login; user logs in; signIn event records new log |
+| Update check fails (no internet) | Silently ignored, app continues normally |
+| Update download interrupted | Resumes on next app start |
 
 ---
 
 ## Out of Scope
 
-- Auto-updater for the Electron shell (web content updates via URL)
 - Mac/Linux installers (can be added later with same codebase)
 - Offline mode / service worker caching
 - Deep-link handling
