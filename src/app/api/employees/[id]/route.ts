@@ -43,6 +43,7 @@ export async function GET(
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        _count: { select: { assignedClients: true } },
       },
     })
 
@@ -147,6 +148,25 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'You cannot delete your own account' }, { status: 400 })
     }
 
+    let transferToId: string | undefined
+    try {
+      const body = await request.json()
+      transferToId = body.transferToId || undefined
+    } catch {
+      // no body — fine
+    }
+
+    // Validate transfer target if provided
+    if (transferToId) {
+      if (transferToId === id) {
+        return NextResponse.json({ success: false, error: 'Cannot transfer clients to the same employee' }, { status: 400 })
+      }
+      const transferTarget = await prisma.employee.findUnique({ where: { id: transferToId } })
+      if (!transferTarget) {
+        return NextResponse.json({ success: false, error: 'Transfer target employee not found' }, { status: 404 })
+      }
+    }
+
     const existing = await prisma.employee.findUnique({
       where: { id },
       include: {
@@ -165,13 +185,18 @@ export async function DELETE(
     }
 
     const { _count } = existing
-    if (
-      _count.assignedClients > 0 ||
-      _count.tasksReceived > 0 ||
-      _count.tasksAssigned > 0
-    ) {
+
+    // If employee has clients, transferToId must be provided
+    if (_count.assignedClients > 0 && !transferToId) {
       return NextResponse.json(
-        { success: false, error: 'Cannot delete employee with assigned clients or tasks. Deactivate them instead.' },
+        { success: false, error: 'Cannot delete employee with assigned clients. Please select an employee to transfer clients to.' },
+        { status: 400 }
+      )
+    }
+
+    if (_count.tasksReceived > 0 || _count.tasksAssigned > 0) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete employee with pending tasks. Deactivate them instead.' },
         { status: 400 }
       )
     }
@@ -190,6 +215,11 @@ export async function DELETE(
         { success: false, error: 'Cannot delete employee with MF business records, documents, or task comments. Deactivate them instead.' },
         { status: 400 }
       )
+    }
+
+    // Transfer clients to new employee if requested
+    if (transferToId && _count.assignedClients > 0) {
+      await prisma.client.updateMany({ where: { operatorId: id }, data: { operatorId: transferToId } })
     }
 
     // Clean up log/tracking data and nullify nullable FK references before deleting

@@ -53,6 +53,11 @@ export default function EmployeeMasterPage() {
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [deleteClientCount, setDeleteClientCount] = useState(0)
+  const [transferToId, setTransferToId] = useState('')
+  const [transferEmployees, setTransferEmployees] = useState<Employee[]>([])
+  const [loadingDeleteInfo, setLoadingDeleteInfo] = useState(false)
+  const [addingForTransfer, setAddingForTransfer] = useState(false)
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -77,7 +82,7 @@ export default function EmployeeMasterPage() {
     return () => clearTimeout(t)
   }, [fetchEmployees])
 
-  const openAdd = () => { reset({ isActive: true }); setEditEmployee(null); setShowPassword(false); setShowForm(true) }
+  const openAdd = () => { reset({ isActive: true }); setEditEmployee(null); setShowPassword(false); setAddingForTransfer(false); setShowForm(true) }
   const openEdit = (e: Employee) => {
     setEditEmployee(e)
     reset({ name: e.name, email: e.email, phone: e.phone, department: e.department as FormData['department'], designation: e.designation, role: e.role as FormData['role'], secondaryRole: (e.secondaryRole as FormData['secondaryRole']) ?? null, isActive: e.isActive, password: '' })
@@ -98,7 +103,20 @@ export default function EmployeeMasterPage() {
       if (result.success) {
         toast.success(editEmployee ? 'Employee updated' : 'Employee created')
         setShowForm(false)
-        fetchEmployees()
+        if (addingForTransfer && deleteTarget) {
+          setAddingForTransfer(false)
+          const newId = result.data.id
+          fetch(`/api/employees?isActive=true`)
+            .then((r) => r.json())
+            .then((d) => {
+              if (d.success) {
+                setTransferEmployees(d.data.filter((e: Employee) => e.id !== deleteTarget.id))
+                setTransferToId(newId)
+              }
+            })
+        } else {
+          fetchEmployees()
+        }
       } else {
         toast.error(result.error || 'Failed to save')
       }
@@ -107,11 +125,38 @@ export default function EmployeeMasterPage() {
     }
   }
 
+  const openDelete = async (emp: Employee) => {
+    setDeleteTarget(emp)
+    setTransferToId('')
+    setDeleteClientCount(0)
+    setLoadingDeleteInfo(true)
+    try {
+      const [empRes, listRes] = await Promise.all([
+        fetch(`/api/employees/${emp.id}`),
+        fetch(`/api/employees?isActive=true`),
+      ])
+      const empData = await empRes.json()
+      const listData = await listRes.json()
+      if (empData.success) setDeleteClientCount(empData.data._count?.assignedClients ?? 0)
+      if (listData.success) setTransferEmployees(listData.data.filter((e: Employee) => e.id !== emp.id))
+    } finally {
+      setLoadingDeleteInfo(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (!deleteTarget) return
+    if (deleteClientCount > 0 && !transferToId) {
+      toast.error('Please select an employee to transfer clients to')
+      return
+    }
     setDeleting(true)
     try {
-      const res = await fetch(`/api/employees/${deleteTarget.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/employees/${deleteTarget.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transferToId: transferToId || undefined }),
+      })
       const data = await res.json()
       if (data.success) {
         toast.success(`${deleteTarget.name} deleted`)
@@ -255,7 +300,7 @@ export default function EmployeeMasterPage() {
                     <Button size="sm" variant="outline" onClick={() => openEdit(emp)} className="gap-1 h-7 text-xs">
                       <Pencil className="h-3 w-3" />Edit
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(emp)} className="gap-1 h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50">
+                    <Button size="sm" variant="ghost" onClick={() => openDelete(emp)} className="gap-1 h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50">
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -278,13 +323,60 @@ export default function EmployeeMasterPage() {
                 Are you sure you want to permanently delete <strong>{deleteTarget.name}</strong>?
                 This cannot be undone.
               </p>
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                Employees with assigned clients, tasks, or brokerage data cannot be deleted. Deactivate them instead using the toggle.
-              </p>
+
+              {loadingDeleteInfo ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-9 w-full" />
+                </div>
+              ) : deleteClientCount > 0 ? (
+                <div className="space-y-2">
+                  <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                    This employee has <strong>{deleteClientCount} client{deleteClientCount > 1 ? 's' : ''}</strong> assigned. Transfer them to another employee before deleting.
+                  </div>
+                  <Label className="text-sm">Transfer clients to</Label>
+                  <Select value={transferToId} onValueChange={(v) => {
+                    if (v === '__add_new__') {
+                      reset({ isActive: true })
+                      setEditEmployee(null)
+                      setShowPassword(false)
+                      setAddingForTransfer(true)
+                      setShowForm(true)
+                    } else {
+                      setTransferToId(v)
+                    }
+                  }}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Select employee…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {transferEmployees.map((emp) => (
+                        <SelectItem key={emp.id} value={emp.id}>
+                          {emp.name}
+                          <span className="text-gray-400 ml-1 text-xs">({emp.designation})</span>
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__add_new__" className="text-blue-600 font-medium">
+                        + Add New Employee
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                  Employees with tasks or brokerage data cannot be deleted. Deactivate them instead using the toggle.
+                </p>
+              )}
+
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-                <Button variant="destructive" className="flex-1" onClick={handleDelete} disabled={deleting}>
-                  {deleting ? 'Deleting…' : 'Delete'}
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={handleDelete}
+                  disabled={deleting || loadingDeleteInfo || (deleteClientCount > 0 && !transferToId)}
+                >
+                  {deleting ? 'Deleting…' : deleteClientCount > 0 && transferToId ? 'Transfer & Delete' : 'Delete'}
                 </Button>
               </div>
             </div>
