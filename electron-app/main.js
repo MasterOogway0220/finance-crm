@@ -10,8 +10,13 @@ const fs = require('fs')
 // event alone does not catch.
 app.commandLine.appendSwitch('ignore-certificate-errors')
 app.commandLine.appendSwitch('ignore-ssl-errors')
+app.commandLine.appendSwitch('disable-web-security')
+app.commandLine.appendSwitch('allow-running-insecure-content')
 
-const CRM_URL = 'https://crm.kesarsecurities.in'
+// Override UA to a plain Chrome UA — some servers/CDNs block "Electron/x" UA strings
+const CHROME_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+
+const CRM_URL = 'https://kesar-crm.kesarsecurities.in'
 
 let mainWindow = null
 let isQuitting = false
@@ -75,14 +80,16 @@ function createWindow() {
     ...(fs.existsSync(iconPath) ? { icon: iconPath } : {}),
   })
 
+  mainWindow.webContents.setUserAgent(CHROME_UA)
   mainWindow.loadURL(CRM_URL)
 
   // Show window as soon as first paint is ready (background is dark, not white)
   mainWindow.once('ready-to-show', () => mainWindow.show())
 
   // Handle load failure — show a dark retry page instead of blank screen
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     if (errorCode === -3) return // -3 = ERR_ABORTED (redirect), not a real failure
+    console.error(`[did-fail-load] code=${errorCode} desc="${errorDescription}" url="${validatedURL}"`)
     const retryPage = `data:text/html;charset=utf-8,<!DOCTYPE html>
       <html>
         <head><meta charset="utf-8"></head>
