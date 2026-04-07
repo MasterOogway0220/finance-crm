@@ -84,31 +84,31 @@ function createWindow() {
   // Show window as soon as first paint is ready (background is dark, not white)
   mainWindow.once('ready-to-show', () => mainWindow.show())
 
+  // Fallback: if ready-to-show never fires (e.g. DNS fails before first paint),
+  // show the window after 4 seconds regardless so the error page is visible
+  const showFallbackTimer = setTimeout(() => {
+    if (mainWindow && !mainWindow.isVisible()) mainWindow.show()
+  }, 4000)
+  mainWindow.once('ready-to-show', () => clearTimeout(showFallbackTimer))
+
   // Handle load failure — show a dark retry page instead of blank screen
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     if (errorCode === -3) return // -3 = ERR_ABORTED (redirect), not a real failure
     console.error(`[did-fail-load] code=${errorCode} desc="${errorDescription}" url="${validatedURL}"`)
-    const retryPage = `data:text/html;charset=utf-8,<!DOCTYPE html>
-      <html>
-        <head><meta charset="utf-8"></head>
-        <body style="background:#0f172a;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-          display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding-top:32px;box-sizing:border-box">
-          <div style="text-align:center">
-            <div style="font-size:48px;margin-bottom:16px">&#9888;</div>
-            <h2 style="margin:0 0 8px">Could not connect</h2>
-            <p style="color:#64748b;margin:0 0 8px;font-size:13px">Error ${errorCode}: ${errorDescription}</p>
-            <p style="color:#64748b;margin:0 0 24px;font-size:13px">${CRM_URL}</p>
-            <button id="retry-btn" style="background:#2563eb;color:white;border:none;padding:10px 24px;
-              border-radius:6px;cursor:pointer;font-size:14px">Try Again</button>
-          </div>
-          <script>
-            document.getElementById('retry-btn').onclick = function() {
-              window.location.href = '${CRM_URL}'
-            }
-          <\/script>
-        </body>
-      </html>`
-    mainWindow.webContents.loadURL(retryPage)
+    const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="background:#0f172a;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding-top:32px;box-sizing:border-box">
+  <div style="text-align:center">
+    <div style="font-size:48px;margin-bottom:16px">&#9888;</div>
+    <h2 style="margin:0 0 8px">Could not connect</h2>
+    <p style="color:#64748b;margin:0 0 8px;font-size:13px">Error ${errorCode}: ${errorDescription}</p>
+    <p style="color:#64748b;margin:0 0 24px;font-size:13px">${CRM_URL}</p>
+    <button onclick="window.location.href='${CRM_URL}'" style="background:#2563eb;color:white;border:none;padding:10px 24px;border-radius:6px;cursor:pointer;font-size:14px">Try Again</button>
+  </div>
+</body>
+</html>`
+    mainWindow.webContents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
   })
 
   // Login tracking is handled by NextAuth signIn/signOut events in src/lib/auth.ts
