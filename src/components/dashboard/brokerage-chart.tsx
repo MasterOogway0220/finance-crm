@@ -4,7 +4,6 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend
 } from 'recharts'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCurrency } from '@/lib/utils'
 
@@ -16,7 +15,15 @@ interface BrokerageChartProps {
   months: string[]
 }
 
-const MONTH_COLORS = ['#2563EB', '#EF4444', '#8B5CF6', '#F59E0B', '#10B981', '#64748B', '#06B6D4', '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#78716C']
+// NexLink-style primary stack + semantic highlights; repeats from #1 if >6 months.
+const MONTH_COLORS = [
+  'var(--dash-chart-1, #4e6cad)',
+  'var(--dash-chart-2, #2f4680)',
+  'var(--dash-chart-3, #8aa1cf)',
+  'var(--dash-chart-4, #d7dfee)',
+  'var(--dash-chart-5, #009966)',
+  'var(--dash-chart-6, #e31e24)',
+]
 
 const PERIOD_OPTIONS = [
   { value: 'FY', label: 'Full Year' },
@@ -61,45 +68,47 @@ export function BrokerageChart({ data, months }: BrokerageChartProps) {
   const yAxisWidth = Math.min(220, Math.max(160, maxNameLen * 7))
 
   return (
-    <Card className="h-full">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <CardTitle className="text-base font-semibold text-foreground">Brokerage by Operator</CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">Monthly breakdown per operator</p>
-          </div>
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-40 h-9 text-xs" aria-label="Select period">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PERIOD_OPTIONS.map((p) => (
-                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="dash-card h-full flex flex-col dash-controls-row">
+      <div className="dash-card__header">
+        <div>
+          <h3 className="dash-card__title">Brokerage by Operator</h3>
+          <p className="dash-card__subtitle">Monthly breakdown per operator</p>
         </div>
-      </CardHeader>
-      <CardContent className="overflow-y-auto">
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger className="w-40 h-9 text-xs" aria-label="Select period">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PERIOD_OPTIONS.map((p) => (
+              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart
             data={filteredData}
             layout="vertical"
             margin={{ top: 5, right: 30, left: 8, bottom: 5 }}
           >
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              horizontal={false}
+              stroke="var(--dash-chart-grid, #eef0f5)"
+            />
             <XAxis
               type="number"
               tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
-              tick={{ fontSize: 11, fill: '#64748B' }}
-              axisLine={{ stroke: '#E2E8F0' }}
-              tickLine={{ stroke: '#E2E8F0' }}
+              tick={{ fontSize: 11, fill: 'var(--dash-muted, #64748B)' }}
+              axisLine={{ stroke: 'var(--dash-border, #E2E8F0)' }}
+              tickLine={{ stroke: 'var(--dash-border, #E2E8F0)' }}
             />
             <YAxis
               type="category"
               dataKey="name"
               width={yAxisWidth}
-              tick={{ fontSize: 11, fill: '#475569' }}
+              tick={{ fontSize: 11, fill: 'var(--dash-text, #475569)' }}
               axisLine={false}
               tickLine={false}
             />
@@ -107,24 +116,31 @@ export function BrokerageChart({ data, months }: BrokerageChartProps) {
               formatter={(value: number | undefined, name: string | undefined) => [formatCurrency(value ?? 0), name ?? '']}
               contentStyle={{
                 borderRadius: '10px',
-                border: '1px solid #E2E8F0',
-                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                border: '1px solid var(--dash-border, #E2E8F0)',
+                boxShadow: '0 4px 12px rgba(11,11,15,.08)',
                 fontSize: '13px',
                 padding: '8px 12px',
+                color: 'var(--dash-ink, #0b0b0f)',
               }}
-              cursor={{ fill: '#F1F5F9' }}
+              cursor={{ fill: 'var(--dash-surface-alt, #F1F5F9)' }}
             />
             <Legend
               iconSize={8}
               iconType="circle"
-              wrapperStyle={{ fontSize: 11, paddingTop: '8px' }}
+              wrapperStyle={{ fontSize: 11, paddingTop: '8px', color: 'var(--dash-muted, #64748B)' }}
             />
             {filteredMonths.map((month, i) => (
-              <Bar key={month} dataKey={month} stackId="a" fill={MONTH_COLORS[i % MONTH_COLORS.length]} radius={i === filteredMonths.length - 1 ? [0, 4, 4, 0] : undefined} />
+              <Bar
+                key={month}
+                dataKey={month}
+                stackId="a"
+                fill={MONTH_COLORS[i % MONTH_COLORS.length]}
+                radius={i === filteredMonths.length - 1 ? [0, 4, 4, 0] : undefined}
+              />
             ))}
           </BarChart>
         </ResponsiveContainer>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
