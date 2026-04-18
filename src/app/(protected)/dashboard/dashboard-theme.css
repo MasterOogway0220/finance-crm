@@ -33,7 +33,7 @@
   --dash-chart-6: #e31e24;
   --dash-chart-grid: #eef0f5;
 
-  background: var(--dash-surface-alt);
+  background-color: var(--dash-surface-alt);
   color: var(--dash-text);
 }
 
@@ -173,7 +173,8 @@
   gap: 4px;
 }
 
-.dash-breadcrumb a:hover {
+.dash-breadcrumb a:hover,
+.dash-breadcrumb a:focus-visible {
   color: var(--dash-primary);
 }
 
@@ -258,6 +259,7 @@
   justify-content: center;
 }
 
-.dash-link-arrow:hover {
+.dash-link-arrow:hover,
+.dash-link-arrow:focus-visible {
   color: var(--dash-primary-600);
 }
