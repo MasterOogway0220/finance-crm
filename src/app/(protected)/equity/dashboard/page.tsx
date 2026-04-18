@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { Users, TrendingUp, TrendingDown, Percent, IndianRupee, ShoppingBag } from 'lucide-react'
+import { Users, TrendingUp, TrendingDown, Percent, IndianRupee } from 'lucide-react'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency, formatDateLong } from '@/lib/utils'
@@ -41,14 +41,27 @@ export default function EquityDashboardPage() {
   }, [currentMonth, currentYear])
 
   return (
-    <div className="page-container space-y-6">
+    <div className="dash-scope page-container space-y-6">
+      <nav aria-label="Breadcrumb" className="dash-breadcrumb">
+        <a href="/equity/dashboard">Home</a>
+        <span className="dash-breadcrumb__sep">›</span>
+        <span className="dash-breadcrumb__current">Equity Dashboard</span>
+      </nav>
+
       {/* Welcome Banner */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="page-title">Welcome, {session?.user?.name?.split(' ')[0]}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Here's your work overview for today</p>
+          <h1>Welcome, {session?.user?.name?.split(' ')[0]}</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--dash-muted, #6b7280)' }}>
+            Here&apos;s your work overview for today
+          </p>
         </div>
-        <p className="text-sm text-gray-500 hidden md:block">{formatDateLong(today)}</p>
+        <p
+          className="text-sm hidden md:block"
+          style={{ color: 'var(--dash-muted, #6b7280)' }}
+        >
+          {formatDateLong(today)}
+        </p>
       </div>
 
       {/* Equity KPIs */}
@@ -69,9 +82,8 @@ export default function EquityDashboardPage() {
       {/* My Mutual Fund Business */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <ShoppingBag className="h-5 w-5 text-indigo-600" />
-          <h2 className="text-lg font-semibold text-gray-800">My Mutual Fund Business</h2>
-          <span className="text-xs text-gray-400 ml-1">— this month</span>
+          <h2 className="dash-section-title">My Mutual Fund Business</h2>
+          <span className="dash-pill dash-pill--primary-soft ml-1">this month</span>
         </div>
 
         {mfLoading ? (
