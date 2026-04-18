@@ -68,8 +68,8 @@ export function BrokerageChart({ data, months }: BrokerageChartProps) {
   const yAxisWidth = Math.min(220, Math.max(160, maxNameLen * 7))
 
   return (
-    <div className="dash-card h-full flex flex-col dash-controls-row">
-      <div className="dash-card__header">
+    <div className="dash-card h-full flex flex-col">
+      <div className="dash-card__header dash-controls-row">
         <div>
           <h3 className="dash-card__title">Brokerage by Operator</h3>
           <p className="dash-card__subtitle">Monthly breakdown per operator</p>
@@ -120,8 +120,9 @@ export function BrokerageChart({ data, months }: BrokerageChartProps) {
                 boxShadow: '0 4px 12px rgba(11,11,15,.08)',
                 fontSize: '13px',
                 padding: '8px 12px',
-                color: 'var(--dash-ink, #0b0b0f)',
               }}
+              labelStyle={{ color: 'var(--dash-ink, #0b0b0f)', fontWeight: 600 }}
+              itemStyle={{ color: 'var(--dash-text, #1f232b)' }}
               cursor={{ fill: 'var(--dash-surface-alt, #F1F5F9)' }}
             />
             <Legend
