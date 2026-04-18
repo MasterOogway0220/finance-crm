@@ -8,9 +8,9 @@ interface TaskPieChartProps {
 }
 
 const SEGMENT_COLORS = {
-  pending:   'var(--dash-warning, #F59E0B)',
-  completed: 'var(--dash-success, #10B981)',
-  expired:   'var(--dash-accent, #EF4444)',
+  pending:   'var(--dash-warning, #f5a70d)',
+  completed: 'var(--dash-success, #009966)',
+  expired:   'var(--dash-accent, #e31e24)',
 }
 
 const LEGEND_DOT_FALLBACK = {
@@ -83,7 +83,7 @@ export function TaskPieChart({ pending, completed, expired }: TaskPieChartProps)
             <div className="text-center">
               <p
                 className="text-[24px] font-bold tabular-nums"
-                style={{ color: 'var(--dash-ink, #0f172a)' }}
+                style={{ color: 'var(--dash-ink, #0b0b0f)' }}
               >
                 {total}
               </p>
