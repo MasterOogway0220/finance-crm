@@ -93,7 +93,7 @@ export function EmployeeStatusTable() {
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 shadow-sm animate-pulse">
+      <div className="dash-card p-6 animate-pulse">
         <div className="h-4 w-48 skeleton mb-4" />
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -105,15 +105,33 @@ export function EmployeeStatusTable() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+    <div
+      className="dash-card dash-card--flush overflow-hidden"
+      style={{ borderRadius: 14 }}
+    >
       {/* Header */}
-      <div className="flex items-center gap-4 border-b border-border px-6 py-4">
-        <h2 className="font-semibold text-foreground flex-1">Employee Status</h2>
-        <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+      <div
+        className="flex items-center gap-4 px-6 py-4"
+        style={{ borderBottom: '1px solid var(--dash-border, #e7eaf0)' }}
+      >
+        <h2
+          className="flex-1"
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: 'var(--dash-ink, #0b0b0f)',
+          }}
+        >
+          Employee Status
+        </h2>
+        <span className="dash-pill dash-pill--success">
+          <span
+            className="h-2 w-2 rounded-full animate-pulse"
+            style={{ background: 'var(--dash-success, #009966)' }}
+          />
           {onlineCount} Online
         </span>
-        <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <span className="dash-pill dash-pill--muted">
           <span className="h-2 w-2 rounded-full bg-gray-300" />
           {offlineCount} Offline
         </span>
@@ -121,15 +139,15 @@ export function EmployeeStatusTable() {
 
       {/* Status Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="dash-table">
           <thead>
-            <tr className="border-b bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
-              <th className="px-6 py-3 text-left">Employee</th>
-              <th className="px-6 py-3 text-left">Department</th>
-              <th className="px-6 py-3 text-left">Status</th>
-              <th className="px-6 py-3 text-left">Login (Today)</th>
-              <th className="px-6 py-3 text-left">Logout (Today)</th>
-              <th className="px-6 py-3 text-left">Last Seen</th>
+            <tr>
+              <th style={{ paddingLeft: 24, paddingRight: 24 }}>Employee</th>
+              <th style={{ paddingLeft: 24, paddingRight: 24 }}>Department</th>
+              <th style={{ paddingLeft: 24, paddingRight: 24 }}>Status</th>
+              <th style={{ paddingLeft: 24, paddingRight: 24 }}>Login (Today)</th>
+              <th style={{ paddingLeft: 24, paddingRight: 24 }}>Logout (Today)</th>
+              <th style={{ paddingLeft: 24, paddingRight: 24 }}>Last Seen</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -140,7 +158,14 @@ export function EmployeeStatusTable() {
 
               return (
                 <Fragment key={emp.id}>
-                  <tr className={cn('hover:bg-gray-50', isExpanded && 'bg-blue-50/40')}>
+                  <tr
+                    style={
+                      isExpanded
+                        ? { background: 'var(--dash-primary-50, #eef2fa)' }
+                        : undefined
+                    }
+                    className="hover:bg-[color:var(--dash-surface-alt,#fafbfe)]"
+                  >
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
                         <div>
@@ -165,13 +190,13 @@ export function EmployeeStatusTable() {
                     <td className="px-6 py-3 text-gray-600">
                       {DEPT_LABELS[emp.department] ?? emp.department}
                     </td>
-                    <td className="px-6 py-3">
+                    <td style={{ padding: '12px 24px' }}>
                       {emp.isOnline ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
+                        <span className="dash-pill dash-pill--success">
                           <Wifi className="h-3 w-3" />Online
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">
+                        <span className="dash-pill dash-pill--muted">
                           <WifiOff className="h-3 w-3" />Offline
                         </span>
                       )}
@@ -206,7 +231,7 @@ export function EmployeeStatusTable() {
 
                   {/* Expanded session timeline */}
                   {isExpanded && (
-                    <tr className="bg-blue-50/20">
+                    <tr style={{ background: 'var(--dash-surface-alt, #fafbfe)' }}>
                       <td colSpan={6} className="px-8 py-3">
                         <div className="flex items-start gap-6">
                           <div className="flex-1 space-y-1.5">
