@@ -11,23 +11,23 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, formatDateLong, getDaysRemaining, getInitials } from '@/lib/utils'
 import { useActiveRoleStore, getDashboardForRole } from '@/stores/active-role-store'
 
-const STATUS_COLORS: Record<string, string> = {
-  PENDING:   'bg-amber-100 text-amber-700',
-  COMPLETED: 'bg-green-100 text-green-700',
-  EXPIRED:   'bg-red-100 text-red-700',
+const STATUS_CLASS: Record<string, string> = {
+  PENDING:   'dash-pill dash-pill--warning',
+  COMPLETED: 'dash-pill dash-pill--success',
+  EXPIRED:   'dash-pill dash-pill--danger',
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-  HIGH:   'bg-red-100 text-red-700',
-  MEDIUM: 'bg-yellow-100 text-yellow-700',
-  LOW:    'bg-green-100 text-green-700',
+const PRIORITY_CLASS: Record<string, string> = {
+  HIGH:   'dash-pill dash-pill--danger',
+  MEDIUM: 'dash-pill dash-pill--warning',
+  LOW:    'dash-pill dash-pill--success',
 }
 
-const DEPT_COLORS: Record<string, string> = {
-  EQUITY:      'bg-blue-100 text-blue-700',
-  MUTUAL_FUND: 'bg-green-100 text-green-700',
-  BACK_OFFICE: 'bg-purple-100 text-purple-700',
-  ADMIN:       'bg-orange-100 text-orange-700',
+const DEPT_CLASS: Record<string, string> = {
+  EQUITY:      'dash-pill dash-pill--primary-soft',
+  MUTUAL_FUND: 'dash-pill dash-pill--success',
+  BACK_OFFICE: 'dash-pill dash-pill--muted',
+  ADMIN:       'dash-pill dash-pill--warning',
 }
 
 function DeadlineInfo({ deadline, status }: { deadline: Date; status: string }) {
@@ -78,14 +78,27 @@ export default function BackofficeDashboardPage() {
   const handleTaskCompleted = () => fetchData(filter)
 
   return (
-    <div className="page-container space-y-6">
+    <div className="dash-scope page-container space-y-6">
+      <nav aria-label="Breadcrumb" className="dash-breadcrumb">
+        <a href="/backoffice/dashboard">Home</a>
+        <span className="dash-breadcrumb__sep">›</span>
+        <span className="dash-breadcrumb__current">Back Office Dashboard</span>
+      </nav>
+
       {/* Welcome */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="page-title">Welcome, {session?.user?.name?.split(' ')[0]}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Back Office</p>
+          <h1>Welcome, {session?.user?.name?.split(' ')[0]}</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--dash-muted, #6b7280)' }}>
+            Back Office
+          </p>
         </div>
-        <p className="text-sm text-gray-500 hidden md:block">{formatDateLong(today)}</p>
+        <p
+          className="text-sm hidden md:block"
+          style={{ color: 'var(--dash-muted, #6b7280)' }}
+        >
+          {formatDateLong(today)}
+        </p>
       </div>
 
       {loading ? (
@@ -130,10 +143,10 @@ export default function BackofficeDashboardPage() {
 
           {/* Tasks Table */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-gray-800">Pending Tasks</h2>
+            <div className="dash-controls-row flex items-center justify-between mb-3">
+              <h2 className="dash-section-title">Pending Tasks</h2>
               <Select value={filter} onValueChange={setFilter}>
-                <SelectTrigger className="w-40 h-8 text-sm">
+                <SelectTrigger className="w-40 h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -145,63 +158,105 @@ export default function BackofficeDashboardPage() {
               </Select>
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full text-sm min-w-[700px]">
-                <thead className="bg-gray-50 border-b border-gray-200">
+            <div
+              className="overflow-x-auto"
+              style={{ borderRadius: 10, border: '1px solid var(--dash-border, #e7eaf0)' }}
+            >
+              <table className="dash-table" style={{ minWidth: 700 }}>
+                <thead>
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-64">Task</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-36 whitespace-nowrap">Assigned To</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-36 whitespace-nowrap">Assigned By</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-32">Department</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-24">Priority</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-24">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide w-32">Deadline</th>
+                    <th style={{ width: 256 }}>Task</th>
+                    <th style={{ width: 144, whiteSpace: 'nowrap' }}>Assigned To</th>
+                    <th style={{ width: 144, whiteSpace: 'nowrap' }}>Assigned By</th>
+                    <th style={{ width: 128 }}>Department</th>
+                    <th style={{ width: 96 }}>Priority</th>
+                    <th style={{ width: 96 }}>Status</th>
+                    <th style={{ width: 128 }}>Deadline</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.filteredTasks.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-14 text-center">
-                        <ClipboardList className="h-10 w-10 mx-auto mb-2 text-gray-300" />
-                        <p className="text-sm text-gray-400">No pending tasks for this period</p>
+                      <td
+                        colSpan={7}
+                        style={{ padding: '56px 16px', textAlign: 'center' }}
+                      >
+                        <ClipboardList
+                          className="h-10 w-10 mx-auto mb-2"
+                          style={{ color: 'var(--dash-border, #e7eaf0)' }}
+                        />
+                        <p
+                          className="text-sm"
+                          style={{ color: 'var(--dash-muted, #9ca3af)' }}
+                        >
+                          No pending tasks for this period
+                        </p>
                       </td>
                     </tr>
                   ) : data.filteredTasks.map((task) => (
                     <tr
                       key={task.id}
-                      className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                      className="cursor-pointer"
                       onClick={() => setSelectedTask(task)}
                     >
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-800 truncate max-w-60">{task.title}</p>
-                        <p className="text-xs text-gray-400 truncate max-w-60 mt-0.5">{task.description}</p>
+                      <td>
+                        <p
+                          className="font-medium truncate max-w-60"
+                          style={{ color: 'var(--dash-ink, #0b0b0f)' }}
+                        >
+                          {task.title}
+                        </p>
+                        <p
+                          className="text-xs truncate max-w-60 mt-0.5"
+                          style={{ color: 'var(--dash-muted, #9ca3af)' }}
+                        >
+                          {task.description}
+                        </p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-medium flex-shrink-0">
+                          <div
+                            className="w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-medium flex-shrink-0"
+                            style={{ background: 'var(--dash-primary, #4e6cad)' }}
+                          >
                             {getInitials(task.assignedTo.name)}
                           </div>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">{task.assignedTo.name}</span>
+                          <span
+                            className="font-medium whitespace-nowrap"
+                            style={{ color: 'var(--dash-ink, #0b0b0f)' }}
+                          >
+                            {task.assignedTo.name}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{task.assignedBy.name}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap ${DEPT_COLORS[task.assignedTo.department] ?? 'bg-gray-100 text-gray-600'}`}>
+                      <td
+                        className="text-xs whitespace-nowrap"
+                        style={{ color: 'var(--dash-muted, #4b5563)' }}
+                      >
+                        {task.assignedBy.name}
+                      </td>
+                      <td>
+                        <span className={DEPT_CLASS[task.assignedTo.department] ?? 'dash-pill dash-pill--muted'}>
                           {task.assignedTo.department.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${PRIORITY_COLORS[task.priority]}`}>
+                      <td>
+                        <span className={PRIORITY_CLASS[task.priority]}>
                           {task.priority}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[task.status]}`}>
+                      <td>
+                        <span className={STATUS_CLASS[task.status]}>
                           {task.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <p className="text-xs text-gray-600 whitespace-nowrap">{formatDate(task.deadline)}</p>
+                      <td>
+                        <p
+                          className="text-xs whitespace-nowrap"
+                          style={{ color: 'var(--dash-text, #4b5563)' }}
+                        >
+                          {formatDate(task.deadline)}
+                        </p>
                         <DeadlineInfo deadline={new Date(task.deadline)} status={task.status} />
                       </td>
                     </tr>
@@ -212,7 +267,8 @@ export default function BackofficeDashboardPage() {
 
             <button
               onClick={() => router.push('/backoffice/tasks')}
-              className="mt-3 text-sm text-blue-600 hover:underline font-medium"
+              className="mt-3 text-sm hover:underline font-medium"
+              style={{ color: 'var(--dash-primary, #4e6cad)' }}
             >
               View All Tasks →
             </button>
