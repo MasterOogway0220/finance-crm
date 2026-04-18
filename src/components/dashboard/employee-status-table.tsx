@@ -105,10 +105,7 @@ export function EmployeeStatusTable() {
   }
 
   return (
-    <div
-      className="dash-card dash-card--flush overflow-hidden"
-      style={{ borderRadius: 14 }}
-    >
+    <div className="dash-card dash-card--flush overflow-hidden">
       {/* Header */}
       <div
         className="flex items-center gap-4 px-6 py-4"
