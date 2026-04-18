@@ -33,11 +33,19 @@ export default function MFDashboardPage() {
   }, [myBusinessOnly])
 
   return (
-    <div className="page-container space-y-6">
+    <div className="dash-scope page-container space-y-6">
+      <nav aria-label="Breadcrumb" className="dash-breadcrumb">
+        <a href="/mf/dashboard">Home</a>
+        <span className="dash-breadcrumb__sep">›</span>
+        <span className="dash-breadcrumb__current">MF Dashboard</span>
+      </nav>
+
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="page-title">Welcome, {session?.user?.name?.split(' ')[0]}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Here&apos;s your work overview for today</p>
+          <h1>Welcome, {session?.user?.name?.split(' ')[0]}</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--dash-muted, #6b7280)' }}>
+            Here&apos;s your work overview for today
+          </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -46,9 +54,20 @@ export default function MFDashboardPage() {
               checked={myBusinessOnly}
               onCheckedChange={(c) => setMyBusinessOnly(c === true)}
             />
-            <label htmlFor="myBizDash" className="text-sm cursor-pointer text-gray-600">My Business Only</label>
+            <label
+              htmlFor="myBizDash"
+              className="text-sm cursor-pointer"
+              style={{ color: 'var(--dash-text, #4b5563)' }}
+            >
+              My Business Only
+            </label>
           </div>
-          <p className="text-sm text-gray-500 hidden md:block">{formatDateLong(today)}</p>
+          <p
+            className="text-sm hidden md:block"
+            style={{ color: 'var(--dash-muted, #6b7280)' }}
+          >
+            {formatDateLong(today)}
+          </p>
         </div>
       </div>
 
