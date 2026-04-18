@@ -1,5 +1,5 @@
 'use client'
-import { Card, CardContent } from '@/components/ui/card'
+import { Area, AreaChart, ResponsiveContainer } from 'recharts'
 import { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -7,58 +7,139 @@ interface KpiCardProps {
   title: string
   value: string | number
   subtitle?: string
-  icon: LucideIcon
+  icon?: LucideIcon
   accent?: 'blue' | 'indigo' | 'green' | 'emerald' | 'amber' | 'red'
   trend?: { value: string; positive: boolean }
   onClick?: () => void
   actionLabel?: string
   onAction?: () => void
+  sparkData?: number[]
 }
 
-const accentStyles = {
-  blue:    { icon: 'bg-blue-50 text-blue-600 ring-1 ring-blue-200/50',    border: 'border-l-blue-500' },
-  indigo:  { icon: 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200/50', border: 'border-l-indigo-500' },
-  green:   { icon: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200/50',   border: 'border-l-emerald-500' },
-  emerald: { icon: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200/50', border: 'border-l-emerald-500' },
-  amber:   { icon: 'bg-amber-50 text-amber-600 ring-1 ring-amber-200/50',   border: 'border-l-amber-500' },
-  red:     { icon: 'bg-red-50 text-red-600 ring-1 ring-red-200/50',       border: 'border-l-red-500' },
+const ACCENT_TO_STROKE: Record<NonNullable<KpiCardProps['accent']>, string> = {
+  blue:    'var(--dash-primary, #4e6cad)',
+  indigo:  'var(--dash-primary, #4e6cad)',
+  green:   'var(--dash-success, #009966)',
+  emerald: 'var(--dash-success, #009966)',
+  amber:   'var(--dash-warning, #f5a70d)',
+  red:     'var(--dash-accent, #e31e24)',
 }
 
-export function KpiCard({ title, value, subtitle, icon: Icon, accent = 'blue', trend, actionLabel, onAction }: KpiCardProps) {
-  const styles = accentStyles[accent]
+// High-signal KPIs get a 1px top accent border when accent is red.
+// Controlled via a title whitelist so every caller keeps working
+// without needing a new prop.
+const ATTENTION_RED_TITLES = new Set(['Overdue Tasks', 'Not Traded', 'Tasks Expired'])
+
+export function KpiCard({
+  title,
+  value,
+  subtitle,
+  accent = 'blue',
+  trend,
+  actionLabel,
+  onAction,
+  sparkData,
+}: KpiCardProps) {
+  const strokeColor = ACCENT_TO_STROKE[accent]
+  const isAttentionRed = accent === 'red' && ATTENTION_RED_TITLES.has(title)
+
+  const sparkSeries =
+    sparkData && sparkData.length > 0
+      ? sparkData.map((v, i) => ({ i, v }))
+      : null
+
+  const gradientId = `kpi-spark-${title.replace(/\W+/g, '-').toLowerCase()}`
 
   return (
-    <Card className={cn('border-l-4 transition-all duration-200 hover:shadow-md', styles.border)}>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-muted-foreground truncate">{title}</p>
-            <p className="mt-2 stat-value text-foreground">{value}</p>
-            {subtitle && (
-              <p className="mt-1 text-sm text-muted-foreground truncate">{subtitle}</p>
-            )}
-            {trend && (
-              <p className={cn('mt-1.5 text-xs font-semibold flex items-center gap-1', trend.positive ? 'text-emerald-600' : 'text-red-600')}>
-                <span>{trend.positive ? '▲' : '▼'}</span>
-                {trend.value}
-              </p>
-            )}
-          </div>
-          <div className={cn('flex-shrink-0 p-2.5 rounded-xl', styles.icon)}>
-            <Icon className="h-5 w-5" />
-          </div>
+    <div
+      className={cn('dash-card flex flex-col gap-3')}
+      style={
+        isAttentionRed
+          ? { borderTop: '1px solid var(--dash-accent, #e31e24)' }
+          : undefined
+      }
+    >
+      <div className="flex items-center justify-between">
+        <p
+          className="text-[13px] font-semibold"
+          style={{ color: 'var(--dash-muted, #64748b)' }}
+        >
+          {title}
+        </p>
+      </div>
+
+      <div className="flex items-end justify-between gap-3">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <p
+            className="text-[28px] font-bold leading-none tabular-nums truncate"
+            style={{ color: 'var(--dash-ink, #0f172a)' }}
+          >
+            {value}
+          </p>
+          {trend && (
+            <span className={cn('dash-pill', trend.positive ? 'dash-pill--success' : 'dash-pill--danger')}>
+              <span>{trend.positive ? '▲' : '▼'}</span>
+              {trend.value}
+            </span>
+          )}
         </div>
-        {actionLabel && onAction && (
-          <div className="mt-3 pt-3 border-t border-border flex justify-end">
+
+        {sparkSeries && (
+          <div className="h-8 w-[72px] flex-shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={sparkSeries} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={strokeColor} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={strokeColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area
+                  type="monotone"
+                  dataKey="v"
+                  stroke={strokeColor}
+                  strokeWidth={1.5}
+                  fill={`url(#${gradientId})`}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {(subtitle || (actionLabel && onAction)) && (
+        <div
+          className="flex items-center justify-between pt-3"
+          style={{ borderTop: '1px solid var(--dash-border, #e2e8f0)' }}
+        >
+          {subtitle && (
+            <p
+              className="text-[12px] truncate"
+              style={{ color: 'var(--dash-muted, #64748b)' }}
+            >
+              {subtitle}
+            </p>
+          )}
+          {actionLabel && onAction ? (
             <button
+              type="button"
               onClick={onAction}
-              className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors cursor-pointer"
+              className="text-[12px] font-semibold dash-link-arrow cursor-pointer"
+              style={{ color: strokeColor }}
             >
               {actionLabel} →
             </button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          ) : subtitle ? (
+            <span
+              aria-hidden
+              className="dash-link-arrow text-[14px]"
+              style={{ color: strokeColor }}
+            >
+              →
+            </span>
+          ) : null}
+        </div>
+      )}
+    </div>
   )
 }
