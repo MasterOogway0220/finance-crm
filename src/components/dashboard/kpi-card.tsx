@@ -1,4 +1,5 @@
 'use client'
+import { useId } from 'react'
 import { Area, AreaChart, ResponsiveContainer } from 'recharts'
 import { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -7,9 +8,13 @@ interface KpiCardProps {
   title: string
   value: string | number
   subtitle?: string
+  /** Retained for backward compatibility with existing call sites;
+   *  no longer rendered in the redesigned card. */
   icon?: LucideIcon
   accent?: 'blue' | 'indigo' | 'green' | 'emerald' | 'amber' | 'red'
   trend?: { value: string; positive: boolean }
+  /** Retained for backward compat; currently inert.
+   *  Clickability is driven by actionLabel + onAction instead. */
   onClick?: () => void
   actionLabel?: string
   onAction?: () => void
@@ -48,11 +53,12 @@ export function KpiCard({
       ? sparkData.map((v, i) => ({ i, v }))
       : null
 
-  const gradientId = `kpi-spark-${title.replace(/\W+/g, '-').toLowerCase()}`
+  const reactId = useId()
+  const gradientId = `kpi-spark-${reactId.replace(/:/g, '')}`
 
   return (
     <div
-      className={cn('dash-card flex flex-col gap-3')}
+      className="dash-card flex flex-col gap-3"
       style={
         isAttentionRed
           ? { borderTop: '1px solid var(--dash-accent, #e31e24)' }
