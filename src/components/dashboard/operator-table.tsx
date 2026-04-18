@@ -16,6 +16,8 @@ interface OperatorRow {
 
 interface OperatorTableProps {
   data: OperatorRow[]
+  /** Retained for backward compatibility with existing call sites;
+   *  the table is bounded by `currentDay`, not `daysInMonth`. */
   daysInMonth: number
   currentDay: number
 }
