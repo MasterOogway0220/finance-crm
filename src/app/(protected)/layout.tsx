@@ -7,6 +7,7 @@ import { Toaster } from 'sonner'
 import Sidebar from '@/components/layout/sidebar'
 import TopBar from '@/components/layout/topbar'
 import InactivityGuard from '@/components/auth/inactivity-guard'
+import '@/app/(protected)/dashboard/dashboard-theme.css'
 
 const HEARTBEAT_INTERVAL = 5 * 60 * 1000 // 5 minutes
 
