@@ -2,7 +2,7 @@ import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
-import { createNotification } from '@/lib/notifications'
+import { createNotification, tasksLinkForDepartment } from '@/lib/notifications'
 
 import { z } from 'zod'
 
@@ -170,7 +170,7 @@ export async function PATCH(
           type: 'TASK_COMPLETED',
           title: 'Task completed',
           message: `Task "${existing.title}" has been completed by ${existing.assignedTo.name}`,
-          link: `/tasks/${id}`,
+          link: tasksLinkForDepartment(existing.assignedBy.department),
         })
       }
 
@@ -258,7 +258,7 @@ export async function PATCH(
         type: 'TASK_COMPLETED',
         title: 'Task completed',
         message: `Task "${existing.title}" has been completed by ${existing.assignedTo.name}`,
-        link: `/tasks/${id}`,
+        link: tasksLinkForDepartment(existing.assignedBy.department),
       })
     }
 

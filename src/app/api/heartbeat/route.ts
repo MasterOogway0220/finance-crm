@@ -1,7 +1,8 @@
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { createNotificationForMany } from '@/lib/notifications'
+import { createNotificationForMany, tasksLinkForDepartment } from '@/lib/notifications'
+import { Department } from '@prisma/client'
 import { runMonthlyReset } from '@/lib/monthly-reset'
 import { runYearReset } from '@/lib/year-leave-reset'
 
@@ -48,13 +49,29 @@ export async function POST() {
           ...overdueTasks.map((t) => t.assignedById),
         ])]
 
-        await createNotificationForMany({
-          userIds,
-          type: 'TASK_EXPIRED',
-          title: 'Task expired',
-          message: `${count} task${count > 1 ? 's have' : ' has'} expired due to missed deadline.`,
-          link: '/tasks',
+        const users = await prisma.employee.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, department: true },
         })
+
+        const idsByDept = new Map<Department, string[]>()
+        for (const u of users) {
+          const arr = idsByDept.get(u.department) ?? []
+          arr.push(u.id)
+          idsByDept.set(u.department, arr)
+        }
+
+        await Promise.all(
+          Array.from(idsByDept, ([dept, ids]) =>
+            createNotificationForMany({
+              userIds: ids,
+              type: 'TASK_EXPIRED',
+              title: 'Task expired',
+              message: `${count} task${count > 1 ? 's have' : ' has'} expired due to missed deadline.`,
+              link: tasksLinkForDepartment(dept),
+            }),
+          ),
+        )
       }
     }
 
