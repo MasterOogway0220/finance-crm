@@ -16,8 +16,8 @@ const lexend = Lexend({
 })
 
 export const metadata: Metadata = {
-  title: 'FinanceCRM — Financial Brokerage CRM',
-  description: 'Customer Relationship Management Platform for Financial Brokerage',
+  title: 'Kesar Securities CRM',
+  description: 'Customer Relationship Management Platform for Kesar Securities',
   icons: {
     icon: '/favicon.ico',
   },

@@ -9,8 +9,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
+    const body = await request.json().catch(() => ({} as Record<string, unknown>))
+    const type = typeof body?.type === 'string' ? body.type : undefined
+
+    const where: Record<string, unknown> = { userId: session.user.id, isRead: false }
+    if (type) where.type = type
+
     const result = await prisma.notification.updateMany({
-      where: { userId: session.user.id, isRead: false },
+      where,
       data: { isRead: true },
     })
 

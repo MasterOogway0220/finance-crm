@@ -215,7 +215,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
             <Menu className="h-5 w-5" />
           </button>
           {/* Brand name – visible on mobile only */}
-          <span className="text-sm font-bold text-gray-800 lg:hidden">FinanceCRM</span>
+          <span className="text-sm font-bold text-gray-800 lg:hidden">Kesar Securities CRM</span>
         </div>
 
         {/* Right actions */}
