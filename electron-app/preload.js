@@ -35,10 +35,10 @@ function injectTitleBar() {
         border-bottom: 1px solid #1e293b;
       }
       #electron-titlebar .etb-title {
-        color: #64748b;
+        color: #ffffff;
         font-size: 12px;
         padding-left: 12px;
-        font-weight: 500;
+        font-weight: 700;
         letter-spacing: 0.02em;
       }
       #electron-titlebar .etb-controls {
@@ -51,9 +51,10 @@ function injectTitleBar() {
         height: 32px;
         border: none;
         background: transparent;
-        color: #64748b;
+        color: #ffffff;
         cursor: pointer;
         font-size: 16px;
+        font-weight: 700;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -63,7 +64,7 @@ function injectTitleBar() {
         -webkit-app-region: no-drag;
         pointer-events: auto;
       }
-      #electron-titlebar .etb-btn:hover { background: #1e293b; color: #e2e8f0; }
+      #electron-titlebar .etb-btn:hover { background: #1e293b; color: #ffffff; }
       #electron-titlebar .etb-btn.etb-close:hover { background: #dc2626; color: #ffffff; }
 
       /* Push fixed sidebar down to clear the 32px electron title bar */

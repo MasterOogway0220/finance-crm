@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
-import { TrendingUp, Loader2, AlertCircle, ArrowLeft, Mail } from 'lucide-react'
+import { Loader2, AlertCircle, ArrowLeft, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -49,8 +49,9 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="h-8 w-8 text-blue-500" />
-            <span className="text-2xl font-bold text-gray-900">FinanceCRM</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.webp" alt="Kesar Securities" className="h-8 w-8 object-contain" />
+            <span className="text-2xl font-bold text-gray-900">Kesar Securities CRM</span>
           </div>
           <div className="mt-3 p-3 bg-blue-50 rounded-full">
             <Mail className="h-6 w-6 text-blue-500" />
