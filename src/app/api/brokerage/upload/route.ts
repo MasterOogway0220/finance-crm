@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { createNotificationForMany } from '@/lib/notifications'
+import { isAutoTradeOperator } from '@/lib/auto-trade-config'
 import { Role } from '@prisma/client'
 import * as XLSX from 'xlsx'
 
@@ -215,9 +216,12 @@ export async function POST(request: NextRequest) {
     const operatorIds = [...new Set(details.map((d) => d.operatorId))]
     const operators = await prisma.employee.findMany({
       where: { id: { in: operatorIds } },
-      select: { id: true, name: true },
+      select: { id: true, name: true, email: true },
     })
     const operatorNameMap = new Map(operators.map((o) => [o.id, o.name]))
+    const autoTradeOperatorIds = new Set(
+      operators.filter((o) => isAutoTradeOperator(o.email)).map((o) => o.id),
+    )
 
     const opSummaryMap = new Map<string, { operatorName: string; clientCount: number; totalAmount: number }>()
     for (const d of details) {
@@ -255,7 +259,18 @@ export async function POST(request: NextRequest) {
       await prisma.brokerageUpload.delete({ where: { id: existingUpload.id } })
     }
 
-    // Create BrokerageUpload + BrokerageDetails in a transaction
+    // Create BrokerageUpload + BrokerageDetails and auto-flip TRADED status
+    // for clients owned by auto-trade operators (Kedar Sir, Sarvesh) in a
+    // single transaction, so the upload and status update commit together.
+    const autoTradedClientIds = details
+      .filter(
+        (d) =>
+          d.clientId !== null &&
+          d.amount > 0 &&
+          autoTradeOperatorIds.has(d.operatorId),
+      )
+      .map((d) => d.clientId!)
+
     const upload = await prisma.$transaction(async (tx) => {
       const newUpload = await tx.brokerageUpload.create({
         data: {
@@ -271,6 +286,14 @@ export async function POST(request: NextRequest) {
           details: true,
         },
       })
+
+      if (autoTradedClientIds.length > 0) {
+        await tx.client.updateMany({
+          where: { id: { in: autoTradedClientIds }, department: 'EQUITY' },
+          data: { status: 'TRADED' },
+        })
+      }
+
       return newUpload
     })
 
