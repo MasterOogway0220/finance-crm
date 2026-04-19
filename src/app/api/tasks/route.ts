@@ -2,7 +2,7 @@ import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
-import { createNotification } from '@/lib/notifications'
+import { createNotification, tasksLinkForDepartment } from '@/lib/notifications'
 import { taskSchema } from '@/lib/validations'
 import { Department, Role, TaskPriority, TaskStatus } from '@prisma/client'
 
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
       type: 'TASK_ASSIGNED',
       title: 'New task assigned',
       message: `New task assigned: ${data.title}`,
-      link: `/tasks/${task.id}`,
+      link: tasksLinkForDepartment(task.assignedTo.department),
     })
 
     await logActivity({

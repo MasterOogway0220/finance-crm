@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
-import { createNotificationForMany } from '@/lib/notifications'
+import { createNotificationForMany, tasksLinkForDepartment } from '@/lib/notifications'
+import { Department } from '@prisma/client'
 
 function isAuthorized(request: NextRequest): boolean {
   // Vercel cron: Authorization: Bearer <CRON_SECRET>
@@ -46,14 +47,30 @@ async function runTaskExpiry() {
   const assignerIds = [...new Set(overdueTasks.map((t) => t.assignedById))]
   const allUserIds = [...new Set([...assigneeIds, ...assignerIds])]
 
-  // Create notifications per user
-  await createNotificationForMany({
-    userIds: allUserIds,
-    type: 'TASK_EXPIRED',
-    title: 'Tasks expired',
-    message: `${overdueTasks.length} task(s) have expired due to missed deadlines.`,
-    link: '/tasks',
+  // Group recipients by department so each gets a link to their own tasks page
+  const users = await prisma.employee.findMany({
+    where: { id: { in: allUserIds } },
+    select: { id: true, department: true },
   })
+
+  const idsByDept = new Map<Department, string[]>()
+  for (const u of users) {
+    const arr = idsByDept.get(u.department) ?? []
+    arr.push(u.id)
+    idsByDept.set(u.department, arr)
+  }
+
+  await Promise.all(
+    Array.from(idsByDept, ([dept, ids]) =>
+      createNotificationForMany({
+        userIds: ids,
+        type: 'TASK_EXPIRED',
+        title: 'Tasks expired',
+        message: `${overdueTasks.length} task(s) have expired due to missed deadlines.`,
+        link: tasksLinkForDepartment(dept),
+      }),
+    ),
+  )
 
   // Log activity using first SUPER_ADMIN found
   const superAdmin = await prisma.employee.findFirst({
