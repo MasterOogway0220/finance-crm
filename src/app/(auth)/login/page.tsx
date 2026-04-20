@@ -79,10 +79,8 @@ function RolePicker({ pending, onPick }: { pending: PendingSession; onPick: (rol
       <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white mb-3 overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.webp" alt="Kesar Securities" className="h-12 w-12 object-contain" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.webp" alt="Kesar Securities" className="h-14 w-auto object-contain mb-3 brightness-0 invert" />
           <span className="text-2xl font-bold text-white" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>Kesar Securities CRM</span>
         </div>
 
@@ -226,10 +224,8 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-2xl p-8 sm:p-10">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white mb-4 overflow-hidden ring-1 ring-slate-200">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.webp" alt="Kesar Securities" className="h-12 w-12 object-contain" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.webp" alt="Kesar Securities" className="h-14 w-auto object-contain mb-4" />
             <h1 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>Kesar Securities CRM</h1>
             <p className="mt-1 text-sm text-gray-500">Sign in to your account</p>
           </div>
