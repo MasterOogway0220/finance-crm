@@ -55,6 +55,8 @@ function extractClientCodeFromNarration(narration: string): string {
   return trimmed.slice(lastSpaceIdx + 1).trim().toUpperCase()
 }
 
+const VALID_BRANCHES = ['Mumbai', 'Karad']
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth()
@@ -92,7 +94,6 @@ export async function POST(request: NextRequest) {
     if (!branch) {
       return NextResponse.json({ success: false, error: 'Branch is required' }, { status: 400 })
     }
-    const VALID_BRANCHES = ['Mumbai', 'Karad']
     if (!VALID_BRANCHES.includes(branch)) {
       return NextResponse.json({ success: false, error: 'Invalid branch' }, { status: 400 })
     }
@@ -329,7 +330,7 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       action: 'UPLOAD',
       module: 'BROKERAGE',
-      details: `Uploaded brokerage for ${uploadDate.toISOString().split('T')[0]}. Total: ${totalAmount}. Mapped: ${details.length}. Unmapped: ${unmappedCodes.length}`,
+      details: `Uploaded brokerage for ${uploadDate.toISOString().split('T')[0]} (${branch}). Total: ${totalAmount}. Mapped: ${details.length}. Unmapped: ${unmappedCodes.length}`,
     })
 
     return NextResponse.json({
