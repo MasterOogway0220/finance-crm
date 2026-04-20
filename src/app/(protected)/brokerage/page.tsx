@@ -61,7 +61,15 @@ export default function BrokeragePage() {
   const [year, setYear] = useState(String(now.getFullYear()))
   const [data, setData] = useState<BrokerageData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [uploadLog, setUploadLog] = useState<Array<{ id: string; uploadDate: string; fileName: string; totalAmount: number; uploadedBy: string; createdAt: string }>>([])
+  const [uploadLog, setUploadLog] = useState<Array<{
+    id: string
+    uploadDate: string
+    branch: string
+    fileName: string
+    totalAmount: number
+    uploadedBy: string
+    createdAt: string
+  }>>([])
   const [reverseTarget, setReverseTarget] = useState<string | null>(null)
   const [reversing, setReversing] = useState(false)
   const [selectedUploads, setSelectedUploads] = useState<Set<string>>(new Set())
@@ -372,6 +380,7 @@ export default function BrokeragePage() {
                         />
                       </th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">Date</th>
+                      <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">Branch</th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">File Name</th>
                       <th className="px-3 py-2.5 text-right font-semibold text-gray-600 text-xs">Total Amount</th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">Uploaded By</th>
@@ -391,6 +400,7 @@ export default function BrokeragePage() {
                           />
                         </td>
                         <td className="px-3 py-2.5 text-sm text-gray-800">{format(new Date(log.uploadDate), 'd MMM yyyy')}</td>
+                        <td className="px-3 py-2.5 text-sm text-gray-600">{log.branch}</td>
                         <td className="px-3 py-2.5 text-sm text-gray-600">{log.fileName}</td>
                         <td className="px-3 py-2.5 text-sm text-right font-medium">{formatCurrency(log.totalAmount)}</td>
                         <td className="px-3 py-2.5 text-sm text-gray-600">{log.uploadedBy}</td>

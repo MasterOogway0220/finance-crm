@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     const log = uploads.map((u) => ({
       id: u.id,
       uploadDate: u.uploadDate,
+      branch: u.branch,
       fileName: u.fileName,
       totalAmount: u.totalAmount,
       uploadedBy: u.uploadedBy?.name ?? 'Deleted employee',
