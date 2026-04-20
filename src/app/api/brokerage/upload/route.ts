@@ -321,7 +321,7 @@ export async function POST(request: NextRequest) {
         userIds: equityDealers.map((e) => e.id),
         type: 'BROKERAGE_UPLOAD',
         title: 'Brokerage data uploaded',
-        message: `Brokerage data for ${uploadDate.toDateString()} has been uploaded.`,
+        message: `Brokerage data for ${branch} branch on ${uploadDate.toDateString()} has been uploaded.`,
         link: '/brokerage',
       })
     }
