@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CalendarIcon, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { formatCurrency } from '@/lib/utils'
@@ -29,6 +30,7 @@ export default function BrokerageUploadPage() {
   const [summary, setSummary] = useState<UploadSummary | null>(null)
   const [processing, setProcessing] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [branch, setBranch] = useState<string>('Mumbai')
 
   const handleProcessFile = async () => {
     if (!file || !date) return
@@ -37,6 +39,7 @@ export default function BrokerageUploadPage() {
     formData.append('file', file)
     formData.append('date', format(date, 'yyyy-MM-dd'))
     formData.append('preview', 'true')
+    formData.append('branch', branch)
     try {
       const res = await fetch('/api/brokerage/upload', { method: 'POST', body: formData })
       const data = await res.json()
@@ -58,6 +61,7 @@ export default function BrokerageUploadPage() {
     formData.append('file', file)
     formData.append('date', format(date, 'yyyy-MM-dd'))
     formData.append('preview', 'false')
+    formData.append('branch', branch)
     try {
       const res = await fetch('/api/brokerage/upload', { method: 'POST', body: formData })
       const data = await res.json()
@@ -101,6 +105,19 @@ export default function BrokerageUploadPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Branch</p>
+              <Select value={branch} onValueChange={setBranch}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Mumbai">Mumbai</SelectItem>
+                  <SelectItem value="Karad">Karad</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
               <p className="text-sm font-medium text-gray-700 mb-2">Brokerage Date</p>
               <Popover>
                 <PopoverTrigger asChild>
@@ -139,7 +156,7 @@ export default function BrokerageUploadPage() {
               <Alert className="border-amber-300 bg-amber-50">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-amber-700 text-sm">
-                  ⚠️ Brokerage for {format(date, 'd MMM yyyy')} already exists. Uploading will overwrite existing data.
+                  ⚠️ Brokerage for {branch} on {format(date, 'd MMM yyyy')} already exists. Uploading will overwrite existing data for this branch.
                 </AlertDescription>
               </Alert>
             )}
