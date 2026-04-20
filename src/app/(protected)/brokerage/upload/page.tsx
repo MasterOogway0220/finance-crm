@@ -107,7 +107,7 @@ export default function BrokerageUploadPage() {
             <div>
               <p className="text-sm font-medium text-gray-700 mb-2">Branch</p>
               <Select value={branch} onValueChange={setBranch}>
-                <SelectTrigger className="w-40">
+                <SelectTrigger className="w-40 h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
