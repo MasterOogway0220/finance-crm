@@ -142,26 +142,23 @@ export async function PATCH(
         }))
       )
 
-      const task = await prisma.$transaction(async (tx) => {
-        const updated = await tx.task.update({
-          where: { id },
-          data: {
-            status: 'COMPLETED',
-            completedAt: new Date(),
-            completionNote,
-            completionProofs: {
-              create: fileRecords,
-            },
+      const task = await prisma.task.update({
+        where: { id },
+        data: {
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          completionNote,
+          completionProofs: {
+            create: fileRecords,
           },
-          include: {
-            assignedTo: { select: { id: true, name: true, department: true } },
-            assignedBy: { select: { id: true, name: true, department: true } },
-            completionProofs: {
-              select: { id: true, name: true, mimeType: true, size: true, createdAt: true },
-            },
+        },
+        include: {
+          assignedTo: { select: { id: true, name: true, department: true } },
+          assignedBy: { select: { id: true, name: true, department: true } },
+          completionProofs: {
+            select: { id: true, name: true, mimeType: true, size: true, createdAt: true },
           },
-        })
-        return updated
+        },
       })
 
       if (existing.assignedById !== session.user.id) {
