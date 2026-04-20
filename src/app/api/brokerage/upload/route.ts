@@ -88,6 +88,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid date' }, { status: 400 })
     }
 
+    const branch = (formData.get('branch') as string | null)?.trim()
+    if (!branch) {
+      return NextResponse.json({ success: false, error: 'Branch is required' }, { status: 400 })
+    }
+    const VALID_BRANCHES = ['Mumbai', 'Karad']
+    if (!VALID_BRANCHES.includes(branch)) {
+      return NextResponse.json({ success: false, error: 'Invalid branch' }, { status: 400 })
+    }
+
     // Parse xlsx/csv with SheetJS
     const arrayBuffer = await file.arrayBuffer()
     const workbook = XLSX.read(arrayBuffer, { type: 'array' })
@@ -235,7 +244,9 @@ export async function POST(request: NextRequest) {
     }
     const operatorSummary = Array.from(opSummaryMap.values())
 
-    const existingUpload = await prisma.brokerageUpload.findUnique({ where: { uploadDate } })
+    const existingUpload = await prisma.brokerageUpload.findUnique({
+      where: { uploadDate_branch: { uploadDate, branch } },
+    })
     const dateExists = !!existingUpload
 
     // Preview mode — return summary without writing to DB
@@ -275,6 +286,7 @@ export async function POST(request: NextRequest) {
       const newUpload = await tx.brokerageUpload.create({
         data: {
           uploadDate,
+          branch,
           uploadedById: session.user.id,
           totalAmount,
           fileName: file.name,
