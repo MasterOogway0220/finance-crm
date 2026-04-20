@@ -218,6 +218,7 @@ model TaskComment {
 model BrokerageUpload {
   id            String    @id @default(cuid())
   uploadDate    DateTime
+  branch        String    @default("Mumbai")
   uploadedById  String?
   uploadedBy    Employee? @relation(fields: [uploadedById], references: [id])
   totalAmount   Float     @default(0)
@@ -226,7 +227,7 @@ model BrokerageUpload {
 
   details       BrokerageDetail[]
 
-  @@unique([uploadDate])
+  @@unique([uploadDate, branch])
   @@index([uploadDate])
 }
 
