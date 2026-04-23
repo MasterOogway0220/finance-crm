@@ -22,27 +22,30 @@ export async function GET(request: NextRequest) {
 
     const { start, end } = getCurrentMonthRange()
 
-    const [totalClients, tradedClients, uploads] =
+    const [totalClients, uploads] =
       await Promise.all([
         prisma.client.count({ where: { operatorId } }),
-        prisma.client.count({ where: { operatorId, status: 'TRADED' } }),
         prisma.brokerageUpload.findMany({
           where: { uploadDate: { gte: start, lte: end } },
           include: {
             details: {
               where: { operatorId },
-              select: { amount: true },
+              select: { clientId: true, amount: true },
             },
           },
         }),
       ])
 
+    const tradedIds = new Set<string>()
+    let mtdBrokerage = 0
+    for (const u of uploads) {
+      for (const d of u.details) {
+        if (d.clientId) tradedIds.add(d.clientId)
+        mtdBrokerage += d.amount
+      }
+    }
+    const tradedClients = tradedIds.size
     const notTraded = totalClients - tradedClients
-
-    const mtdBrokerage = uploads.reduce(
-      (sum, u) => sum + u.details.reduce((s, d) => s + d.amount, 0),
-      0
-    )
 
     return NextResponse.json({
       success: true,

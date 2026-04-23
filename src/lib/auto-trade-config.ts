@@ -9,6 +9,9 @@
 export const AUTO_TRADE_OPERATOR_EMAILS: ReadonlySet<string> = new Set([
   'kedaroak_13@rediffmail.com', // Kedar Sir (Kedar Dattatraya Oak)
   'sarveshoak3@gmail.com',      // Sarvesh Kedar Oak
+  'pruthav111@gmail.com',       // Pune
+  'karad_dummy18@gmail.com',    // Karad
+  'vedant_dummy18@gmail.com',   // Vedant
 ])
 
 export function isAutoTradeOperator(email: string | null | undefined): boolean {

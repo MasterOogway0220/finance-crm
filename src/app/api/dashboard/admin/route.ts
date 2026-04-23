@@ -37,14 +37,13 @@ export async function GET(request: NextRequest) {
 
     // ── All top-level stats + operators in one parallel batch ──────────────
     const [
-      totalEmployees, equityCount, mfCount, tradedClients,
+      totalEmployees, equityCount, mfCount,
       pendingTasks, overdueTasks, completedTasks, expiredTasks,
       brokerageSum, lastMonthBrokerageSum, operators, mfBusinessAgg, closedClientsCount,
     ] = await Promise.all([
       prisma.employee.count({ where: { isActive: true } }),
       prisma.client.count({ where: { department: 'EQUITY' } }),
       prisma.client.count({ where: { department: 'MUTUAL_FUND' } }),
-      prisma.client.count({ where: { status: 'TRADED' } }),
       prisma.task.count({ where: { status: 'PENDING' } }),
       prisma.task.count({ where: { status: 'PENDING', deadline: { lt: now } } }),
       prisma.task.count({ where: { status: 'COMPLETED' } }),
@@ -65,15 +64,14 @@ export async function GET(request: NextRequest) {
 
     // ── Batch all per-operator data — 5 queries instead of N×16 ───────────
     const [
-      allClientCounts, tradedCounts, dnaCounts,
+      allClientCounts, dnaCounts,
       currentMonthDetails, yearDetails,
     ] = await Promise.all([
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds } }, _count: { id: true } }),
-      prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, status: 'TRADED' }, _count: { id: true } }),
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, remark: 'DID_NOT_ANSWER' }, _count: { id: true } }),
       prisma.brokerageDetail.findMany({
         where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: start, lte: end } } },
-        select: { operatorId: true, amount: true, brokerage: { select: { uploadDate: true } } },
+        select: { operatorId: true, clientId: true, amount: true, brokerage: { select: { uploadDate: true } } },
       }),
       prisma.brokerageDetail.findMany({
         where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: yearStart, lte: yearEnd } } },
@@ -83,8 +81,20 @@ export async function GET(request: NextRequest) {
 
     // Build O(1) lookup maps
     const totalMap   = new Map(allClientCounts.map((r) => [r.operatorId, r._count.id]))
-    const tradedMap  = new Map(tradedCounts.map((r) => [r.operatorId, r._count.id]))
     const dnaMap     = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
+
+    // Derive traded clients from brokerage activity for the current month (matches brokerage page logic)
+    const tradedSets = new Map<string, Set<string>>()
+    const allTradedIds = new Set<string>()
+    for (const d of currentMonthDetails) {
+      if (d.clientId) {
+        if (!tradedSets.has(d.operatorId)) tradedSets.set(d.operatorId, new Set())
+        tradedSets.get(d.operatorId)!.add(d.clientId)
+        allTradedIds.add(d.clientId)
+      }
+    }
+    const tradedMap = new Map([...tradedSets.entries()].map(([id, set]) => [id, set.size]))
+    const tradedClients = allTradedIds.size
 
     const monthlyTotalMap = new Map<string, number>()
     const dailyMap        = new Map<string, Record<number, number>>()

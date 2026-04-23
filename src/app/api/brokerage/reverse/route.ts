@@ -2,6 +2,7 @@ import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
+import { invalidateCache } from '@/lib/cache'
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -44,6 +45,8 @@ export async function DELETE(request: NextRequest) {
       module: 'BROKERAGE',
       details: `Reversed ${uploads.length} brokerage upload(s): ${uploads.map(u => u.fileName).join(', ')} (Total: ₹${totalAmount.toFixed(2)})`,
     })
+
+    invalidateCache('dashboard:')
 
     return NextResponse.json({ success: true, data: { reversedCount: uploads.length } })
   } catch (error) {

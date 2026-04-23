@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { createNotificationForMany } from '@/lib/notifications'
 import { isAutoTradeOperator } from '@/lib/auto-trade-config'
+import { invalidateCache } from '@/lib/cache'
 import { Role } from '@prisma/client'
 import * as XLSX from 'xlsx'
 
@@ -332,6 +333,9 @@ export async function POST(request: NextRequest) {
       module: 'BROKERAGE',
       details: `Uploaded brokerage for ${uploadDate.toISOString().split('T')[0]} (${branch}). Total: ${totalAmount}. Mapped: ${details.length}. Unmapped: ${unmappedCodes.length}`,
     })
+
+    // Invalidate admin dashboard cache so traded-client counts reflect the new upload immediately
+    invalidateCache('dashboard:')
 
     return NextResponse.json({
       success: true,
