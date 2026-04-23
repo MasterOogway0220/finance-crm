@@ -69,11 +69,15 @@ export async function PATCH(
     }
 
     const userRole = getEffectiveRole(session.user)
-    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+    const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
+
+    const { id } = await params
+    const isSelf = id === session.user.id
+
+    if (!isAdmin && !isSelf) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
-    const { id } = await params
     const body = await request.json()
     const parsed = updateEmployeeSchema.safeParse(body)
 
@@ -87,6 +91,25 @@ export async function PATCH(
     const existing = await prisma.employee.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Employee not found' }, { status: 404 })
+    }
+
+    // Non-admins can only change their own password (with current password verification)
+    if (!isAdmin && isSelf) {
+      if (!parsed.data.password) {
+        return NextResponse.json({ success: false, error: 'Password is required' }, { status: 400 })
+      }
+      if (!body.currentPassword) {
+        return NextResponse.json({ success: false, error: 'Current password is required' }, { status: 400 })
+      }
+      const isValid = await bcrypt.compare(body.currentPassword, existing.password)
+      if (!isValid) {
+        return NextResponse.json({ success: false, error: 'Current password is incorrect' }, { status: 400 })
+      }
+      await prisma.employee.update({
+        where: { id },
+        data: { password: await bcrypt.hash(parsed.data.password, 12) },
+      })
+      return NextResponse.json({ success: true })
     }
 
     const { password, ...rest } = parsed.data

@@ -63,7 +63,7 @@ export default function AdminDashboardPage() {
 
   // Client-wise brokerage state
   const [equityEmployees, setEquityEmployees] = useState<EquityEmployee[]>([])
-  const [cwEmployee, setCwEmployee] = useState('')
+  const [cwEmployee, setCwEmployee] = useState('all')
   const [cwMonth, setCwMonth] = useState(String(today.getMonth() + 1))
   const [cwYear, setCwYear] = useState(String(today.getFullYear()))
   const [cwDay, setCwDay] = useState('monthly')
@@ -96,16 +96,15 @@ export default function AdminDashboardPage() {
         if (d.success) {
           const employees: EquityEmployee[] = d.data.map((e: { id: string; name: string }) => ({ id: e.id, name: e.name }))
           setEquityEmployees(employees)
-          if (employees.length > 0) setCwEmployee(employees[0].id)
         }
       })
   }, [])
 
   // Fetch client-wise brokerage when employee/month/year/day changes
   useEffect(() => {
-    if (!cwEmployee) return
     setCwLoading(true)
-    const params = new URLSearchParams({ operatorId: cwEmployee, month: cwMonth, year: cwYear })
+    const params = new URLSearchParams({ month: cwMonth, year: cwYear })
+    if (cwEmployee !== 'all') params.set('operatorId', cwEmployee)
     if (cwDay !== 'monthly') params.set('day', cwDay)
     fetch(`/api/brokerage/client-wise?${params}`)
       .then((r) => r.json())
@@ -254,6 +253,7 @@ export default function AdminDashboardPage() {
               <Select value={cwEmployee} onValueChange={setCwEmployee}>
                 <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="Select employee" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All Employees</SelectItem>
                   {equityEmployees.map((e) => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -308,14 +308,12 @@ export default function AdminDashboardPage() {
             {cwDay === 'monthly'
               ? `${MONTHS.find((m) => m.value === cwMonth)?.label} ${cwYear}`
               : `${cwDay} ${MONTHS.find((m) => m.value === cwMonth)?.label} ${cwYear}`}
-            {cwEmployee && equityEmployees.length > 0 && ` — ${equityEmployees.find((e) => e.id === cwEmployee)?.name}`}
+            {` — ${cwEmployee === 'all' ? 'All Employees' : (equityEmployees.find((e) => e.id === cwEmployee)?.name ?? '')}`}
           </p>
 
           {/* Client Table */}
           {cwLoading ? (
             <Skeleton className="h-32 rounded-lg" />
-          ) : !cwEmployee ? (
-            <p className="text-sm text-gray-400 py-6 text-center">Select an employee to view client brokerage</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">

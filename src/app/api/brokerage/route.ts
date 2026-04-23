@@ -49,21 +49,19 @@ export async function GET(request: NextRequest) {
     // ── Batch all data in one parallel round-trip ──────────────────────────
     const [
       uploads,
-      allClientCounts, tradedCounts, dnaCounts,
+      allClientCounts, dnaCounts,
       historyDetails,
     ] = await Promise.all([
-      // Current month brokerage uploads (for monthly total + daily breakdown)
+      // Current month brokerage uploads (for monthly total + daily breakdown + traded clients)
       prisma.brokerageUpload.findMany({
         where: { uploadDate: { gte: monthStart, lte: monthEnd } },
         include: {
-          details: { where: { clientId: { not: null } }, select: { operatorId: true, amount: true } },
+          details: { where: { clientId: { not: null } }, select: { operatorId: true, clientId: true, amount: true } },
         },
       }),
-      // Total clients per operator
+      // Total clients per operator (current assignment — used as denominator)
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds } }, _count: { id: true } }),
-      // Traded clients per operator
-      prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, status: 'TRADED' }, _count: { id: true } }),
-      // DID_NOT_ANSWER per operator
+      // DID_NOT_ANSWER per operator (live call-status, separate from traded)
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, remark: 'DID_NOT_ANSWER' }, _count: { id: true } }),
       // Full 7-month history (one query replaces N×7 aggregates)
       prisma.brokerageDetail.findMany({
@@ -73,20 +71,31 @@ export async function GET(request: NextRequest) {
     ])
 
     // Build O(1) lookup maps for client counts
-    const totalMap  = new Map(allClientCounts.map((r) => [r.operatorId, r._count.id]))
-    const tradedMap = new Map(tradedCounts.map((r) => [r.operatorId, r._count.id]))
-    const dnaMap    = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
+    const totalMap = new Map(allClientCounts.map((r) => [r.operatorId, r._count.id]))
+    const dnaMap   = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
 
     // Flatten current-month upload details with day numbers
-    type DetailEntry = { operatorId: string; amount: number; day: number }
+    // clientId is included so we can derive month-scoped traded counts
+    type DetailEntry = { operatorId: string; clientId: string | null; amount: number; day: number }
     const allDetails: DetailEntry[] = []
     for (const upload of uploads) {
       const day = new Date(upload.uploadDate).getDate()
       for (const detail of upload.details) {
-        allDetails.push({ operatorId: detail.operatorId, amount: detail.amount, day })
+        allDetails.push({ operatorId: detail.operatorId, clientId: detail.clientId, amount: detail.amount, day })
       }
     }
     const totalMonthlyBrokerage = allDetails.reduce((sum, d) => sum + d.amount, 0)
+
+    // Derive traded clients from brokerage records for the selected month
+    // (distinct clients per operator who appear in any upload within monthStart..monthEnd)
+    const tradedSets = new Map<string, Set<string>>()
+    for (const d of allDetails) {
+      if (d.clientId) {
+        if (!tradedSets.has(d.operatorId)) tradedSets.set(d.operatorId, new Set())
+        tradedSets.get(d.operatorId)!.add(d.clientId)
+      }
+    }
+    const tradedMap = new Map([...tradedSets.entries()].map(([id, set]) => [id, set.size]))
 
     // Group monthly total + daily breakdown per operator
     const monthlyTotalMap = new Map<string, number>()
