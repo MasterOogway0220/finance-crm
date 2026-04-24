@@ -286,3 +286,49 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = await params
+    const userRole = getEffectiveRole(session.user)
+
+    if (userRole === 'BACK_OFFICE') {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
+    const task = await prisma.task.findUnique({
+      where: { id },
+      select: { id: true, title: true, assignedById: true },
+    })
+
+    if (!task) {
+      return NextResponse.json({ success: false, error: 'Task not found' }, { status: 404 })
+    }
+
+    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN' && task.assignedById !== session.user.id) {
+      return NextResponse.json({ success: false, error: 'You can only delete tasks you assigned' }, { status: 403 })
+    }
+
+    await prisma.task.delete({ where: { id } })
+
+    await logActivity({
+      userId: session.user.id,
+      action: 'DELETE',
+      module: 'TASKS',
+      details: `Deleted task: "${task.title}"`,
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('[DELETE /api/tasks/[id]]', error)
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+  }
+}

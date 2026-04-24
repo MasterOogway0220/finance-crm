@@ -200,8 +200,10 @@ export default function AdminTasksPage() {
         onClose={() => setSelectedTask(null)}
         onTaskCompleted={() => { setSelectedTask(null); fetchTasks() }}
         onTaskUpdated={(updated) => { setSelectedTask(updated); fetchTasks() }}
+        onTaskDeleted={() => { setSelectedTask(null); fetchTasks() }}
         canComplete={false}
         canEdit={true}
+        canDelete={true}
       />
     </div>
   )

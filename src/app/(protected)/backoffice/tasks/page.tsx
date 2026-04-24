@@ -58,6 +58,7 @@ function BackofficeTasksContent() {
   const fetchTasks = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams()
+    params.set('assignedToMe', 'true')
     params.set('status', tab.toUpperCase())
     if (dept !== 'all') params.set('department', dept)
     if (priority !== 'all') params.set('priority', priority)
