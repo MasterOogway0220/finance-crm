@@ -18,15 +18,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { type, month, year, operatorId, employeeId } = body as {
-      type: 'brokerage' | 'tasks'
+    const { type, month, year, operatorId, employeeId, range } = body as {
+      type: 'brokerage' | 'tasks' | 'mf-business-log'
       month?: number
       year?: number
       operatorId?: string
       employeeId?: string
+      range?: string
     }
 
-    if (!type || !['brokerage', 'tasks'].includes(type)) {
+    if (!type || !['brokerage', 'tasks', 'mf-business-log'].includes(type)) {
       return NextResponse.json({ success: false, error: 'Invalid report type' }, { status: 400 })
     }
 
@@ -65,6 +66,49 @@ export async function POST(request: NextRequest) {
 
       const sheet = XLSX.utils.json_to_sheet(rows)
       XLSX.utils.book_append_sheet(workbook, sheet, 'Brokerage')
+    } else if (type === 'mf-business-log') {
+      const logRange = range || 'MONTH'
+      let startDate: Date
+      let endDate: Date
+      if (logRange === 'FULL_YEAR') {
+        startDate = new Date(reportYear, 0, 1)
+        endDate = new Date(reportYear, 11, 31, 23, 59, 59, 999)
+      } else {
+        startDate = new Date(reportYear, reportMonth - 1, 1)
+        endDate = new Date(reportYear, reportMonth, 0, 23, 59, 59, 999)
+      }
+
+      const mfWhere: Record<string, unknown> = {
+        businessDate: { gte: startDate, lte: endDate },
+      }
+      if (employeeId) mfWhere.employeeId = employeeId
+
+      const records = await prisma.mFBusiness.findMany({
+        where: mfWhere,
+        include: {
+          employee: { select: { name: true } },
+          referredBy: { select: { name: true } },
+        },
+        orderBy: [{ employee: { name: 'asc' } }, { businessDate: 'desc' }],
+      })
+
+      const rows = records.map((r) => ({
+        Date: new Date(r.businessDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        Employee: r.employee.name,
+        'Client Code': r.clientCode,
+        'Client Name': r.clientName,
+        'Referred By': r.referredBy?.name || '',
+        Product: r.productName,
+        'Sub-Product': r.subProduct || '',
+        Type: r.investmentType,
+        'SIP Amount': r.sipAmount ?? '',
+        'Yearly Contribution': r.yearlyContribution,
+        'Commission %': r.commissionPercent,
+        'Commission Amount': r.commissionAmount,
+      }))
+
+      const sheet = XLSX.utils.json_to_sheet(rows)
+      XLSX.utils.book_append_sheet(workbook, sheet, 'MF Business Log')
     } else {
       // Tasks report
       const yearStart = new Date(reportYear, 0, 1)
@@ -100,7 +144,9 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
-    const filename = `${type}-report-${reportYear}${type === 'brokerage' ? `-${String(reportMonth).padStart(2, '0')}` : ''}.xlsx`
+    const filename = type === 'mf-business-log'
+      ? `mf-business-log-${reportYear}${(range || 'MONTH') !== 'FULL_YEAR' ? `-${String(reportMonth).padStart(2, '0')}` : ''}.xlsx`
+      : `${type}-report-${reportYear}${type === 'brokerage' ? `-${String(reportMonth).padStart(2, '0')}` : ''}.xlsx`
 
     return new NextResponse(buffer, {
       status: 200,
