@@ -26,8 +26,59 @@ export async function GET(request: NextRequest) {
     const department = searchParams.get('department') as Department | null
     const search = searchParams.get('search')
     const ageRange = searchParams.get('ageRange') // e.g. "10-25"
+    const inactive2m = searchParams.get('inactive2m') === 'true'
 
     const userRole = getEffectiveRole(session.user)
+
+    // --- Inactive 2-month filter (bypasses all other filters) ---
+    if (inactive2m) {
+      const now = new Date()
+      const cutoff = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+
+      const mfActiveClients = await prisma.client.findMany({
+        where: {
+          department: 'MUTUAL_FUND',
+          OR: [
+            { mfBusinesses: { some: { businessDate: { gte: cutoff } } } },
+            { mfServices: { some: { serviceDate: { gte: cutoff } } } },
+          ],
+        },
+        select: { clientCode: true },
+      })
+      const mfActiveCodes = mfActiveClients.map((c) => c.clientCode)
+
+      const notConditions: Prisma.ClientWhereInput[] = [
+        { brokerageDetails: { some: { brokerage: { uploadDate: { gte: cutoff } } } } },
+      ]
+      if (mfActiveCodes.length > 0) {
+        notConditions.push({ clientCode: { in: mfActiveCodes } })
+      }
+
+      const inactiveWhere: Prisma.ClientWhereInput = {
+        department: 'EQUITY',
+        NOT: notConditions,
+      }
+
+      const [clients, total] = await Promise.all([
+        prisma.client.findMany({
+          where: inactiveWhere,
+          include: { operator: { select: { id: true, name: true, email: true } } },
+          orderBy: { updatedAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        prisma.client.count({ where: inactiveWhere }),
+      ])
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          clients,
+          pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+          cutoffDate: cutoff.toISOString(),
+        },
+      })
+    }
 
     const where: Record<string, unknown> = {}
 
