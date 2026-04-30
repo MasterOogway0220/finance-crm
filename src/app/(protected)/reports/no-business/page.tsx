@@ -26,8 +26,6 @@ interface DormantClient {
   operator: Operator
   lastBrokerageDate: string | null
   daysInactive: number
-  dismissedAt: string | null
-  dismissedBy: Operator | null
 }
 
 function formatDateShort(iso: string) {
@@ -57,6 +55,7 @@ export default function NoBusinessPage() {
   const limit = 25
 
   const fetchData = useCallback(() => {
+    const controller = new AbortController()
     setLoading(true)
     const params = new URLSearchParams()
     params.set('page', String(page))
@@ -64,33 +63,42 @@ export default function NoBusinessPage() {
     if (search) params.set('search', search)
     if (operatorId !== 'all') params.set('operator', operatorId)
 
-    fetch(`/api/reports/no-business?${params}`)
+    fetch(`/api/reports/no-business?${params}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
           setClients(d.data.clients)
           setTotal(d.data.pagination.total)
           setOperators(d.data.operators)
+        } else {
+          toast.error(d.error || 'Failed to load report')
         }
       })
+      .catch((err) => { if (err.name !== 'AbortError') toast.error('Could not reach the server') })
       .finally(() => setLoading(false))
+
+    return () => controller.abort()
   }, [search, operatorId, page])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => fetchData(), [fetchData])
 
   const handleDismiss = async (clientId: string) => {
-    const res = await fetch('/api/reports/no-business/dismiss', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId }),
-    })
-    const data = await res.json()
-    if (data.success) {
-      toast.success('Client dismissed from list')
-      setClients((prev) => prev.filter((c) => c.id !== clientId))
-      setTotal((t) => t - 1)
-    } else {
-      toast.error(data.error || 'Dismiss failed')
+    try {
+      const res = await fetch('/api/reports/no-business/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success('Client dismissed from list')
+        setClients((prev) => prev.filter((c) => c.id !== clientId))
+        setTotal((t) => t - 1)
+      } else {
+        toast.error(data.error || 'Dismiss failed')
+      }
+    } catch {
+      toast.error('Network error — dismiss failed')
     }
   }
 
@@ -219,10 +227,10 @@ function ClientRow({ client, onDismiss }: { client: DormantClient; onDismiss: (i
   const fullName = [client.firstName, client.middleName, client.lastName].filter(Boolean).join(' ')
 
   const handleConfirmDismiss = async () => {
+    setOpen(false)
     setDismissing(true)
     await onDismiss(client.id)
     setDismissing(false)
-    setOpen(false)
   }
 
   return (
