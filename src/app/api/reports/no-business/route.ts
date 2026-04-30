@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '25')))
+    const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '25', 10) || 25))
     const search = searchParams.get('search')?.trim().toLowerCase() || ''
     const operatorId = searchParams.get('operator') || ''
     const exportCsv = searchParams.get('export') === 'true'
@@ -132,7 +132,8 @@ export async function GET(request: NextRequest) {
         const lastBrokerage = c.lastBrokerageDate
           ? new Date(c.lastBrokerageDate).toLocaleDateString('en-IN')
           : 'Never'
-        return `${c.clientCode},"${name}",${c.phone},${c.operator.name},${lastBrokerage},${c.daysInactive}`
+        const q = (v: string) => `"${v.replace(/"/g, '""')}"`
+        return `${q(c.clientCode)},${q(name)},${q(c.phone)},${q(c.operator.name)},${lastBrokerage},${c.daysInactive}`
       })
       const csv = [header, ...rows].join('\n')
       return new NextResponse(csv, {
@@ -149,7 +150,7 @@ export async function GET(request: NextRequest) {
 
     // Get all operators for filter dropdown
     const operators = await prisma.employee.findMany({
-      where: { department: 'EQUITY', isActive: true },
+      where: { role: 'EQUITY_DEALER', isActive: true },
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     })
