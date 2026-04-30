@@ -275,7 +275,7 @@ function ClientRow({ client, onDismiss }: { client: DormantClient; onDismiss: (i
           <PopoverContent className="w-64 p-3" align="end">
             <p className="text-sm font-medium text-gray-800 mb-1">Dismiss this client?</p>
             <p className="text-xs text-gray-500 mb-3">
-              They will be removed from this list. They will re-appear automatically if they remain inactive.
+              They will be removed from this list. They will re-appear automatically if new business is recorded for them.
             </p>
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setOpen(false)}>

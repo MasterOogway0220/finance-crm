@@ -32,6 +32,9 @@ export async function GET(request: NextRequest) {
 
     // --- Inactive 2-month filter (bypasses all other filters) ---
     if (inactive2m) {
+      if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN' && userRole !== 'EQUITY_DEALER') {
+        return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+      }
       const now = new Date()
       const cutoff = new Date(now.getFullYear(), now.getMonth() - 1, 1)
 

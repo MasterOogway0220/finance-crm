@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
           ? new Date(c.lastBrokerageDate).toLocaleDateString('en-IN')
           : 'Never'
         const q = (v: string) => `"${v.replace(/"/g, '""')}"`
-        return `${q(c.clientCode)},${q(name)},${q(c.phone)},${q(c.operator.name)},${lastBrokerage},${c.daysInactive}`
+        return `${q(c.clientCode)},${q(name)},${q(c.phone)},${q(c.operator.name)},${q(lastBrokerage)},${c.daysInactive}`
       })
       const csv = [header, ...rows].join('\n')
       return new NextResponse(csv, {
