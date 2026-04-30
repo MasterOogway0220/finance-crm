@@ -15,8 +15,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { clientId } = body
-    if (!clientId || typeof clientId !== 'string') {
+    const clientId = (typeof body?.clientId === 'string' ? body.clientId : '').trim()
+    if (!clientId) {
       return NextResponse.json({ success: false, error: 'clientId is required' }, { status: 400 })
     }
 
@@ -29,17 +29,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Client not found' }, { status: 404 })
     }
 
+    const now = new Date()
     await prisma.noBusinessDismissal.upsert({
       where: { clientId },
-      create: {
-        clientId,
-        dismissedById: session.user.id,
-        dismissedAt: new Date(),
-      },
-      update: {
-        dismissedById: session.user.id,
-        dismissedAt: new Date(),
-      },
+      create: { clientId, dismissedById: session.user.id, dismissedAt: now },
+      update: { dismissedById: session.user.id, dismissedAt: now },
     })
 
     return NextResponse.json({ success: true })
