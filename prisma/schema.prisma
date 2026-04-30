@@ -441,6 +441,4 @@ model NoBusinessDismissal {
   dismissedById String
   dismissedBy   Employee @relation("DismissalAdmin", fields: [dismissedById], references: [id])
   dismissedAt   DateTime @default(now())
-
-  @@index([clientId])
 }
