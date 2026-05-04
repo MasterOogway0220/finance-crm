@@ -33,17 +33,22 @@ export default function EquityDashboardPage() {
   const [year, setYear]   = useState(String(today.getFullYear()))
 
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
-    fetch(`/api/dashboard/equity?month=${month}&year=${year}`)
+    setMfLoading(true)
+    fetch(`/api/dashboard/equity?month=${month}&year=${year}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
+      .catch((e) => { if (e.name !== 'AbortError') console.error(e) })
       .finally(() => setLoading(false))
 
-    setMfLoading(true)
-    fetch(`/api/mf-business/stats?month=${month}&year=${year}`)
+    fetch(`/api/mf-business/stats?month=${month}&year=${year}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => { if (d.success) setMfStats(d.data) })
+      .catch((e) => { if (e.name !== 'AbortError') console.error(e) })
       .finally(() => setMfLoading(false))
+
+    return () => controller.abort()
   }, [month, year])
 
   return (
