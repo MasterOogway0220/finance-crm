@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       prisma.client.count({ where: { department: 'EQUITY' } }),
       prisma.client.count({ where: { department: 'MUTUAL_FUND' } }),
       prisma.task.count({ where: { status: 'PENDING', createdAt: { gte: start, lte: end } } }),
-      prisma.task.count({ where: { status: 'PENDING', deadline: { lt: now }, createdAt: { gte: start, lte: end } } }),
+      prisma.task.count({ where: { status: 'PENDING', deadline: { lt: currentMonth ? now : end }, createdAt: { gte: start, lte: end } } }),
       prisma.task.count({ where: { status: 'COMPLETED', createdAt: { gte: start, lte: end } } }),
       prisma.task.count({ where: { status: 'EXPIRED', createdAt: { gte: start, lte: end } } }),
       prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { uploadDate: { gte: start, lte: end } } } }),
