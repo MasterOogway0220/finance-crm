@@ -4,7 +4,11 @@ import { useSession } from 'next-auth/react'
 import { Users, TrendingUp, TrendingDown, Percent, IndianRupee, ShoppingBag } from 'lucide-react'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatCurrency, formatDateLong } from '@/lib/utils'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { formatCurrency } from '@/lib/utils'
+
+const MONTHS = Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: new Date(0, i).toLocaleString('default', { month: 'long' }) }))
+const YEARS  = ['2024', '2025', '2026', '2027'].map((y) => ({ value: y, label: y }))
 
 interface EquityDashData {
   totalClients: number
@@ -25,30 +29,41 @@ export default function EquityDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [mfLoading, setMfLoading] = useState(true)
   const today = new Date()
-  const currentMonth = today.getMonth() + 1
-  const currentYear = today.getFullYear()
+  const [month, setMonth] = useState(String(today.getMonth() + 1))
+  const [year, setYear]   = useState(String(today.getFullYear()))
 
   useEffect(() => {
-    fetch('/api/dashboard/equity')
+    setLoading(true)
+    fetch(`/api/dashboard/equity?month=${month}&year=${year}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
       .finally(() => setLoading(false))
 
-    fetch(`/api/mf-business/stats?month=${currentMonth}&year=${currentYear}`)
+    setMfLoading(true)
+    fetch(`/api/mf-business/stats?month=${month}&year=${year}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setMfStats(d.data) })
       .finally(() => setMfLoading(false))
-  }, [currentMonth, currentYear])
+  }, [month, year])
 
   return (
     <div className="page-container space-y-6">
       {/* Welcome Banner */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="page-title">Welcome, {session?.user?.name?.split(' ')[0]}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Here's your work overview for today</p>
+          <p className="text-sm text-gray-500 mt-0.5">Here&apos;s your work overview for today</p>
         </div>
-        <p className="text-sm text-gray-500 hidden md:block">{formatDateLong(today)}</p>
+        <div className="flex items-center gap-2">
+          <Select value={month} onValueChange={setMonth}>
+            <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{MONTHS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={year} onValueChange={setYear}>
+            <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Equity KPIs */}
