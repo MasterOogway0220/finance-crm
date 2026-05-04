@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentMonthRange } from '@/lib/utils'
+import { getMonthRange } from '@/lib/utils'
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,9 +16,17 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
+    const now = new Date()
+    const month = parseInt(searchParams.get('month') ?? String(now.getMonth() + 1))
+    const year  = parseInt(searchParams.get('year')  ?? String(now.getFullYear()))
+
+    if (isNaN(month) || isNaN(year) || month < 1 || month > 12) {
+      return NextResponse.json({ success: false, error: 'Invalid month/year' }, { status: 400 })
+    }
+
     const myBusinessOnly = searchParams.get('myBusinessOnly') === 'true'
 
-    const { start, end } = getCurrentMonthRange()
+    const { start, end } = getMonthRange(month, year)
 
     const businessWhere: Record<string, unknown> = {
       employeeId: session.user.id,
@@ -28,16 +36,15 @@ export async function GET(request: NextRequest) {
       businessWhere.referredById = null
     }
 
-    const [totalClients, activeClients, inactiveClients, businessAgg] =
-      await Promise.all([
-        prisma.client.count({ where: { department: 'MUTUAL_FUND' } }),
-        prisma.client.count({ where: { department: 'MUTUAL_FUND', mfStatus: 'ACTIVE' } }),
-        prisma.client.count({ where: { department: 'MUTUAL_FUND', mfStatus: 'INACTIVE' } }),
-        prisma.mFBusiness.aggregate({
-          where: businessWhere,
-          _sum: { yearlyContribution: true, commissionAmount: true },
-        }),
-      ])
+    const [totalClients, activeClients, inactiveClients, businessAgg] = await Promise.all([
+      prisma.client.count({ where: { department: 'MUTUAL_FUND' } }),
+      prisma.client.count({ where: { department: 'MUTUAL_FUND', mfStatus: 'ACTIVE' } }),
+      prisma.client.count({ where: { department: 'MUTUAL_FUND', mfStatus: 'INACTIVE' } }),
+      prisma.mFBusiness.aggregate({
+        where: businessWhere,
+        _sum: { yearlyContribution: true, commissionAmount: true },
+      }),
+    ])
 
     return NextResponse.json({
       success: true,
