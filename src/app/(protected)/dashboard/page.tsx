@@ -59,8 +59,11 @@ export default function AdminDashboardPage() {
   const today = new Date()
   const [dashMonth, setDashMonth] = useState(String(today.getMonth() + 1))
   const [dashYear, setDashYear]   = useState(String(today.getFullYear()))
-  const currentDay = today.getDate()
-  const daysInMonth = getDaysInMonth(today.getFullYear(), today.getMonth() + 1)
+  const isViewingCurrentMonth =
+    parseInt(dashMonth) === today.getMonth() + 1 &&
+    parseInt(dashYear) === today.getFullYear()
+  const daysInMonth = getDaysInMonth(parseInt(dashYear), parseInt(dashMonth))
+  const currentDay = isViewingCurrentMonth ? today.getDate() : daysInMonth
   const { activeRole } = useActiveRoleStore()
 
   // Client-wise brokerage state
@@ -131,6 +134,8 @@ export default function AdminDashboardPage() {
     ? { value: `${Math.abs(((data.monthlyBrokerage - data.lastMonthBrokerage) / data.lastMonthBrokerage) * 100).toFixed(1)}% from last month`, positive: data.monthlyBrokerage >= data.lastMonthBrokerage }
     : undefined
 
+  const selectedMonthLabel = `${MONTHS.find((m) => m.value === dashMonth)?.label ?? ''} ${dashYear}`
+
   return (
     <div className="page-container space-y-6">
       {/* Header */}
@@ -175,7 +180,7 @@ export default function AdminDashboardPage() {
           <KpiCard
             title="Monthly Brokerage"
             value={formatCurrency(data.monthlyBrokerage)}
-            subtitle="Current month"
+            subtitle={selectedMonthLabel}
             icon={IndianRupee}
             accent="green"
             trend={brokerageTrend}
@@ -204,14 +209,14 @@ export default function AdminDashboardPage() {
           <KpiCard
             title="MF Total Sales"
             value={formatCurrency(data.mfTotalSales)}
-            subtitle="Current month"
+            subtitle={selectedMonthLabel}
             icon={TrendingUp}
             accent="emerald"
           />
           <KpiCard
             title="MF Total Commission"
             value={formatCurrency(data.mfTotalCommission)}
-            subtitle="Current month"
+            subtitle={selectedMonthLabel}
             icon={IndianRupee}
             accent="indigo"
           />
