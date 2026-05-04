@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { createNotification, tasksLinkForDepartment } from '@/lib/notifications'
 import { taskSchema } from '@/lib/validations'
+import { getMonthRange } from '@/lib/utils'
 import { Department, Role, TaskPriority, TaskStatus } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -73,8 +74,7 @@ export async function GET(request: NextRequest) {
     if (monthParam && yearParam) {
       const m = parseInt(monthParam)
       const y = parseInt(yearParam)
-      const createdStart = new Date(y, m - 1, 1)
-      const createdEnd   = new Date(y, m, 0, 23, 59, 59, 999)
+      const { start: createdStart, end: createdEnd } = getMonthRange(m, y)
       where.createdAt = { gte: createdStart, lte: createdEnd }
     }
 
