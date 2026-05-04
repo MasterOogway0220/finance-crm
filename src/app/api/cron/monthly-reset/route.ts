@@ -3,8 +3,10 @@ import { runMonthlyReset } from '@/lib/monthly-reset'
 import { invalidateCache } from '@/lib/cache'
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('Authorization')
-  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET) {
+    return NextResponse.json({ success: false, error: 'CRON_SECRET not configured' }, { status: 500 })
+  }
+  if (request.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 

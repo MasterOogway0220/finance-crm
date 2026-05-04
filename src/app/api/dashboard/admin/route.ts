@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const month = parseInt(searchParams.get('month') ?? String(now.getMonth() + 1))
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
+    if (isNaN(month) || isNaN(year) || month < 1 || month > 12) {
+      return NextResponse.json({ success: false, error: 'Invalid month/year' }, { status: 400 })
+    }
     const currentMonth = isCurrentMonth(month, year)
 
     const cacheKey = `dashboard:admin:${month}:${year}`

@@ -87,11 +87,14 @@ export default function AdminDashboardPage() {
   }, [activeRole])
 
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
-    fetch(`/api/dashboard/admin?month=${dashMonth}&year=${dashYear}`)
+    fetch(`/api/dashboard/admin?month=${dashMonth}&year=${dashYear}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
+      .catch((e) => { if (e.name !== 'AbortError') console.error(e) })
       .finally(() => setLoading(false))
+    return () => controller.abort()
   }, [dashMonth, dashYear])
 
   // Fetch equity employees for dropdown

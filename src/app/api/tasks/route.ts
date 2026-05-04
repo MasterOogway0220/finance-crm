@@ -74,8 +74,10 @@ export async function GET(request: NextRequest) {
     if (monthParam && yearParam) {
       const m = parseInt(monthParam)
       const y = parseInt(yearParam)
-      const { start: createdStart, end: createdEnd } = getMonthRange(m, y)
-      where.createdAt = { gte: createdStart, lte: createdEnd }
+      if (!isNaN(m) && !isNaN(y) && m >= 1 && m <= 12) {
+        const { start: createdStart, end: createdEnd } = getMonthRange(m, y)
+        where.createdAt = { gte: createdStart, lte: createdEnd }
+      }
     }
 
     if (department) {

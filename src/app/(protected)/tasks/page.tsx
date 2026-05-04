@@ -74,7 +74,9 @@ export default function AdminTasksPage() {
     return () => clearTimeout(timer)
   }, [fetchTasks])
 
+  const now3 = new Date()
   const hasFilters = status !== 'all' || priority !== 'all' || dept !== 'all' || search !== ''
+    || taskMonth !== String(now3.getMonth() + 1) || taskYear !== String(now3.getFullYear())
 
   return (
     <div className="page-container space-y-5">
@@ -141,7 +143,7 @@ export default function AdminTasksPage() {
             <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
           </Select>
           {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setStatus('all'); setPriority('all'); setDept('all') }} className="gap-1.5 text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setStatus('all'); setPriority('all'); setDept('all'); setTaskMonth(String(now3.getMonth() + 1)); setTaskYear(String(now3.getFullYear())) }} className="gap-1.5 text-muted-foreground hover:text-foreground">
               <X className="h-3.5 w-3.5" />Clear
             </Button>
           )}
