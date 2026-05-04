@@ -57,6 +57,8 @@ export default function AdminDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const today = new Date()
+  const [dashMonth, setDashMonth] = useState(String(today.getMonth() + 1))
+  const [dashYear, setDashYear]   = useState(String(today.getFullYear()))
   const currentDay = today.getDate()
   const daysInMonth = getDaysInMonth(today.getFullYear(), today.getMonth() + 1)
   const { activeRole } = useActiveRoleStore()
@@ -82,11 +84,12 @@ export default function AdminDashboardPage() {
   }, [activeRole])
 
   useEffect(() => {
-    fetch('/api/dashboard/admin')
+    setLoading(true)
+    fetch(`/api/dashboard/admin?month=${dashMonth}&year=${dashYear}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
       .finally(() => setLoading(false))
-  }, [])
+  }, [dashMonth, dashYear])
 
   // Fetch equity employees for dropdown
   useEffect(() => {
@@ -131,10 +134,20 @@ export default function AdminDashboardPage() {
   return (
     <div className="page-container space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="page-title">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-0.5">{formatDateLong(today)}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={dashMonth} onValueChange={setDashMonth}>
+            <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{MONTHS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={dashYear} onValueChange={setDashYear}>
+            <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
+          </Select>
         </div>
       </div>
 
