@@ -5,7 +5,11 @@ import { Users, Activity, UserX, IndianRupee, TrendingUp } from 'lucide-react'
 import { KpiCard } from '@/components/dashboard/kpi-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
-import { formatCurrency, formatDateLong } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+const MONTHS = Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: new Date(0, i).toLocaleString('default', { month: 'long' }) }))
+const YEARS  = ['2024', '2025', '2026', '2027'].map((y) => ({ value: y, label: y }))
 
 interface MFDashData {
   totalClients: number
@@ -21,16 +25,21 @@ export default function MFDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [myBusinessOnly, setMyBusinessOnly] = useState(false)
   const today = new Date()
+  const [month, setMonth] = useState(String(today.getMonth() + 1))
+  const [year, setYear]   = useState(String(today.getFullYear()))
 
   useEffect(() => {
+    const controller = new AbortController()
     setLoading(true)
-    const params = new URLSearchParams()
+    const params = new URLSearchParams({ month, year })
     if (myBusinessOnly) params.set('myBusinessOnly', 'true')
-    fetch(`/api/dashboard/mf?${params}`)
+    fetch(`/api/dashboard/mf?${params}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
+      .catch((e) => { if (e.name !== 'AbortError') console.error(e) })
       .finally(() => setLoading(false))
-  }, [myBusinessOnly])
+    return () => controller.abort()
+  }, [month, year, myBusinessOnly])
 
   return (
     <div className="page-container space-y-6">
@@ -48,7 +57,16 @@ export default function MFDashboardPage() {
             />
             <label htmlFor="myBizDash" className="text-sm cursor-pointer text-gray-600">My Business Only</label>
           </div>
-          <p className="text-sm text-gray-500 hidden md:block">{formatDateLong(today)}</p>
+          <div className="flex items-center gap-2">
+            <Select value={month} onValueChange={setMonth}>
+              <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>{MONTHS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={year} onValueChange={setYear}>
+              <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
