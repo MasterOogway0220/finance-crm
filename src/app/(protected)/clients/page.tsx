@@ -53,6 +53,27 @@ export default function AllClientsPage() {
 
   useEffect(() => { const t = setTimeout(fetchClients, 300); return () => clearTimeout(t) }, [fetchClients])
 
+  useEffect(() => {
+    const lastUpdatedRef = { current: null as string | null }
+    const check = async () => {
+      try {
+        const res = await fetch('/api/reset-status')
+        const d = await res.json()
+        if (lastUpdatedRef.current === null) {
+          lastUpdatedRef.current = d.lastUpdated
+        } else if (d.lastUpdated !== lastUpdatedRef.current) {
+          lastUpdatedRef.current = d.lastUpdated
+          fetchClients()
+        }
+      } catch {
+        // ignore transient network errors
+      }
+    }
+    check()
+    const id = setInterval(check, 30_000)
+    return () => clearInterval(id)
+  }, [fetchClients])
+
   const allSelected = clients.length > 0 && selected.size === clients.length
 
   const toggleSelectAll = (checked: boolean) => {
