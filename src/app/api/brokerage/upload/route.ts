@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { createNotificationForMany } from '@/lib/notifications'
-import { isAutoTradeOperator } from '@/lib/auto-trade-config'
 import { invalidateCache } from '@/lib/cache'
 import { Role } from '@prisma/client'
 import * as XLSX from 'xlsx'
@@ -227,12 +226,9 @@ export async function POST(request: NextRequest) {
     const operatorIds = [...new Set(details.map((d) => d.operatorId))]
     const operators = await prisma.employee.findMany({
       where: { id: { in: operatorIds } },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true },
     })
     const operatorNameMap = new Map(operators.map((o) => [o.id, o.name]))
-    const autoTradeOperatorIds = new Set(
-      operators.filter((o) => isAutoTradeOperator(o.email)).map((o) => o.id),
-    )
 
     const opSummaryMap = new Map<string, { operatorName: string; clientCount: number; totalAmount: number }>()
     for (const d of details) {
@@ -273,15 +269,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create BrokerageUpload + BrokerageDetails and auto-flip TRADED status
-    // for clients owned by auto-trade operators (Kedar Sir, Sarvesh) in a
-    // single transaction, so the upload and status update commit together.
+    // for all matched clients in a single transaction.
     const autoTradedClientIds = details
-      .filter(
-        (d) =>
-          d.clientId !== null &&
-          d.amount > 0 &&
-          autoTradeOperatorIds.has(d.operatorId),
-      )
+      .filter((d) => d.clientId !== null && d.amount > 0)
       .map((d) => d.clientId!)
 
     const upload = await prisma.$transaction(async (tx) => {
