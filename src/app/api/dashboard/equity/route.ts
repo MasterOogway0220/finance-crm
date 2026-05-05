@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     // Always derive traded count from BrokerageDetail — Client.status accumulates across
     // uploads and is not reliably reset, so it diverges from actual brokerage data.
     const uploads = await prisma.brokerageUpload.findMany({
-      where: { uploadDate: { gte: start, lte: end } },
+      where: { uploadDate: { gte: start, lte: end }, isActive: true },
       include: {
         details: {
           where: { operatorId },

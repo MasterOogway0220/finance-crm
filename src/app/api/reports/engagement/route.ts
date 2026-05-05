@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     // Pre-fetch current month's traded clients per operator from BrokerageDetail
     const operatorIds = equityDealers.map((op) => op.id)
     const monthDetails = await prisma.brokerageDetail.findMany({
-      where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: start, lte: end } } },
+      where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } },
       select: { operatorId: true, clientId: true },
     })
     const tradedSets = new Map<string, Set<string>>()

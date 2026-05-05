@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     const uploads = await prisma.brokerageUpload.findMany({
       where: {
         uploadDate: { gte: monthStart, lte: monthEnd },
+        isActive: true,
       },
       include: {
         details: {

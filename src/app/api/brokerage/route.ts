@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       // Current month brokerage uploads (for monthly total + daily breakdown + traded clients)
       prisma.brokerageUpload.findMany({
-        where: { uploadDate: { gte: monthStart, lte: monthEnd } },
+        where: { uploadDate: { gte: monthStart, lte: monthEnd }, isActive: true },
         include: {
           details: { where: { clientId: { not: null } }, select: { operatorId: true, clientId: true, amount: true } },
         },
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, remark: 'DID_NOT_ANSWER' }, _count: { id: true } }),
       // Full 7-month history (one query replaces N×7 aggregates)
       prisma.brokerageDetail.findMany({
-        where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: historyStart, lte: historyEnd } } },
+        where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { isActive: true, uploadDate: { gte: historyStart, lte: historyEnd } } },
         select: { operatorId: true, amount: true, brokerage: { select: { uploadDate: true } } },
       }),
     ])

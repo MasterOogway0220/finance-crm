@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       const mfActiveCodes = mfActiveClients.map((c) => c.clientCode)
 
       const notConditions: Prisma.ClientWhereInput[] = [
-        { brokerageDetails: { some: { brokerage: { uploadDate: { gte: cutoff } } } } },
+        { brokerageDetails: { some: { brokerage: { isActive: true, uploadDate: { gte: cutoff } } } } },
       ]
       if (mfActiveCodes.length > 0) {
         notConditions.push({ clientCode: { in: mfActiveCodes } })
@@ -100,9 +100,9 @@ export async function GET(request: NextRequest) {
         const { start, end } = getMonthRange(now.getMonth() + 1, now.getFullYear())
         where.department = 'EQUITY'
         if (status === 'TRADED') {
-          where.brokerageDetails = { some: { brokerage: { uploadDate: { gte: start, lte: end } } } }
+          where.brokerageDetails = { some: { brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } } }
         } else {
-          where.brokerageDetails = { none: { brokerage: { uploadDate: { gte: start, lte: end } } } }
+          where.brokerageDetails = { none: { brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } } }
         }
       } else {
         where.status = status
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
     const tradedSet = new Set<string>()
     if (equityIds.length > 0) {
       const tradedRows = await prisma.brokerageDetail.findMany({
-        where: { clientId: { in: equityIds }, brokerage: { uploadDate: { gte: mStart, lte: mEnd } } },
+        where: { clientId: { in: equityIds }, brokerage: { isActive: true, uploadDate: { gte: mStart, lte: mEnd } } },
         select: { clientId: true },
         distinct: ['clientId'],
       })

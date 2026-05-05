@@ -30,7 +30,7 @@ export async function runMonthlyReset() {
       where: {
         operatorId: op.id,
         clientId: { not: null },
-        brokerage: { uploadDate: { gte: prevMonthStart, lte: prevMonthEnd } },
+        brokerage: { isActive: true, uploadDate: { gte: prevMonthStart, lte: prevMonthEnd } },
       },
       select: { clientId: true, amount: true },
     })

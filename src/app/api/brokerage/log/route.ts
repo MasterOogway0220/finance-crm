@@ -36,6 +36,8 @@ export async function GET(request: NextRequest) {
       id: u.id,
       uploadDate: u.uploadDate,
       branch: u.branch,
+      version: u.version,
+      isActive: u.isActive,
       fileName: u.fileName,
       totalAmount: u.totalAmount,
       uploadedBy: u.uploadedBy?.name ?? 'Deleted employee',

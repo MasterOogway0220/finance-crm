@@ -59,8 +59,8 @@ export async function GET(request: NextRequest) {
       prisma.task.count({ where: { status: 'PENDING', deadline: { lt: currentMonth ? now : end }, createdAt: { gte: start, lte: end } } }),
       prisma.task.count({ where: { status: 'COMPLETED', createdAt: { gte: start, lte: end } } }),
       prisma.task.count({ where: { status: 'EXPIRED', createdAt: { gte: start, lte: end } } }),
-      prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { uploadDate: { gte: start, lte: end } } } }),
-      prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { uploadDate: { gte: lastStart, lte: lastEnd } } } }),
+      prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } } }),
+      prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { isActive: true, uploadDate: { gte: lastStart, lte: lastEnd } } } }),
       prisma.employee.findMany({ where: { role: 'EQUITY_DEALER', isActive: true }, select: { id: true, name: true } }),
       prisma.mFBusiness.aggregate({
         _sum: { yearlyContribution: true, commissionAmount: true },
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     const dailyMap        = new Map<string, Record<number, number>>()
 
     const monthDetails = await prisma.brokerageDetail.findMany({
-      where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: start, lte: end } } },
+      where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } },
       select: { operatorId: true, clientId: true, amount: true, brokerage: { select: { uploadDate: true } } },
     })
     const tradedSets = new Map<string, Set<string>>()
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     const tradedClients = allTradedIds.size
 
     const yearDetails = await prisma.brokerageDetail.findMany({
-      where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: yearStart, lte: yearEnd } } },
+      where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { isActive: true, uploadDate: { gte: yearStart, lte: yearEnd } } },
       select: { operatorId: true, amount: true, brokerage: { select: { uploadDate: true } } },
     })
 
