@@ -108,6 +108,27 @@ export default function MFClientsPage() {
     return () => clearTimeout(t)
   }, [fetchClients])
 
+  useEffect(() => {
+    const lastUpdatedRef = { current: null as string | null }
+    const check = async () => {
+      try {
+        const res = await fetch('/api/reset-status')
+        const d = await res.json()
+        if (lastUpdatedRef.current === null) {
+          lastUpdatedRef.current = d.lastUpdated
+        } else if (d.lastUpdated !== lastUpdatedRef.current) {
+          lastUpdatedRef.current = d.lastUpdated
+          fetchClients()
+        }
+      } catch {
+        // ignore transient network errors
+      }
+    }
+    check()
+    const id = setInterval(check, 30_000)
+    return () => clearInterval(id)
+  }, [fetchClients])
+
   const updateClient = async (id: string, updates: Record<string, unknown>) => {
     const res = await fetch(`/api/clients/${id}`, {
       method: 'PATCH',
