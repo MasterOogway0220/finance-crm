@@ -152,16 +152,19 @@ export default function BrokeragePage() {
 
   const handleActivate = async (id: string) => {
     setActivating(id)
-    const res = await fetch(`/api/brokerage/${id}/activate`, { method: 'PATCH' })
-    const d = await res.json()
-    if (d.success) {
-      toast.success(`Version ${d.data.version} set as active`)
-      fetchData()
-      fetchLog()
-    } else {
-      toast.error(d.error || 'Failed to activate version')
+    try {
+      const res = await fetch(`/api/brokerage/${id}/activate`, { method: 'PATCH' })
+      const d = await res.json()
+      if (d.success) {
+        toast.success(`Version ${d.data.version} set as active`)
+        fetchData()
+        fetchLog()
+      } else {
+        toast.error(d.error || 'Failed to activate version')
+      }
+    } finally {
+      setActivating(null)
     }
-    setActivating(null)
   }
 
   const toggleUploadSelect = (id: string) => {
