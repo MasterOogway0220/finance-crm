@@ -108,7 +108,7 @@ export async function runMonthlyReset() {
 
   const adminForLog = await prisma.employee.findFirst({
     where: { role: { in: ['SUPER_ADMIN', 'ADMIN'] }, isActive: true },
-    orderBy: { role: 'asc' },
+    orderBy: { role: 'desc' },
     select: { id: true },
   })
   if (adminForLog) {
