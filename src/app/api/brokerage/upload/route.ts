@@ -242,10 +242,13 @@ export async function POST(request: NextRequest) {
     }
     const operatorSummary = Array.from(opSummaryMap.values())
 
-    const existingUpload = await prisma.brokerageUpload.findUnique({
-      where: { uploadDate_branch: { uploadDate, branch } },
+    const existingUploads = await prisma.brokerageUpload.findMany({
+      where: { uploadDate, branch },
+      select: { id: true, version: true, isActive: true },
+      orderBy: { version: 'desc' },
     })
-    const dateExists = !!existingUpload
+    const existingVersions = existingUploads.length
+    const nextVersion = existingVersions > 0 ? existingUploads[0].version + 1 : 1
 
     // Preview mode — return summary without writing to DB
     const isPreview = formData.get('preview') === 'true'
@@ -258,37 +261,37 @@ export async function POST(request: NextRequest) {
           totalAmount,
           unmappedCodes,
           duplicatesConsolidated,
-          dateExists,
+          existingVersions,
+          nextVersion,
         },
       })
     }
 
-    // Confirm mode — write to DB
-    if (existingUpload) {
-      await prisma.brokerageUpload.delete({ where: { id: existingUpload.id } })
-    }
-
-    // Create BrokerageUpload + BrokerageDetails and auto-flip TRADED status
-    // for all matched clients in a single transaction.
+    // Confirm mode — create new version, deactivate previous versions
     const autoTradedClientIds = details
       .filter((d) => d.clientId !== null && d.amount > 0)
       .map((d) => d.clientId!)
 
     const upload = await prisma.$transaction(async (tx) => {
+      if (existingUploads.length > 0) {
+        await tx.brokerageUpload.updateMany({
+          where: { uploadDate, branch },
+          data: { isActive: false },
+        })
+      }
+
       const newUpload = await tx.brokerageUpload.create({
         data: {
           uploadDate,
           branch,
+          version: nextVersion,
+          isActive: true,
           uploadedById: session.user.id,
           totalAmount,
           fileName: file.name,
-          details: {
-            create: details,
-          },
+          details: { create: details },
         },
-        include: {
-          details: true,
-        },
+        include: { details: true },
       })
 
       if (autoTradedClientIds.length > 0) {
@@ -332,10 +335,12 @@ export async function POST(request: NextRequest) {
       data: {
         uploadId: upload.id,
         uploadDate: upload.uploadDate,
+        version: upload.version,
         totalAmount,
         mappedCount: details.length,
         unmappedCount: unmappedCodes.length,
         skippedCodes: unmappedCodes,
+        previousVersionsDeactivated: existingUploads.length,
       },
     })
   } catch (error) {
