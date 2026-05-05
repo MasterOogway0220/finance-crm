@@ -60,8 +60,8 @@ export default function AllClientsPage() {
         const res = await fetch('/api/reset-status')
         const d = await res.json()
         if (lastUpdatedRef.current === null) {
-          lastUpdatedRef.current = d.lastUpdated
-        } else if (d.lastUpdated !== lastUpdatedRef.current) {
+          if (d.lastUpdated) lastUpdatedRef.current = d.lastUpdated
+        } else if (d.lastUpdated && d.lastUpdated !== lastUpdatedRef.current) {
           lastUpdatedRef.current = d.lastUpdated
           fetchClients()
         }
