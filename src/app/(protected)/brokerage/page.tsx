@@ -65,11 +65,14 @@ export default function BrokeragePage() {
     id: string
     uploadDate: string
     branch: string
+    version: number
+    isActive: boolean
     fileName: string
     totalAmount: number
     uploadedBy: string
     createdAt: string
   }>>([])
+  const [activating, setActivating] = useState<string | null>(null)
   const [reverseTarget, setReverseTarget] = useState<string | null>(null)
   const [reversing, setReversing] = useState(false)
   const [selectedUploads, setSelectedUploads] = useState<Set<string>>(new Set())
@@ -145,6 +148,20 @@ export default function BrokeragePage() {
       toast.error(d.error || 'Bulk reversal failed')
     }
     setBulkReversing(false)
+  }
+
+  const handleActivate = async (id: string) => {
+    setActivating(id)
+    const res = await fetch(`/api/brokerage/${id}/activate`, { method: 'PATCH' })
+    const d = await res.json()
+    if (d.success) {
+      toast.success(`Version ${d.data.version} set as active`)
+      fetchData()
+      fetchLog()
+    } else {
+      toast.error(d.error || 'Failed to activate version')
+    }
+    setActivating(null)
   }
 
   const toggleUploadSelect = (id: string) => {
@@ -381,6 +398,7 @@ export default function BrokeragePage() {
                       </th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">Date</th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">Branch</th>
+                      <th className="px-3 py-2.5 text-center font-semibold text-gray-600 text-xs">Ver.</th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">File Name</th>
                       <th className="px-3 py-2.5 text-right font-semibold text-gray-600 text-xs">Total Amount</th>
                       <th className="px-3 py-2.5 text-left font-semibold text-gray-600 text-xs">Uploaded By</th>
@@ -401,14 +419,32 @@ export default function BrokeragePage() {
                         </td>
                         <td className="px-3 py-2.5 text-sm text-gray-800">{format(new Date(log.uploadDate), 'd MMM yyyy')}</td>
                         <td className="px-3 py-2.5 text-sm text-gray-600">{log.branch}</td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', log.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                            v{log.version}{log.isActive ? ' ✓' : ''}
+                          </span>
+                        </td>
                         <td className="px-3 py-2.5 text-sm text-gray-600">{log.fileName}</td>
                         <td className="px-3 py-2.5 text-sm text-right font-medium">{formatCurrency(log.totalAmount)}</td>
                         <td className="px-3 py-2.5 text-sm text-gray-600">{log.uploadedBy}</td>
                         <td className="px-3 py-2.5 text-xs text-gray-500">{format(new Date(log.createdAt), 'd MMM yyyy, h:mm a')}</td>
                         <td className="px-3 py-2.5 text-center">
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setReverseTarget(log.id)}>
-                            Reverse
-                          </Button>
+                          <div className="flex items-center justify-center gap-1">
+                            {!log.isActive && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                disabled={activating === log.id}
+                                onClick={() => handleActivate(log.id)}
+                              >
+                                {activating === log.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Set Active'}
+                              </Button>
+                            )}
+                            <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setReverseTarget(log.id)}>
+                              Delete
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -430,7 +466,7 @@ export default function BrokeragePage() {
                   <Button variant="outline" className="flex-1" onClick={() => setReverseTarget(null)}>Cancel</Button>
                   <Button variant="destructive" className="flex-1" onClick={handleReverse} disabled={reversing}>
                     {reversing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {reversing ? 'Reversing…' : 'Confirm Reverse'}
+                    {reversing ? 'Deleting…' : 'Confirm Delete'}
                   </Button>
                 </div>
               </div>
@@ -449,7 +485,7 @@ export default function BrokeragePage() {
                   <Button variant="outline" className="flex-1" onClick={() => setBulkReverseOpen(false)}>Cancel</Button>
                   <Button variant="destructive" className="flex-1" onClick={handleBulkReverse} disabled={bulkReversing}>
                     {bulkReversing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {bulkReversing ? 'Reversing…' : `Reverse ${selectedUploads.size} Upload${selectedUploads.size > 1 ? 's' : ''}`}
+                    {bulkReversing ? 'Deleting…' : `Delete ${selectedUploads.size} Upload${selectedUploads.size > 1 ? 's' : ''}`}
                   </Button>
                 </div>
               </div>
