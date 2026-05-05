@@ -6,9 +6,10 @@ import { Prisma } from '@prisma/client'
 
 export async function PATCH(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await auth()
     if (!session?.user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
@@ -19,7 +20,7 @@ export async function PATCH(
     }
 
     const target = await prisma.brokerageUpload.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: { id: true, uploadDate: true, branch: true, version: true, isActive: true },
     })
     if (!target) {
@@ -32,14 +33,14 @@ export async function PATCH(
         data: { isActive: false },
       }),
       prisma.brokerageUpload.update({
-        where: { id: params.id },
+        where: { id },
         data: { isActive: true },
       }),
     ])
 
     invalidateCache('dashboard:')
 
-    return NextResponse.json({ success: true, data: { activatedId: params.id, version: target.version, alreadyActive: target.isActive } })
+    return NextResponse.json({ success: true, data: { activatedId: id, version: target.version, alreadyActive: target.isActive } })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
       return NextResponse.json({ success: false, error: 'Upload not found' }, { status: 404 })
