@@ -79,7 +79,7 @@ export async function GET() {
           clientCode: c.clientCode,
           name: [c.firstName, c.lastName].filter(Boolean).join(' '),
           phone: c.phone,
-          operatorName: c.operator.name,
+          operatorName: c.operator?.name ?? 'Unknown',
         })),
         count: clients.length,
       },
