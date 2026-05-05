@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { clientSchema } from '@/lib/validations'
 import { validateClientCode } from '@/lib/client-code-validator'
+import { getMonthRange } from '@/lib/utils'
 import { ClientRemark, ClientStatus, Department, MFClientRemark, MFClientStatus, Role, Prisma } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -92,7 +93,21 @@ export async function GET(request: NextRequest) {
       where.operatorId = operatorIdParam
     }
 
-    if (status) where.status = status
+    if (status) {
+      const isEquityScope = !department || department === 'EQUITY'
+      if (isEquityScope) {
+        const now = new Date()
+        const { start, end } = getMonthRange(now.getMonth() + 1, now.getFullYear())
+        where.department = 'EQUITY'
+        if (status === 'TRADED') {
+          where.brokerageDetails = { some: { brokerage: { uploadDate: { gte: start, lte: end } } } }
+        } else {
+          where.brokerageDetails = { none: { brokerage: { uploadDate: { gte: start, lte: end } } } }
+        }
+      } else {
+        where.status = status
+      }
+    }
     if (remark) where.remark = remark
     if (mfStatus) where.mfStatus = mfStatus
     if (mfRemark) where.mfRemark = mfRemark
@@ -141,10 +156,28 @@ export async function GET(request: NextRequest) {
       prisma.client.count({ where }),
     ])
 
+    // Compute tradedThisMonth for EQUITY clients from BrokerageDetail
+    const now = new Date()
+    const { start: mStart, end: mEnd } = getMonthRange(now.getMonth() + 1, now.getFullYear())
+    const equityIds = clients.filter(c => c.department === 'EQUITY').map(c => c.id)
+    const tradedSet = new Set<string>()
+    if (equityIds.length > 0) {
+      const tradedRows = await prisma.brokerageDetail.findMany({
+        where: { clientId: { in: equityIds }, brokerage: { uploadDate: { gte: mStart, lte: mEnd } } },
+        select: { clientId: true },
+        distinct: ['clientId'],
+      })
+      tradedRows.forEach(r => { if (r.clientId) tradedSet.add(r.clientId) })
+    }
+    const enrichedClients = clients.map(c => ({
+      ...c,
+      tradedThisMonth: c.department === 'EQUITY' ? tradedSet.has(c.id) : undefined,
+    }))
+
     return NextResponse.json({
       success: true,
       data: {
-        clients,
+        clients: enrichedClients,
         pagination: {
           page,
           limit,

@@ -197,7 +197,7 @@ export default function AllClientsPage() {
             ) : clients.map((c) => (
               <tr key={c.id} className={cn(
                 'border-b border-gray-100 hover:bg-gray-50',
-                selected.has(c.id) ? 'bg-blue-50' : c.status === 'TRADED' ? 'bg-green-50' : 'bg-white'
+                selected.has(c.id) ? 'bg-blue-50' : c.tradedThisMonth ? 'bg-green-50' : 'bg-white'
               )}>
                 {isAdmin && (
                   <td className="px-4 py-3">
@@ -224,8 +224,14 @@ export default function AllClientsPage() {
                 </td>
                 <td className="px-4 py-3 text-gray-600 text-xs">{c.operator.name}</td>
                 <td className="px-4 py-3">
-                  <span className={cn('text-xs px-2 py-1 rounded-full font-medium', c.status === 'TRADED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600')}>
-                    {c.department === 'EQUITY' ? c.status.replace('_', ' ') : c.mfStatus.replace('_', ' ')}
+                  <span className={cn('text-xs px-2 py-1 rounded-full font-medium',
+                    c.department === 'EQUITY'
+                      ? c.tradedThisMonth ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                      : c.mfStatus === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                  )}>
+                    {c.department === 'EQUITY'
+                      ? (c.tradedThisMonth ? 'TRADED' : 'NOT TRADED')
+                      : c.mfStatus.replace('_', ' ')}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-gray-500 text-xs">
