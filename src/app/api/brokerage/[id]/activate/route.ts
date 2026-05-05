@@ -2,6 +2,7 @@ import { auth, getEffectiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { invalidateCache } from '@/lib/cache'
+import { Prisma } from '@prisma/client'
 
 export async function PATCH(
   _request: NextRequest,
@@ -19,7 +20,7 @@ export async function PATCH(
 
     const target = await prisma.brokerageUpload.findUnique({
       where: { id: params.id },
-      select: { id: true, uploadDate: true, branch: true, version: true },
+      select: { id: true, uploadDate: true, branch: true, version: true, isActive: true },
     })
     if (!target) {
       return NextResponse.json({ success: false, error: 'Upload not found' }, { status: 404 })
@@ -38,8 +39,11 @@ export async function PATCH(
 
     invalidateCache('dashboard:')
 
-    return NextResponse.json({ success: true, data: { activatedId: params.id, version: target.version } })
+    return NextResponse.json({ success: true, data: { activatedId: params.id, version: target.version, alreadyActive: target.isActive } })
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return NextResponse.json({ success: false, error: 'Upload not found' }, { status: 404 })
+    }
     console.error('[PATCH /api/brokerage/[id]/activate]', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }

@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { createNotificationForMany } from '@/lib/notifications'
 import { invalidateCache } from '@/lib/cache'
-import { Role } from '@prisma/client'
+import { Prisma, Role } from '@prisma/client'
 import * as XLSX from 'xlsx'
 
 function findColumnIndex(headers: string[], candidates: string[]): number {
@@ -344,6 +344,9 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return NextResponse.json({ success: false, error: 'Upload conflict — a concurrent upload was in progress. Please retry.' }, { status: 409 })
+    }
     console.error('[POST /api/brokerage/upload]', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
