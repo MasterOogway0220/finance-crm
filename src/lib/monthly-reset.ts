@@ -4,8 +4,11 @@ import { createNotificationForMany } from '@/lib/notifications'
 
 export async function runMonthlyReset() {
   const now = new Date()
-  const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth()
-  const prevYear  = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+  const prevMonthDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const prevMonth      = prevMonthDate.getMonth() + 1
+  const prevYear       = prevMonthDate.getFullYear()
+  const prevMonthStart = new Date(prevYear, prevMonth - 1, 1)
+  const prevMonthEnd   = new Date(prevYear, prevMonth, 0, 23, 59, 59, 999)
 
   // Idempotency guard — skip if already archived for this month
   const alreadyRun = await prisma.monthlyArchive.findFirst({
@@ -16,16 +19,13 @@ export async function runMonthlyReset() {
     return { skipped: true, reason: `Already run for ${prevMonth}/${prevYear}` }
   }
 
-  const prevMonthStart = new Date(prevYear, prevMonth - 1, 1)
-  const prevMonthEnd   = new Date(prevYear, prevMonth, 0, 23, 59, 59, 999)
-
   // ── 1. Archive BROKERAGE summary per equity operator ─────────────────────
   const operators = await prisma.employee.findMany({
     where: { role: 'EQUITY_DEALER', isActive: true },
     select: { id: true, name: true },
   })
 
-  for (const op of operators) {
+  await Promise.all(operators.map(async (op) => {
     const details = await prisma.brokerageDetail.findMany({
       where: {
         operatorId: op.id,
@@ -37,43 +37,42 @@ export async function runMonthlyReset() {
     const brokerageAmount = details.reduce((s, d) => s + d.amount, 0)
     const tradedClients   = new Set(details.map((d) => d.clientId!)).size
     const totalClients    = await prisma.client.count({ where: { operatorId: op.id } })
-
     await prisma.monthlyArchive.upsert({
       where: { month_year_entityType_entityId: { month: prevMonth, year: prevYear, entityType: 'BROKERAGE', entityId: op.id } },
       create: { month: prevMonth, year: prevYear, entityType: 'BROKERAGE', entityId: op.id, data: { operatorId: op.id, operatorName: op.name, amount: brokerageAmount, totalClients, tradedClients } },
       update: { data: { operatorId: op.id, operatorName: op.name, amount: brokerageAmount, totalClients, tradedClients } },
     })
-  }
+  }))
 
   // ── 2. Archive CLIENT_STATUS snapshot (equity) ────────────────────────────
   const equityClients = await prisma.client.findMany({
     where: { department: 'EQUITY' },
     select: { id: true, clientCode: true, operatorId: true, status: true, remark: true },
   })
-  for (const client of equityClients) {
+  await Promise.all(equityClients.map(async (client) => {
     await prisma.monthlyArchive.upsert({
       where: { month_year_entityType_entityId: { month: prevMonth, year: prevYear, entityType: 'CLIENT_STATUS', entityId: client.id } },
       create: { month: prevMonth, year: prevYear, entityType: 'CLIENT_STATUS', entityId: client.id, data: { clientCode: client.clientCode, operatorId: client.operatorId, status: client.status, remark: client.remark } },
       update: { data: { clientCode: client.clientCode, operatorId: client.operatorId, status: client.status, remark: client.remark } },
     })
-  }
+  }))
 
   // ── 3. Archive MF_CLIENT_STATUS snapshot ─────────────────────────────────
   const mfClients = await prisma.client.findMany({
     where: { department: 'MUTUAL_FUND' },
     select: { id: true, clientCode: true, operatorId: true, mfStatus: true, mfRemark: true },
   })
-  for (const client of mfClients) {
+  await Promise.all(mfClients.map(async (client) => {
     await prisma.monthlyArchive.upsert({
       where: { month_year_entityType_entityId: { month: prevMonth, year: prevYear, entityType: 'MF_CLIENT_STATUS', entityId: client.id } },
       create: { month: prevMonth, year: prevYear, entityType: 'MF_CLIENT_STATUS', entityId: client.id, data: { clientCode: client.clientCode, operatorId: client.operatorId, mfStatus: client.mfStatus, mfRemark: client.mfRemark } },
       update: { data: { clientCode: client.clientCode, operatorId: client.operatorId, mfStatus: client.mfStatus, mfRemark: client.mfRemark } },
     })
-  }
+  }))
 
   // ── 4. Archive TASK_SUMMARY per employee ─────────────────────────────────
   const employees = await prisma.employee.findMany({ where: { isActive: true }, select: { id: true } })
-  for (const emp of employees) {
+  await Promise.all(employees.map(async (emp) => {
     const [completed, pending, expired] = await Promise.all([
       prisma.task.count({ where: { assignedToId: emp.id, status: 'COMPLETED', completedAt: { gte: prevMonthStart, lte: prevMonthEnd } } }),
       prisma.task.count({ where: { assignedToId: emp.id, status: 'PENDING' } }),
@@ -84,7 +83,7 @@ export async function runMonthlyReset() {
       create: { month: prevMonth, year: prevYear, entityType: 'TASK_SUMMARY', entityId: emp.id, data: { completed, pending, expired } },
       update: { data: { completed, pending, expired } },
     })
-  }
+  }))
 
   // ── 5. Reset all client statuses for new month ────────────────────────────
   await prisma.client.updateMany({
@@ -97,10 +96,9 @@ export async function runMonthlyReset() {
   })
 
   // ── 6. Notify + log ───────────────────────────────────────────────────────
-  const allEmployees = await prisma.employee.findMany({ where: { isActive: true }, select: { id: true } })
-  if (allEmployees.length > 0) {
+  if (employees.length > 0) {
     await createNotificationForMany({
-      userIds: allEmployees.map((e) => e.id),
+      userIds: employees.map((e) => e.id),
       type: 'MONTHLY_RESET',
       title: 'Monthly reset completed',
       message: `Client statuses archived and reset for ${prevMonth}/${prevYear}. New month has started.`,
@@ -108,10 +106,14 @@ export async function runMonthlyReset() {
     })
   }
 
-  const superAdmin = await prisma.employee.findFirst({ where: { role: 'SUPER_ADMIN', isActive: true }, select: { id: true } })
-  if (superAdmin) {
+  const adminForLog = await prisma.employee.findFirst({
+    where: { role: { in: ['SUPER_ADMIN', 'ADMIN'] }, isActive: true },
+    orderBy: { role: 'asc' },
+    select: { id: true },
+  })
+  if (adminForLog) {
     await logActivity({
-      userId: superAdmin.id,
+      userId: adminForLog.id,
       action: 'MONTHLY_RESET',
       module: 'SYSTEM',
       details: `Monthly reset for ${prevMonth}/${prevYear}. Archived ${equityClients.length} equity, ${mfClients.length} MF clients, ${operators.length} operator summaries, ${employees.length} task summaries.`,
