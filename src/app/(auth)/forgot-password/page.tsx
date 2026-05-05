@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
         setServerError(data.error ?? 'Something went wrong.')
         return
       }
-      // Always navigate — don't reveal whether the email exists
+      // Always navigate â€” don't reveal whether the email exists
       router.push(`/verify-otp?email=${encodeURIComponent(values.email)}`)
     } catch {
       setServerError('Something went wrong. Please try again.')
@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.webp" alt="Kesar Securities" className="h-8 w-8 object-contain" />
+            <img src="/logo.png" alt="Kesar Securities" className="h-8 w-8 object-contain" />
             <span className="text-2xl font-bold text-gray-900">Kesar Securities CRM</span>
           </div>
           <div className="mt-3 p-3 bg-blue-50 rounded-full">
@@ -89,7 +89,7 @@ export default function ForgotPasswordPage() {
             className="w-full h-10 text-sm font-semibold"
             style={{ backgroundColor: '#1B73E8' }}
           >
-            {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending OTP…</> : 'Send OTP'}
+            {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending OTPâ€¦</> : 'Send OTP'}
           </Button>
         </form>
 

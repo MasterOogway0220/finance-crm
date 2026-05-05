@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -57,7 +57,7 @@ function ResetPasswordForm() {
         <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center">
           <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
           <h1 className="text-xl font-semibold text-gray-900">Password reset!</h1>
-          <p className="mt-2 text-sm text-gray-500">Redirecting you to sign in…</p>
+          <p className="mt-2 text-sm text-gray-500">Redirecting you to sign inâ€¦</p>
         </div>
       </div>
     )
@@ -69,7 +69,7 @@ function ResetPasswordForm() {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.webp" alt="Kesar Securities" className="h-8 w-8 object-contain" />
+            <img src="/logo.png" alt="Kesar Securities" className="h-8 w-8 object-contain" />
             <span className="text-2xl font-bold text-gray-900">Kesar Securities CRM</span>
           </div>
           <div className="mt-3 p-3 bg-blue-50 rounded-full">
@@ -93,7 +93,7 @@ function ResetPasswordForm() {
               <Input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 className="pr-10"
                 aria-invalid={!!errors.password}
                 {...register('password')}
@@ -111,7 +111,7 @@ function ResetPasswordForm() {
               <Input
                 id="confirm"
                 type={showConfirm ? 'text' : 'password'}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 className="pr-10"
                 aria-invalid={!!errors.confirm}
                 {...register('confirm')}
@@ -129,7 +129,7 @@ function ResetPasswordForm() {
             className="w-full h-10 text-sm font-semibold"
             style={{ backgroundColor: '#1B73E8' }}
           >
-            {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : 'Reset Password'}
+            {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Savingâ€¦</> : 'Reset Password'}
           </Button>
         </form>
 
