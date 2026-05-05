@@ -1,5 +1,6 @@
 'use client'
 
+import logoImg from '../../../../public/logo.png'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
@@ -80,7 +81,7 @@ function RolePicker({ pending, onPick }: { pending: PendingSession; onPick: (rol
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Kesar Securities" className="h-14 w-auto object-contain mb-3 brightness-0 invert" />
+          <img src={logoImg.src} alt="Kesar Securities" className="h-14 w-auto object-contain mb-3 brightness-0 invert" />
           <span className="text-2xl font-bold text-white" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>Kesar Securities CRM</span>
         </div>
 

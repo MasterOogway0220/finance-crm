@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import logoImg from '../../../../public/logo.png'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -50,7 +51,7 @@ export default function ForgotPasswordPage() {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Kesar Securities" className="h-8 w-8 object-contain" />
+            <img src={logoImg.src} alt="Kesar Securities" className="h-8 w-8 object-contain" />
             <span className="text-2xl font-bold text-gray-900">Kesar Securities CRM</span>
           </div>
           <div className="mt-3 p-3 bg-blue-50 rounded-full">

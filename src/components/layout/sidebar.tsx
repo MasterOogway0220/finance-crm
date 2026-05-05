@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import logoImg from '../../../public/logo.png'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -276,7 +277,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
       <div className="flex items-center gap-3 px-5 py-5">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white shrink-0 overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Kesar Securities" className="h-9 w-9 object-contain" />
+          <img src={logoImg.src} alt="Kesar Securities" className="h-9 w-9 object-contain" />
         </div>
         <div>
           <p className="text-lg font-bold leading-none text-white" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>Kesar Securities CRM</p>
