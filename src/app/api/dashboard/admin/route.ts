@@ -81,56 +81,31 @@ export async function GET(request: NextRequest) {
     const totalMap = new Map(allClientCounts.map((r) => [r.operatorId, r._count.id]))
     const dnaMap   = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
 
-    let tradedMap: Map<string, number>
-    let tradedClients: number
-    let monthlyTotalMap = new Map<string, number>()
-    let dailyMap        = new Map<string, Record<number, number>>()
+    // Always derive traded counts from BrokerageDetail — Client.status accumulates across
+    // uploads and is not reliably reset, so it diverges from actual brokerage data.
+    const monthlyTotalMap = new Map<string, number>()
+    const dailyMap        = new Map<string, Record<number, number>>()
 
-    if (currentMonth) {
-      // Current month: use Client.status (reflects manual updates + auto-flip)
-      const tradedCounts = await prisma.client.groupBy({
-        by: ['operatorId'],
-        where: { operatorId: { in: operatorIds }, status: 'TRADED' },
-        _count: { id: true },
-      })
-      tradedMap = new Map(tradedCounts.map((r) => [r.operatorId, r._count.id]))
-      tradedClients = tradedCounts.reduce((sum, r) => sum + r._count.id, 0)
-
-      // Still compute brokerage amounts and daily breakdown from BrokerageDetail
-      const currentMonthDetails = await prisma.brokerageDetail.findMany({
-        where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: start, lte: end } } },
-        select: { operatorId: true, clientId: true, amount: true, brokerage: { select: { uploadDate: true } } },
-      })
-      for (const d of currentMonthDetails) {
-        monthlyTotalMap.set(d.operatorId, (monthlyTotalMap.get(d.operatorId) ?? 0) + d.amount)
-        const daily = dailyMap.get(d.operatorId) ?? {}
-        const day   = new Date(d.brokerage.uploadDate).getDate()
-        daily[day]  = (daily[day] ?? 0) + d.amount
-        dailyMap.set(d.operatorId, daily)
+    const monthDetails = await prisma.brokerageDetail.findMany({
+      where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: start, lte: end } } },
+      select: { operatorId: true, clientId: true, amount: true, brokerage: { select: { uploadDate: true } } },
+    })
+    const tradedSets = new Map<string, Set<string>>()
+    const allTradedIds = new Set<string>()
+    for (const d of monthDetails) {
+      if (d.clientId) {
+        if (!tradedSets.has(d.operatorId)) tradedSets.set(d.operatorId, new Set())
+        tradedSets.get(d.operatorId)!.add(d.clientId)
+        allTradedIds.add(d.clientId)
       }
-    } else {
-      // Past month: derive traded from BrokerageDetail records
-      const currentMonthDetails = await prisma.brokerageDetail.findMany({
-        where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: start, lte: end } } },
-        select: { operatorId: true, clientId: true, amount: true, brokerage: { select: { uploadDate: true } } },
-      })
-      const tradedSets = new Map<string, Set<string>>()
-      const allTradedIds = new Set<string>()
-      for (const d of currentMonthDetails) {
-        if (d.clientId) {
-          if (!tradedSets.has(d.operatorId)) tradedSets.set(d.operatorId, new Set())
-          tradedSets.get(d.operatorId)!.add(d.clientId)
-          allTradedIds.add(d.clientId)
-        }
-        monthlyTotalMap.set(d.operatorId, (monthlyTotalMap.get(d.operatorId) ?? 0) + d.amount)
-        const daily = dailyMap.get(d.operatorId) ?? {}
-        const day   = new Date(d.brokerage.uploadDate).getDate()
-        daily[day]  = (daily[day] ?? 0) + d.amount
-        dailyMap.set(d.operatorId, daily)
-      }
-      tradedMap = new Map([...tradedSets.entries()].map(([id, set]) => [id, set.size]))
-      tradedClients = allTradedIds.size
+      monthlyTotalMap.set(d.operatorId, (monthlyTotalMap.get(d.operatorId) ?? 0) + d.amount)
+      const daily = dailyMap.get(d.operatorId) ?? {}
+      const day   = new Date(d.brokerage.uploadDate).getDate()
+      daily[day]  = (daily[day] ?? 0) + d.amount
+      dailyMap.set(d.operatorId, daily)
     }
+    const tradedMap     = new Map([...tradedSets.entries()].map(([id, set]) => [id, set.size]))
+    const tradedClients = allTradedIds.size
 
     const yearDetails = await prisma.brokerageDetail.findMany({
       where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: yearStart, lte: yearEnd } } },

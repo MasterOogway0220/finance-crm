@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getMonthRange, isCurrentMonth } from '@/lib/utils'
+import { getMonthRange } from '@/lib/utils'
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,8 +24,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid month/year' }, { status: 400 })
     }
 
-    const currentMonth = isCurrentMonth(month, year)
-
     const isEquityDealer = userRoles.includes('EQUITY_DEALER')
     const operatorId = isEquityDealer
       ? session.user.id
@@ -35,41 +33,26 @@ export async function GET(request: NextRequest) {
 
     const totalClients = await prisma.client.count({ where: { operatorId } })
 
-    let tradedClients: number
-    let mtdBrokerage: number
-
-    if (currentMonth) {
-      // Current month: use Client.status for traded count (reflects manual updates)
-      const [tradedCount, brokerageAgg] = await Promise.all([
-        prisma.client.count({ where: { operatorId, status: 'TRADED' } }),
-        prisma.brokerageDetail.aggregate({
-          _sum: { amount: true },
-          where: { operatorId, brokerage: { uploadDate: { gte: start, lte: end } } },
-        }),
-      ])
-      tradedClients = tradedCount
-      mtdBrokerage  = brokerageAgg._sum.amount ?? 0
-    } else {
-      // Past month: derive traded from BrokerageDetail
-      const uploads = await prisma.brokerageUpload.findMany({
-        where: { uploadDate: { gte: start, lte: end } },
-        include: {
-          details: {
-            where: { operatorId },
-            select: { clientId: true, amount: true },
-          },
+    // Always derive traded count from BrokerageDetail — Client.status accumulates across
+    // uploads and is not reliably reset, so it diverges from actual brokerage data.
+    const uploads = await prisma.brokerageUpload.findMany({
+      where: { uploadDate: { gte: start, lte: end } },
+      include: {
+        details: {
+          where: { operatorId },
+          select: { clientId: true, amount: true },
         },
-      })
-      const tradedIds = new Set<string>()
-      mtdBrokerage = 0
-      for (const u of uploads) {
-        for (const d of u.details) {
-          if (d.clientId) tradedIds.add(d.clientId)
-          mtdBrokerage += d.amount
-        }
+      },
+    })
+    const tradedIds = new Set<string>()
+    let mtdBrokerage = 0
+    for (const u of uploads) {
+      for (const d of u.details) {
+        if (d.clientId) tradedIds.add(d.clientId)
+        mtdBrokerage += d.amount
       }
-      tradedClients = tradedIds.size
     }
+    const tradedClients = tradedIds.size
 
     const notTraded = totalClients - tradedClients
 
