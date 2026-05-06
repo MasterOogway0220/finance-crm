@@ -75,10 +75,9 @@ export async function POST() {
       }
     }
 
-    // On the 1st of every month, run monthly brokerage/client reset if not already done
-    if (now.getDate() === 1) {
-      await runMonthlyReset()
-    }
+    // Run monthly reset if it hasn't run for the previous month yet.
+    // The idempotency guard inside runMonthlyReset skips if already archived.
+    await runMonthlyReset()
 
     // On Jan 1, allocate 30 leaves for the new year if not already done
     if (now.getMonth() === 0 && now.getDate() === 1) {

@@ -79,6 +79,7 @@ export default function EquityClientsPage() {
     const params = new URLSearchParams()
     params.set('page', String(page))
     params.set('limit', String(limit))
+    params.set('department', 'EQUITY')
     if (inactive2m) {
       params.set('inactive2m', 'true')
     } else {
