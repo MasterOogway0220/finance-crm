@@ -70,6 +70,7 @@ export interface ClientWithOperator {
   lastName: string
   phone: string
   email?: string | null
+  pan?: string | null
   department: Department
   operatorId: string
   operator: { id: string; name: string }

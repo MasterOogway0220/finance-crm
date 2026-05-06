@@ -20,28 +20,10 @@ const MF_STATUS_OPTIONS = [
   { value: 'INACTIVE', label: 'Inactive' },
 ]
 
-const MF_REMARK_OPTIONS = [
-  { value: 'all', label: 'All Remarks' },
-  { value: 'INVESTMENT_DONE', label: 'Investment Done' },
-  { value: 'INTERESTED', label: 'Interested' },
-  { value: 'NOT_INTERESTED', label: 'Not Interested' },
-  { value: 'DID_NOT_ANSWER', label: 'Did Not Answer' },
-  { value: 'FOLLOW_UP_REQUIRED', label: 'Follow-up Required' },
-]
-
 const EQUITY_STATUS_OPTIONS = [
   { value: 'all', label: 'All Status' },
   { value: 'TRADED', label: 'Traded' },
   { value: 'NOT_TRADED', label: 'Not Traded' },
-]
-
-const EQUITY_REMARK_OPTIONS = [
-  { value: 'all', label: 'All Remarks' },
-  { value: 'SUCCESSFULLY_TRADED', label: 'Successfully Traded' },
-  { value: 'NOT_TRADED', label: 'Not Traded' },
-  { value: 'NO_FUNDS_FOR_TRADING', label: 'No Funds for Trading' },
-  { value: 'DID_NOT_ANSWER', label: 'Did Not Answer' },
-  { value: 'SELF_TRADING', label: 'Self Trading' },
 ]
 
 interface MFProduct {
@@ -56,7 +38,6 @@ export default function MFClientsPage() {
   const [search, setSearch] = useState('')
   const [department, setDepartment] = useState<DepartmentTab>('MUTUAL_FUND')
   const [status, setStatus] = useState('all')
-  const [remark, setRemark] = useState('all')
   const [ageFilter, setAgeFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -66,7 +47,6 @@ export default function MFClientsPage() {
 
   const isMF = department === 'MUTUAL_FUND'
   const statusOptions = isMF ? MF_STATUS_OPTIONS : EQUITY_STATUS_OPTIONS
-  const remarkOptions = isMF ? MF_REMARK_OPTIONS : EQUITY_REMARK_OPTIONS
 
   useEffect(() => {
     fetch('/api/mf-products')
@@ -77,7 +57,6 @@ export default function MFClientsPage() {
   const handleDepartmentChange = (dept: DepartmentTab) => {
     setDepartment(dept)
     setStatus('all')
-    setRemark('all')
     setPage(1)
   }
 
@@ -92,16 +71,12 @@ export default function MFClientsPage() {
       if (isMF) params.set('mfStatus', status)
       else params.set('status', status)
     }
-    if (remark !== 'all') {
-      if (isMF) params.set('mfRemark', remark)
-      else params.set('remark', remark)
-    }
     if (ageFilter !== 'all') params.set('ageRange', ageFilter)
     fetch(`/api/clients?${params}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) { setClients(d.data.clients); setTotal(d.data.pagination.total) } })
       .finally(() => setLoading(false))
-  }, [search, status, remark, ageFilter, page, department, isMF])
+  }, [search, status, ageFilter, page, department, isMF])
 
   useEffect(() => {
     const t = setTimeout(fetchClients, 300)
@@ -145,7 +120,7 @@ export default function MFClientsPage() {
   }
 
   const totalPages = Math.ceil(total / limit)
-  const colSpan = isMF ? 9 : 7
+  const colSpan = isMF ? 10 : 8
 
   return (
     <div className="page-container space-y-4">
@@ -187,10 +162,6 @@ export default function MFClientsPage() {
             <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>{statusOptions.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
           </Select>
-          <Select value={remark} onValueChange={(v) => { setRemark(v); setPage(1) }}>
-            <SelectTrigger className="w-48 h-9 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>{remarkOptions.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
-          </Select>
           <Select value={ageFilter} onValueChange={(v) => { setAgeFilter(v); setPage(1) }}>
             <SelectTrigger className="w-36 h-9 text-sm"><SelectValue placeholder="Age Range" /></SelectTrigger>
             <SelectContent>
@@ -214,10 +185,11 @@ export default function MFClientsPage() {
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Code</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Name</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Contact</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Email</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">PAN</th>
               {isMF && <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Product</th>}
               {isMF && <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Inv. Type</th>}
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Remark</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Follow-up</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[150px]">Notes</th>
             </tr>
@@ -292,6 +264,12 @@ function MFClientRow({ client, products, onUpdate }: { client: ClientWithOperato
         </div>
       </td>
       <td className="px-4 py-3 text-xs"><a href={`tel:${client.phone}`} className="text-gray-600 hover:text-blue-600">{client.phone}</a></td>
+      <td className="px-4 py-3 text-xs text-gray-600">
+        {client.email ? <a href={`mailto:${client.email}`} className="hover:text-blue-600">{client.email}</a> : <span className="text-gray-300">—</span>}
+      </td>
+      <td className="px-4 py-3 font-mono text-xs text-gray-600">
+        {client.pan || <span className="text-gray-300">—</span>}
+      </td>
       <td className="px-4 py-3">
         <Select value={currentMfProduct || 'none'} onValueChange={(v) => handleProductChange(v === 'none' ? '' : v)}>
           <SelectTrigger className="h-7 text-xs w-40"><SelectValue placeholder="Select product" /></SelectTrigger>
@@ -325,18 +303,6 @@ function MFClientRow({ client, products, onUpdate }: { client: ClientWithOperato
           <SelectContent>
             <SelectItem value="ACTIVE">Active</SelectItem>
             <SelectItem value="INACTIVE">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
-      </td>
-      <td className="px-4 py-3">
-        <Select value={client.mfRemark} onValueChange={(v) => onUpdate(client.id, { mfRemark: v })}>
-          <SelectTrigger className="h-7 text-xs w-44"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="INVESTMENT_DONE">Investment Done</SelectItem>
-            <SelectItem value="INTERESTED">Interested</SelectItem>
-            <SelectItem value="NOT_INTERESTED">Not Interested</SelectItem>
-            <SelectItem value="DID_NOT_ANSWER">Did Not Answer</SelectItem>
-            <SelectItem value="FOLLOW_UP_REQUIRED">Follow-up Required</SelectItem>
           </SelectContent>
         </Select>
       </td>
@@ -377,20 +343,11 @@ const STATUS_LABELS: Record<string, string> = {
   NOT_TRADED: 'Not Traded',
 }
 
-const REMARK_LABELS: Record<string, string> = {
-  SUCCESSFULLY_TRADED: 'Successfully Traded',
-  NOT_TRADED: 'Not Traded',
-  NO_FUNDS_FOR_TRADING: 'No Funds for Trading',
-  DID_NOT_ANSWER: 'Did Not Answer',
-  SELF_TRADING: 'Self Trading',
-}
-
 function EquityClientRow({ client }: { client: ClientWithOperator }) {
   return (
     <tr className={cn(
       'border-b border-gray-100 hover:bg-blue-50 transition-colors',
-      client.status === 'TRADED' ? 'bg-green-50' :
-      client.remark === 'NO_FUNDS_FOR_TRADING' ? 'bg-yellow-50' : 'bg-white'
+      client.status === 'TRADED' ? 'bg-green-50' : 'bg-white'
     )}>
       <td className="px-4 py-3 font-mono text-xs font-medium text-gray-700">{client.clientCode}</td>
       <td className="px-4 py-3">
@@ -404,6 +361,12 @@ function EquityClientRow({ client }: { client: ClientWithOperator }) {
       <td className="px-4 py-3 text-xs">
         <a href={`tel:${client.phone}`} className="text-gray-600 hover:text-blue-600">{client.phone}</a>
       </td>
+      <td className="px-4 py-3 text-xs text-gray-600">
+        {client.email ? <a href={`mailto:${client.email}`} className="hover:text-blue-600">{client.email}</a> : <span className="text-gray-300">—</span>}
+      </td>
+      <td className="px-4 py-3 font-mono text-xs text-gray-600">
+        {client.pan || <span className="text-gray-300">—</span>}
+      </td>
       <td className="px-4 py-3">
         <span className={cn(
           'text-xs px-2 py-1 rounded-full font-medium',
@@ -411,9 +374,6 @@ function EquityClientRow({ client }: { client: ClientWithOperator }) {
         )}>
           {STATUS_LABELS[client.status] || client.status}
         </span>
-      </td>
-      <td className="px-4 py-3">
-        <span className="text-xs text-gray-600">{REMARK_LABELS[client.remark] || client.remark}</span>
       </td>
       <td className="px-4 py-3">
         {client.followUpDate ? (

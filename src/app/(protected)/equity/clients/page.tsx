@@ -18,38 +18,12 @@ const STATUS_OPTIONS = [
   { value: 'NOT_TRADED', label: 'Not Traded' },
 ]
 
-const REMARK_OPTIONS = [
-  { value: 'all', label: 'All Remarks' },
-  { value: 'SUCCESSFULLY_TRADED', label: 'Successfully Traded' },
-  { value: 'NOT_TRADED', label: 'Not Traded' },
-  { value: 'NO_FUNDS_FOR_TRADING', label: 'No Funds for Trading' },
-  { value: 'DID_NOT_ANSWER', label: 'Did Not Answer' },
-  { value: 'SELF_TRADING', label: 'Self Trading' },
-]
-
-
-function RemarkSelect({ clientId, value, onChange }: { clientId: string; value: string; onChange: (id: string, remark: string) => void }) {
-  return (
-    <Select value={value} onValueChange={(v) => onChange(clientId, v)}>
-      <SelectTrigger className="h-7 text-xs w-40">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {REMARK_OPTIONS.slice(1).map((r) => (
-          <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
 export default function EquityClientsPage() {
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
   const [searchInput, setSearchInput] = useState('')
   const search = useDebounce(searchInput, 400)
   const [status, setStatus] = useState('all')
-  const [remark, setRemark] = useState('all')
   const [ageFilter, setAgeFilter] = useState('all')
   const [inactive2m, setInactive2m] = useState(false)
   const [page, setPage] = useState(1)
@@ -72,7 +46,6 @@ export default function EquityClientsPage() {
     } else {
       if (search) params.set('search', search)
       if (status !== 'all') params.set('status', status)
-      if (remark !== 'all') params.set('remark', remark)
       if (ageFilter !== 'all') params.set('ageRange', ageFilter)
     }
     fetch(`/api/clients?${params}`)
@@ -81,7 +54,7 @@ export default function EquityClientsPage() {
         if (d.success) { setClients(d.data.clients); setTotal(d.data.pagination.total) }
       })
       .finally(() => setLoading(false))
-  }, [search, status, remark, ageFilter, inactive2m, page])
+  }, [search, status, ageFilter, inactive2m, page])
 
   const toggleInactive2m = () => {
     setInactive2m((prev) => !prev)
@@ -105,10 +78,6 @@ export default function EquityClientsPage() {
     }
   }
 
-  const handleRemarkChange = (id: string, newRemark: string) => {
-    updateClient(id, { remark: newRemark })
-  }
-
   const handleNotesSave = (id: string, notes: string) => {
     updateClient(id, { notes })
   }
@@ -120,7 +89,6 @@ export default function EquityClientsPage() {
   const handleExport = () => {
     const params = new URLSearchParams()
     if (status !== 'all') params.set('status', status)
-    if (remark !== 'all') params.set('remark', remark)
     if (search) params.set('search', search)
     window.open(`/api/clients/export?${params}`, '_blank')
   }
@@ -146,14 +114,6 @@ export default function EquityClientsPage() {
               <SelectTrigger className="w-36 h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {STATUS_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className={cn(inactive2m && 'opacity-40 pointer-events-none')}>
-            <Select value={remark} onValueChange={(v) => { setRemark(v); setPage(1) }}>
-              <SelectTrigger className="w-48 h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {REMARK_OPTIONS.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -210,8 +170,9 @@ export default function EquityClientsPage() {
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Code</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Name</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Contact</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Email</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">PAN</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Remark</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Follow-up</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[150px]">Notes</th>
               </tr>
@@ -220,11 +181,11 @@ export default function EquityClientsPage() {
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}><td colSpan={inactive2m ? 5 : 7} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
+                <tr key={i}><td colSpan={inactive2m ? 5 : 8} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
               ))
             ) : clients.length === 0 ? (
               <tr>
-                <td colSpan={inactive2m ? 5 : 7} className="px-4 py-12 text-center text-gray-400">
+                <td colSpan={inactive2m ? 5 : 8} className="px-4 py-12 text-center text-gray-400">
                   <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
                   <p className="text-sm">{inactive2m ? 'No inactive clients found' : 'No clients found'}</p>
                 </td>
@@ -236,7 +197,6 @@ export default function EquityClientsPage() {
                 <ClientRow
                   key={client.id}
                   client={client}
-                  onRemarkChange={handleRemarkChange}
                   onNotesSave={handleNotesSave}
                   onFollowUpChange={handleFollowUpChange}
                 />
@@ -287,9 +247,8 @@ function InactiveClientRow({ client }: { client: ClientWithOperator }) {
   )
 }
 
-function ClientRow({ client, onRemarkChange, onNotesSave, onFollowUpChange }: {
+function ClientRow({ client, onNotesSave, onFollowUpChange }: {
   client: ClientWithOperator
-  onRemarkChange: (id: string, remark: string) => void
   onNotesSave: (id: string, notes: string) => void
   onFollowUpChange: (id: string, date: Date | undefined) => void
 }) {
@@ -301,8 +260,7 @@ function ClientRow({ client, onRemarkChange, onNotesSave, onFollowUpChange }: {
 
   const rowClass = cn(
     'border-b border-gray-100 hover:bg-blue-50 transition-colors',
-    client.tradedThisMonth ? 'bg-green-50' :
-    client.remark === 'NO_FUNDS_FOR_TRADING' ? 'bg-yellow-50' : 'bg-white'
+    client.tradedThisMonth ? 'bg-green-50' : 'bg-white'
   )
 
   return (
@@ -319,6 +277,12 @@ function ClientRow({ client, onRemarkChange, onNotesSave, onFollowUpChange }: {
       <td className="px-4 py-3 text-gray-600 text-xs">
         <a href={`tel:${client.phone}`} className="hover:text-blue-600">{client.phone}</a>
       </td>
+      <td className="px-4 py-3 text-gray-600 text-xs">
+        {client.email ? <a href={`mailto:${client.email}`} className="hover:text-blue-600">{client.email}</a> : <span className="text-gray-300">—</span>}
+      </td>
+      <td className="px-4 py-3 font-mono text-xs text-gray-600">
+        {client.pan || <span className="text-gray-300">—</span>}
+      </td>
       <td className="px-4 py-3">
         <span className={cn(
           'text-xs px-2 py-1 rounded-full font-medium',
@@ -326,9 +290,6 @@ function ClientRow({ client, onRemarkChange, onNotesSave, onFollowUpChange }: {
         )}>
           {client.tradedThisMonth ? 'TRADED' : 'NOT TRADED'}
         </span>
-      </td>
-      <td className="px-4 py-3">
-        <RemarkSelect clientId={client.id} value={client.remark} onChange={onRemarkChange} />
       </td>
       <td className="px-4 py-3">
         <Popover>
