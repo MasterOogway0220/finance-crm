@@ -273,7 +273,14 @@ export async function POST(request: NextRequest) {
       .map((d) => d.clientId!)
 
     const upload = await prisma.$transaction(async (tx) => {
+      // Collect client IDs from existing versions before deactivating them
+      let prevClientIds: string[] = []
       if (existingUploads.length > 0) {
+        const prevDetails = await tx.brokerageDetail.findMany({
+          where: { brokerageId: { in: existingUploads.map(u => u.id) }, clientId: { not: null } },
+          select: { clientId: true },
+        })
+        prevClientIds = [...new Set(prevDetails.map(d => d.clientId!))]
         await tx.brokerageUpload.updateMany({
           where: { uploadDate, branch },
           data: { isActive: false },
@@ -298,6 +305,16 @@ export async function POST(request: NextRequest) {
         await tx.client.updateMany({
           where: { id: { in: autoTradedClientIds }, department: 'EQUITY' },
           data: { status: 'TRADED' },
+        })
+      }
+
+      // Reset clients in old version who are NOT in the new version back to NOT_TRADED
+      const newTradedSet = new Set(autoTradedClientIds)
+      const toResetIds = prevClientIds.filter(id => !newTradedSet.has(id))
+      if (toResetIds.length > 0) {
+        await tx.client.updateMany({
+          where: { id: { in: toResetIds }, department: 'EQUITY' },
+          data: { status: 'NOT_TRADED' },
         })
       }
 

@@ -28,15 +28,40 @@ export async function DELETE(request: NextRequest) {
 
     const uploads = await prisma.brokerageUpload.findMany({
       where: { id: { in: ids } },
-      select: { id: true, uploadDate: true, fileName: true, totalAmount: true },
+      select: { id: true, uploadDate: true, fileName: true, totalAmount: true, details: { select: { clientId: true } } },
     })
 
     if (uploads.length === 0) {
       return NextResponse.json({ success: false, error: 'No uploads found' }, { status: 404 })
     }
 
+    // Collect client IDs from uploads being reversed
+    const reversedClientIds = [
+      ...new Set(uploads.flatMap(u => u.details.map(d => d.clientId).filter(Boolean) as string[]))
+    ]
+
     // Cascade delete removes all BrokerageDetail records automatically
     await prisma.brokerageUpload.deleteMany({ where: { id: { in: uploads.map(u => u.id) } } })
+
+    // Reset client.status for reversed clients who no longer have any active brokerage detail this month
+    if (reversedClientIds.length > 0) {
+      const now = new Date()
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+      const stillTradedIds = await prisma.brokerageDetail.findMany({
+        where: { clientId: { in: reversedClientIds }, brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } } },
+        select: { clientId: true },
+        distinct: ['clientId'],
+      })
+      const stillTradedSet = new Set(stillTradedIds.map(r => r.clientId!))
+      const toResetIds = reversedClientIds.filter(id => !stillTradedSet.has(id))
+      if (toResetIds.length > 0) {
+        await prisma.client.updateMany({
+          where: { id: { in: toResetIds }, department: 'EQUITY' },
+          data: { status: 'NOT_TRADED' },
+        })
+      }
+    }
 
     const totalAmount = uploads.reduce((s, u) => s + u.totalAmount, 0)
     await logActivity({
