@@ -27,19 +27,6 @@ const REMARK_OPTIONS = [
   { value: 'SELF_TRADING', label: 'Self Trading' },
 ]
 
-function StatusSelect({ clientId, value, onChange }: { clientId: string; value: string; onChange: (id: string, status: string, remark?: string) => void }) {
-  return (
-    <Select value={value} onValueChange={(v) => onChange(clientId, v, v === 'TRADED' ? 'SUCCESSFULLY_TRADED' : undefined)}>
-      <SelectTrigger className={cn('h-7 text-xs w-28', value === 'TRADED' ? 'border-green-400 text-green-700' : 'border-red-300 text-red-600')}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="TRADED">Traded</SelectItem>
-        <SelectItem value="NOT_TRADED">Not Traded</SelectItem>
-      </SelectContent>
-    </Select>
-  )
-}
 
 function RemarkSelect({ clientId, value, onChange }: { clientId: string; value: string; onChange: (id: string, remark: string) => void }) {
   return (
@@ -116,12 +103,6 @@ export default function EquityClientsPage() {
     } else {
       toast.error(data.error || 'Update failed')
     }
-  }
-
-  const handleStatusChange = (id: string, newStatus: string, autoRemark?: string) => {
-    const updates: Record<string, unknown> = { status: newStatus }
-    if (autoRemark) updates.remark = autoRemark
-    updateClient(id, updates)
   }
 
   const handleRemarkChange = (id: string, newRemark: string) => {
@@ -255,7 +236,6 @@ export default function EquityClientsPage() {
                 <ClientRow
                   key={client.id}
                   client={client}
-                  onStatusChange={handleStatusChange}
                   onRemarkChange={handleRemarkChange}
                   onNotesSave={handleNotesSave}
                   onFollowUpChange={handleFollowUpChange}
@@ -307,9 +287,8 @@ function InactiveClientRow({ client }: { client: ClientWithOperator }) {
   )
 }
 
-function ClientRow({ client, onStatusChange, onRemarkChange, onNotesSave, onFollowUpChange }: {
+function ClientRow({ client, onRemarkChange, onNotesSave, onFollowUpChange }: {
   client: ClientWithOperator
-  onStatusChange: (id: string, status: string, remark?: string) => void
   onRemarkChange: (id: string, remark: string) => void
   onNotesSave: (id: string, notes: string) => void
   onFollowUpChange: (id: string, date: Date | undefined) => void
@@ -341,7 +320,12 @@ function ClientRow({ client, onStatusChange, onRemarkChange, onNotesSave, onFoll
         <a href={`tel:${client.phone}`} className="hover:text-blue-600">{client.phone}</a>
       </td>
       <td className="px-4 py-3">
-        <StatusSelect clientId={client.id} value={client.status} onChange={onStatusChange} />
+        <span className={cn(
+          'text-xs px-2 py-1 rounded-full font-medium',
+          client.tradedThisMonth ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+        )}>
+          {client.tradedThisMonth ? 'TRADED' : 'NOT TRADED'}
+        </span>
       </td>
       <td className="px-4 py-3">
         <RemarkSelect clientId={client.id} value={client.remark} onChange={onRemarkChange} />
