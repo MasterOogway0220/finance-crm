@@ -86,11 +86,16 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {}
 
-    // EQUITY_DEALER can only see their own clients
+    // EQUITY_DEALER can only see their own clients.
+    // Track the operatorId scope so brokerage-based traded checks match the brokerage page
+    // (which attributes trades to the operator recorded in BrokerageDetail, not the client's current assignment).
+    let brokerageOperatorScope: string | null = null
     if (userRole === 'EQUITY_DEALER') {
       where.operatorId = session.user.id
+      brokerageOperatorScope = session.user.id
     } else if (operatorIdParam) {
       where.operatorId = operatorIdParam
+      brokerageOperatorScope = operatorIdParam
     }
 
     if (status) {
@@ -99,10 +104,12 @@ export async function GET(request: NextRequest) {
         const now = new Date()
         const { start, end } = getMonthRange(now.getMonth() + 1, now.getFullYear())
         where.department = 'EQUITY'
+        const detailFilter: Record<string, unknown> = { brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } }
+        if (brokerageOperatorScope) detailFilter.operatorId = brokerageOperatorScope
         if (status === 'TRADED') {
-          where.brokerageDetails = { some: { brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } } }
+          where.brokerageDetails = { some: detailFilter }
         } else {
-          where.brokerageDetails = { none: { brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } } }
+          where.brokerageDetails = { none: detailFilter }
         }
       } else {
         where.status = status
@@ -156,14 +163,21 @@ export async function GET(request: NextRequest) {
       prisma.client.count({ where }),
     ])
 
-    // Compute tradedThisMonth for EQUITY clients from BrokerageDetail
+    // Compute tradedThisMonth for EQUITY clients from BrokerageDetail.
+    // Scope to brokerageOperatorScope (operator's own ID) when set so the count matches
+    // the brokerage page, which attributes trades by BrokerageDetail.operatorId.
     const now = new Date()
     const { start: mStart, end: mEnd } = getMonthRange(now.getMonth() + 1, now.getFullYear())
     const equityIds = clients.filter(c => c.department === 'EQUITY').map(c => c.id)
     const tradedSet = new Set<string>()
     if (equityIds.length > 0) {
+      const tradedDetailWhere: Prisma.BrokerageDetailWhereInput = {
+        clientId: { in: equityIds },
+        brokerage: { isActive: true, uploadDate: { gte: mStart, lte: mEnd } },
+      }
+      if (brokerageOperatorScope) tradedDetailWhere.operatorId = brokerageOperatorScope
       const tradedRows = await prisma.brokerageDetail.findMany({
-        where: { clientId: { in: equityIds }, brokerage: { isActive: true, uploadDate: { gte: mStart, lte: mEnd } } },
+        where: tradedDetailWhere,
         select: { clientId: true },
         distinct: ['clientId'],
       })
