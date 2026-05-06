@@ -268,7 +268,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const isPradip = session?.user?.email === 'pradipmahadik1982@gmail.com'
   const baseNav = getNavItems(effectiveRole)
   const navItems = isPradip && !baseNav.some(i => i.href === '/login-history')
-    ? [...baseNav, { label: 'Login/Logoff History', href: '/login-history', icon: ClipboardList }]
+    ? [...baseNav, { label: 'Login/Logoff History', href: '/login-history', icon: ClipboardList } as NavItem]
     : baseNav
 
   const userName = session?.user?.name ?? 'User'
