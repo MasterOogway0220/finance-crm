@@ -322,7 +322,7 @@ function ClientRow({ client, onStatusChange, onRemarkChange, onNotesSave, onFoll
 
   const rowClass = cn(
     'border-b border-gray-100 hover:bg-blue-50 transition-colors',
-    client.status === 'TRADED' ? 'bg-green-50' :
+    client.tradedThisMonth ? 'bg-green-50' :
     client.remark === 'NO_FUNDS_FOR_TRADING' ? 'bg-yellow-50' : 'bg-white'
   )
 
