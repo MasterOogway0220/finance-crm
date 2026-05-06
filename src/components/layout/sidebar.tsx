@@ -265,7 +265,11 @@ export default function Sidebar({ onClose }: SidebarProps) {
   }, [pathname, markTaskAssignedRead])
 
   const effectiveRole = activeRole || session?.user?.role || ''
-  const navItems = getNavItems(effectiveRole)
+  const isPradip = session?.user?.email === 'pradipmahadik1982@gmail.com'
+  const baseNav = getNavItems(effectiveRole)
+  const navItems = isPradip && !baseNav.some(i => i.href === '/login-history')
+    ? [...baseNav, { label: 'Login/Logoff History', href: '/login-history', icon: ClipboardList }]
+    : baseNav
 
   const userName = session?.user?.name ?? 'User'
   const designation = session?.user?.designation ?? ''
