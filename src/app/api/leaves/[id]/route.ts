@@ -34,13 +34,22 @@ export async function PATCH(
 
     // Validate permissions
     if (action === 'CANCELLED') {
-      // Only the employee themselves can cancel
-      if (application.employeeId !== session.user.id && !isAdmin) {
-        return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
-      }
-      if (application.status !== 'PENDING') {
+      const isApplicant = application.employeeId === session.user.id
+      // Applicant can cancel only while PENDING; admin can additionally pullback APPROVED
+      if (application.status === 'PENDING') {
+        if (!isApplicant && !isAdmin) {
+          return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+        }
+      } else if (application.status === 'APPROVED') {
+        if (!isAdmin) {
+          return NextResponse.json(
+            { success: false, error: 'Only admins can pullback an approved leave' },
+            { status: 403 }
+          )
+        }
+      } else {
         return NextResponse.json(
-          { success: false, error: 'Only pending applications can be cancelled' },
+          { success: false, error: 'Leave can only be cancelled while pending or approved' },
           { status: 400 }
         )
       }
@@ -59,11 +68,19 @@ export async function PATCH(
     }
 
     const updateData: Record<string, unknown> = { status: action }
+    const isAdminPullback =
+      action === 'CANCELLED' && isAdmin && application.status === 'APPROVED'
     if (isAdmin && (action === 'APPROVED' || action === 'REJECTED')) {
       updateData.reviewedById = session.user.id
       if (reviewNote?.trim()) {
         updateData.reviewNote = reviewNote.trim()
       }
+    } else if (isAdminPullback) {
+      updateData.reviewedById = session.user.id
+      const trimmed = reviewNote?.trim()
+      updateData.reviewNote = trimmed
+        ? `Cancelled by admin: ${trimmed}`
+        : 'Cancelled by admin'
     }
 
     const updated = await prisma.leaveApplication.update({
@@ -87,6 +104,20 @@ export async function PATCH(
           action === 'APPROVED'
             ? `Your leave request for ${from} – ${to} (${application.days} day(s)) has been approved.`
             : `Your leave request for ${from} – ${to} (${application.days} day(s)) has been rejected.${reviewNote ? ` Reason: ${reviewNote}` : ''}`,
+        link: '/calendar',
+      })
+    } else if (isAdminPullback) {
+      const from = application.fromDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      const to = application.toDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      const reason = reviewNote?.trim()
+      await createNotification({
+        userId: application.employeeId,
+        type: 'LEAVE_CANCELLED',
+        title: 'Leave Cancelled by Admin',
+        message:
+          `Your approved leave for ${from} – ${to} (${application.days} day(s)) has been cancelled by admin.` +
+          (reason ? ` Reason: ${reason}.` : '') +
+          ` ${application.days} day(s) restored to your balance.`,
         link: '/calendar',
       })
     }

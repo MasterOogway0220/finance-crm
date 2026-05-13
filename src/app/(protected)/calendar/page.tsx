@@ -502,6 +502,14 @@ export default function CalendarPage() {
   const [showMarkDialog, setShowMarkDialog] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [rejectNote, setRejectNote] = useState<{ id: string; note: string } | null>(null)
+  const [pullbackTarget, setPullbackTarget] = useState<{
+    id: string
+    note: string
+    employeeName: string
+    fromDate: string
+    toDate: string
+    days: number
+  } | null>(null)
 
   // Fetch holidays when year changes
   useEffect(() => {
@@ -603,10 +611,13 @@ export default function CalendarPage() {
       if (data.success) {
         toast.success(
           action === 'APPROVED' ? 'Leave approved.' :
-          action === 'REJECTED' ? 'Leave rejected.' : 'Leave cancelled.'
+          action === 'REJECTED' ? 'Leave rejected.' :
+          isAdmin ? 'Leave pulled back. Balance restored.' :
+          'Leave cancelled.'
         )
         fetchApplications()
         setRejectNote(null)
+        setPullbackTarget(null)
       } else {
         toast.error(data.error || 'Action failed.')
       }
@@ -961,7 +972,32 @@ export default function CalendarPage() {
                             </Button>
                           </div>
                         )}
-                        {app.status !== 'PENDING' && app.reviewedBy && (
+                        {app.status === 'APPROVED' && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-300 text-amber-700 hover:bg-amber-50 h-7 px-3 text-xs"
+                              disabled={actionLoading === app.id + 'CANCELLED'}
+                              onClick={() =>
+                                setPullbackTarget({
+                                  id: app.id,
+                                  note: '',
+                                  employeeName: app.employee.name,
+                                  fromDate: app.fromDate,
+                                  toDate: app.toDate,
+                                  days: app.days,
+                                })
+                              }
+                            >
+                              Pullback
+                            </Button>
+                            {app.reviewedBy && (
+                              <span className="text-xs text-gray-400">by {app.reviewedBy.name}</span>
+                            )}
+                          </div>
+                        )}
+                        {app.status !== 'PENDING' && app.status !== 'APPROVED' && app.reviewedBy && (
                           <span className="text-xs text-gray-400">by {app.reviewedBy.name}</span>
                         )}
                       </td>
@@ -1051,6 +1087,41 @@ export default function CalendarPage() {
                 onClick={() => handleAction(rejectNote.id, 'REJECTED', rejectNote.note)}
               >
                 Confirm Reject
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pullback (cancel approved leave) dialog */}
+      {pullbackTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-xl bg-white shadow-2xl p-6">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">Pullback Approved Leave</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Cancel <span className="font-semibold">{pullbackTarget.employeeName}</span>&apos;s leave for{' '}
+              <span className="font-semibold">
+                {format(parseISO(pullbackTarget.fromDate), 'dd MMM')} – {format(parseISO(pullbackTarget.toDate), 'dd MMM yyyy')}
+              </span>{' '}
+              ({pullbackTarget.days} day{pullbackTarget.days > 1 ? 's' : ''})? Their balance will be restored.
+            </p>
+            <textarea
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              rows={3}
+              placeholder="Reason for cancelling (optional, e.g. employee came to office instead)..."
+              value={pullbackTarget.note}
+              onChange={(e) => setPullbackTarget({ ...pullbackTarget, note: e.target.value })}
+            />
+            <div className="flex gap-3 mt-4">
+              <Button variant="outline" className="flex-1" onClick={() => setPullbackTarget(null)}>
+                Keep Approved
+              </Button>
+              <Button
+                className="flex-1 bg-amber-600 hover:bg-amber-700"
+                disabled={actionLoading === pullbackTarget.id + 'CANCELLED'}
+                onClick={() => handleAction(pullbackTarget.id, 'CANCELLED', pullbackTarget.note)}
+              >
+                Confirm Pullback
               </Button>
             </div>
           </div>
