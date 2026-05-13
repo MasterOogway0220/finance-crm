@@ -55,7 +55,7 @@ function extractClientCodeFromNarration(narration: string): string {
   return trimmed.slice(lastSpaceIdx + 1).trim().toUpperCase()
 }
 
-const VALID_BRANCHES = ['Mumbai', 'Karad']
+const VALID_BRANCHES = ['Mumbai', 'Karad', 'Pune']
 
 export async function POST(request: NextRequest) {
   try {

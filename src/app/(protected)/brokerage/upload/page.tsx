@@ -113,6 +113,7 @@ export default function BrokerageUploadPage() {
                 <SelectContent>
                   <SelectItem value="Mumbai">Mumbai</SelectItem>
                   <SelectItem value="Karad">Karad</SelectItem>
+                  <SelectItem value="Pune">Pune</SelectItem>
                 </SelectContent>
               </Select>
             </div>
