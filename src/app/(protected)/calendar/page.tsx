@@ -484,9 +484,12 @@ function MarkLeaveDialog({ onClose, onSuccess, allHolidays }: MarkLeaveDialogPro
 
 export default function CalendarPage() {
   const { data: session } = useSession()
-  const { activeRole } = useActiveRoleStore()
+  const { activeRole, hasHydrated } = useActiveRoleStore()
 
-  const effectiveRole = activeRole || session?.user?.role || ''
+  // Use ONLY activeRole — never fall back to session.user.role, otherwise
+  // a dual-role user (e.g. ADMIN+BACK_OFFICE) sees the admin view in any tab
+  // where activeRole hasn't been picked yet.
+  const effectiveRole = activeRole
   const isAdmin = effectiveRole === 'SUPER_ADMIN' || effectiveRole === 'ADMIN'
 
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
@@ -637,6 +640,19 @@ export default function CalendarPage() {
           a.toDate.slice(0, 10) >= selectedDateStr
       )
     : []
+
+  // Wait for the active-role store to hydrate before rendering any
+  // role-conditional UI — otherwise we briefly flash the wrong view.
+  if (!hasHydrated) {
+    return (
+      <div className="page-container">
+        <div className="page-header">
+          <h1 className="page-title">Calendar &amp; Leave</h1>
+        </div>
+        <div className="mt-6 h-64 rounded-xl border border-dashed border-gray-200 bg-gray-50" />
+      </div>
+    )
+  }
 
   return (
     <div className="page-container space-y-6">

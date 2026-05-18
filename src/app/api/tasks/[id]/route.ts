@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
@@ -43,7 +43,7 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Task not found' }, { status: 404 })
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
     if (
       userRole === 'BACK_OFFICE' &&
       task.assignedToId !== session.user.id &&
@@ -110,7 +110,7 @@ export async function PATCH(
         }
       }
 
-      const userRole = getEffectiveRole(session.user)
+      const userRole = (await getActiveRole(session.user))
 
       const existing = await prisma.task.findUnique({
         where: { id },
@@ -192,7 +192,7 @@ export async function PATCH(
       )
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     const existing = await prisma.task.findUnique({
       where: { id },
@@ -298,7 +298,7 @@ export async function DELETE(
     }
 
     const { id } = await params
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     if (userRole === 'BACK_OFFICE') {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })

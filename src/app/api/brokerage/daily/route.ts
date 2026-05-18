@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Role } from '@prisma/client'
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
     const operatorIdParam = searchParams.get('operatorId')
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     // Determine which operatorId to use
     const isEquityDealer =

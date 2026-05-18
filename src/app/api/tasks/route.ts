@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const monthParam = searchParams.get('month')
     const yearParam  = searchParams.get('year')
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     const where: Record<string, unknown> = {}
 
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     // BACK_OFFICE employees cannot assign tasks
     if (userRole === 'BACK_OFFICE') {

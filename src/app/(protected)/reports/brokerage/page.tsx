@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
-import { useSession } from 'next-auth/react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -8,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/utils'
 import { Download, ArrowLeft, AlertTriangle, Check, X, Search } from 'lucide-react'
-import { getEffectiveRole } from '@/lib/roles'
+import { useActiveRoleStore } from '@/stores/active-role-store'
 import Link from 'next/link'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -47,8 +46,8 @@ const formatYAxis = (v: number) => {
 }
 
 export default function BrokerageReportPage() {
-  const { data: session } = useSession()
-  const role = session?.user ? getEffectiveRole(session.user) : undefined
+  const { activeRole } = useActiveRoleStore()
+  const role = activeRole || undefined
   const isEquityDealer = role === 'EQUITY_DEALER'
   const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN'
 

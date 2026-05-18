@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getEffectiveRole } from '@/lib/roles'
+import { getActiveRole } from '@/lib/auth'
 import { logActivity } from '@/lib/activity-log'
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +11,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const role = getEffectiveRole(session.user)
+    const role = (await getActiveRole(session.user))
     if (role !== 'MF_DEALER' && role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }

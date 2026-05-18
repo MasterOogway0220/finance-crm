@@ -21,7 +21,7 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
-import { useActiveRoleStore } from '@/stores/active-role-store'
+import { useActiveRoleStore, ROLE_LABELS } from '@/stores/active-role-store'
 import { useNotificationStore } from '@/stores/notification-store'
 
 type NavBadge = 'taskAssigned'
@@ -247,8 +247,13 @@ const MY_TASKS_PATHS = new Set([
 export default function Sidebar({ onClose }: SidebarProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
-  const { activeRole, initForUser } = useActiveRoleStore()
+  const { activeRole, initForUser, clearActiveRole } = useActiveRoleStore()
   const markTaskAssignedRead = useNotificationStore((s) => s.markTaskAssignedRead)
+
+  const handleSignOut = () => {
+    clearActiveRole()
+    signOut({ callbackUrl: '/login' })
+  }
 
   // Initialise the store whenever session loads
   useEffect(() => {
@@ -272,7 +277,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
     : baseNav
 
   const userName = session?.user?.name ?? 'User'
-  const designation = session?.user?.designation ?? ''
+  const roleLabel = ROLE_LABELS[effectiveRole] ?? ''
   const initials = getInitials(userName)
 
   return (
@@ -310,14 +315,14 @@ export default function Sidebar({ onClose }: SidebarProps) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-white">{userName}</p>
-            {designation && (
-              <p className="truncate text-xs text-slate-400">{designation}</p>
+            {roleLabel && (
+              <p className="truncate text-xs text-slate-400">{roleLabel}</p>
             )}
           </div>
           <button
             type="button"
             title="Sign out"
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={handleSignOut}
             className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-all duration-200 hover:bg-white/10 hover:text-white"
           >
             <LogOut className="h-4 w-4" />

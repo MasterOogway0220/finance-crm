@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const year  = parseInt(searchParams.get('year')  ?? String(now.getFullYear()))
     const day   = searchParams.get('day')
 
-    const userRole     = getEffectiveRole(session.user)
+    const userRole     = (await getActiveRole(session.user))
     const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
     const isEquityDealer = session.user.role === 'EQUITY_DEALER' || session.user.secondaryRole === 'EQUITY_DEALER'
     const operatorIdParam = searchParams.get('operatorId')

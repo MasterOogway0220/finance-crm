@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const month = parseInt(searchParams.get('month') ?? String(now.getMonth() + 1))
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     // Build date range for the requested month
     const monthStart = new Date(year, month - 1, 1)

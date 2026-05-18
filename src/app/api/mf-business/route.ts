@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { mfBusinessSchema } from '@/lib/validations'
 import { logActivity } from '@/lib/activity-log'
-import { getEffectiveRole } from '@/lib/roles'
+import { getActiveRole } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const role = getEffectiveRole(session.user)
+    const role = (await getActiveRole(session.user))
     const { searchParams } = new URL(request.url)
     const month = parseInt(searchParams.get('month') || String(new Date().getMonth() + 1))
     const year = parseInt(searchParams.get('year') || String(new Date().getFullYear()))

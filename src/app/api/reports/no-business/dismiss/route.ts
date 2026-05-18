@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getEffectiveRole } from '@/lib/roles'
+import { getActiveRole } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     if (!session?.user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
-    const role = getEffectiveRole(session.user)
+    const role = (await getActiveRole(session.user))
     if (role !== 'SUPER_ADMIN' && role !== 'ADMIN') {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }

@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const ageRange = searchParams.get('ageRange') // e.g. "10-25"
     const inactive2m = searchParams.get('inactive2m') === 'true'
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     // --- Inactive 2-month filter (bypasses all other filters) ---
     if (inactive2m) {

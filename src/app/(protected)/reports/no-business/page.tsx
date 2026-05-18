@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Search, Download, ArrowLeft, AlertTriangle, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn, getInitials } from '@/lib/utils'
-import { getEffectiveRole } from '@/lib/roles'
+import { useActiveRoleStore } from '@/stores/active-role-store'
 import { useDebounce } from '@/hooks/use-debounce'
 import Link from 'next/link'
 
@@ -35,14 +35,16 @@ function formatDateShort(iso: string) {
 export default function NoBusinessPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const role = session?.user ? getEffectiveRole(session.user) : undefined
+  const { activeRole, hasHydrated } = useActiveRoleStore()
+  const role = activeRole || undefined
 
-  // Redirect non-admins
+  // Redirect non-admins (wait for the active-role store to hydrate first)
   useEffect(() => {
-    if (session && role !== 'SUPER_ADMIN' && role !== 'ADMIN') {
+    if (!hasHydrated || !session) return
+    if (role !== 'SUPER_ADMIN' && role !== 'ADMIN') {
       router.replace('/reports')
     }
-  }, [session, role, router])
+  }, [hasHydrated, session, role, router])
 
   const [searchInput, setSearchInput] = useState('')
   const search = useDebounce(searchInput, 400)

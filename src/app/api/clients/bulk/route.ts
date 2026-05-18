@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { clientIds, status, remark, mfStatus, mfRemark, operatorId } = parsed.data
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     // For EQUITY_DEALER: verify all clientIds belong to their operator account
     if (userRole === 'EQUITY_DEALER') {
@@ -96,7 +96,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
     if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
