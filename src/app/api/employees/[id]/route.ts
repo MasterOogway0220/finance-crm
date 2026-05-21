@@ -243,6 +243,8 @@ export async function DELETE(
     // Transfer clients to new employee if requested
     if (transferToId && _count.assignedClients > 0) {
       await prisma.client.updateMany({ where: { operatorId: id }, data: { operatorId: transferToId } })
+      // Move historical brokerage attribution along with the clients
+      await prisma.brokerageDetail.updateMany({ where: { operatorId: id }, data: { operatorId: transferToId } })
     }
 
     // Clean up log/tracking data and nullify nullable FK references before deleting

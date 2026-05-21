@@ -158,14 +158,26 @@ export async function PATCH(
       updateData.remark = 'SUCCESSFULLY_TRADED'
     }
 
-    const client = await prisma.client.update({
-      where: { id },
-      data: updateData,
-      include: {
-        operator: {
-          select: { id: true, name: true },
+    const operatorChanged = data.operatorId !== undefined && data.operatorId !== existing.operatorId
+
+    const client = await prisma.$transaction(async (tx) => {
+      const updated = await tx.client.update({
+        where: { id },
+        data: updateData,
+        include: {
+          operator: {
+            select: { id: true, name: true },
+          },
         },
-      },
+      })
+      // Move historical brokerage attribution with the client on transfer
+      if (operatorChanged) {
+        await tx.brokerageDetail.updateMany({
+          where: { clientId: id },
+          data: { operatorId: data.operatorId! },
+        })
+      }
+      return updated
     })
 
     await logActivity({

@@ -67,9 +67,19 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    const result = await prisma.client.updateMany({
-      where: { id: { in: clientIds } },
-      data: updateData,
+    const result = await prisma.$transaction(async (tx) => {
+      const r = await tx.client.updateMany({
+        where: { id: { in: clientIds } },
+        data: updateData,
+      })
+      // Move historical brokerage attribution with the clients on transfer
+      if (operatorId !== undefined) {
+        await tx.brokerageDetail.updateMany({
+          where: { clientId: { in: clientIds } },
+          data: { operatorId },
+        })
+      }
+      return r
     })
 
     await logActivity({
