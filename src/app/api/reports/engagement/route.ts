@@ -32,17 +32,23 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const { start, end } = getMonthRange(now.getMonth() + 1, now.getFullYear())
 
-    // Pre-fetch current month's traded clients per operator from BrokerageDetail
+    // Pre-fetch current month's traded clients per operator.
+    // Attribution by CURRENT client owner — transferred clients count toward their new owner.
     const operatorIds = equityDealers.map((op) => op.id)
     const monthDetails = await prisma.brokerageDetail.findMany({
-      where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } },
-      select: { operatorId: true, clientId: true },
+      where: {
+        clientId: { not: null },
+        client: { operatorId: { in: operatorIds } },
+        brokerage: { isActive: true, uploadDate: { gte: start, lte: end } },
+      },
+      select: { clientId: true, client: { select: { operatorId: true } } },
     })
     const tradedSets = new Map<string, Set<string>>()
     for (const d of monthDetails) {
-      if (d.clientId) {
-        if (!tradedSets.has(d.operatorId)) tradedSets.set(d.operatorId, new Set())
-        tradedSets.get(d.operatorId)!.add(d.clientId)
+      if (d.clientId && d.client) {
+        const ownerId = d.client.operatorId
+        if (!tradedSets.has(ownerId)) tradedSets.set(ownerId, new Set())
+        tradedSets.get(ownerId)!.add(d.clientId)
       }
     }
 

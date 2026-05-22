@@ -26,10 +26,12 @@ export async function runMonthlyReset() {
   })
 
   await Promise.all(operators.map(async (op) => {
+    // Attribution by CURRENT client owner — transferred-in clients count toward
+    // their new owner in the monthly archive.
     const details = await prisma.brokerageDetail.findMany({
       where: {
-        operatorId: op.id,
         clientId: { not: null },
+        client: { operatorId: op.id },
         brokerage: { isActive: true, uploadDate: { gte: prevMonthStart, lte: prevMonthEnd } },
       },
       select: { clientId: true, amount: true },

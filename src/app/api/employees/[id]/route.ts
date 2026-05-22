@@ -240,11 +240,12 @@ export async function DELETE(
       )
     }
 
-    // Transfer clients to new employee if requested
+    // Transfer clients to new employee if requested.
+    // Note: we deliberately do NOT touch BrokerageDetail.operatorId — the snapshot
+    // preserves the original operator who earned that brokerage (for historical
+    // analysis). Current-attribution queries should filter by Client.operatorId.
     if (transferToId && _count.assignedClients > 0) {
       await prisma.client.updateMany({ where: { operatorId: id }, data: { operatorId: transferToId } })
-      // Move historical brokerage attribution along with the clients
-      await prisma.brokerageDetail.updateMany({ where: { operatorId: id }, data: { operatorId: transferToId } })
     }
 
     // Clean up log/tracking data and nullify nullable FK references before deleting

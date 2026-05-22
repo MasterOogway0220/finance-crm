@@ -41,16 +41,17 @@ export async function POST(request: NextRequest) {
       const monthStart = new Date(reportYear, reportMonth - 1, 1)
       const monthEnd = new Date(reportYear, reportMonth, 0, 23, 59, 59, 999)
 
+      // Attribution by CURRENT client owner (transferred-in clients show up here too)
       const detailsWhere: Record<string, unknown> = {
         brokerage: { uploadDate: { gte: monthStart, lte: monthEnd } },
       }
-      if (operatorId) detailsWhere.operatorId = operatorId
+      if (operatorId) detailsWhere.client = { operatorId }
 
       const details = await prisma.brokerageDetail.findMany({
         where: detailsWhere,
         include: {
           brokerage: { select: { uploadDate: true, fileName: true } },
-          client: { select: { clientCode: true, firstName: true, lastName: true } },
+          client: { select: { clientCode: true, firstName: true, lastName: true, operatorId: true } },
         },
         orderBy: [{ brokerage: { uploadDate: 'asc' } }, { clientCode: 'asc' }],
       })
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
         Date: d.brokerage.uploadDate.toISOString().split('T')[0],
         'Client Code': d.clientCode,
         'Client Name': d.client ? `${d.client.firstName} ${d.client.lastName}` : 'N/A',
-        'Operator ID': d.operatorId,
+        'Operator ID': d.client?.operatorId ?? d.operatorId,
         Amount: d.amount,
         'File Name': d.brokerage.fileName,
       }))

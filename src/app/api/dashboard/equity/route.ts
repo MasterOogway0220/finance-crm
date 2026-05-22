@@ -33,24 +33,23 @@ export async function GET(request: NextRequest) {
 
     const totalClients = await prisma.client.count({ where: { operatorId } })
 
-    // Always derive traded count from BrokerageDetail — Client.status accumulates across
-    // uploads and is not reliably reset, so it diverges from actual brokerage data.
-    const uploads = await prisma.brokerageUpload.findMany({
-      where: { uploadDate: { gte: start, lte: end }, isActive: true },
-      include: {
-        details: {
-          where: { operatorId },
-          select: { clientId: true, amount: true },
-        },
+    // Derive traded count + MTD brokerage from BrokerageDetail.
+    // Attribution by CURRENT client owner: brokerage for transferred-in clients
+    // (including pre-transfer history) shows up under the current operator.
+    // The BrokerageDetail.operatorId snapshot is preserved untouched but not used here.
+    const details = await prisma.brokerageDetail.findMany({
+      where: {
+        clientId: { not: null },
+        client: { operatorId },
+        brokerage: { isActive: true, uploadDate: { gte: start, lte: end } },
       },
+      select: { clientId: true, amount: true },
     })
     const tradedIds = new Set<string>()
     let mtdBrokerage = 0
-    for (const u of uploads) {
-      for (const d of u.details) {
-        if (d.clientId) tradedIds.add(d.clientId)
-        mtdBrokerage += d.amount
-      }
+    for (const d of details) {
+      if (d.clientId) tradedIds.add(d.clientId)
+      mtdBrokerage += d.amount
     }
     const tradedClients = tradedIds.size
 
