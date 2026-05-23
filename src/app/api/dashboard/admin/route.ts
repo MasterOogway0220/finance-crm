@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getMonthRange, isCurrentMonth } from '@/lib/utils'
 import { getCached, setCache } from '@/lib/cache'
+import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
 
 export async function GET(request: NextRequest) {
   try {
@@ -86,21 +87,29 @@ export async function GET(request: NextRequest) {
     const monthlyTotalMap = new Map<string, number>()
     const dailyMap        = new Map<string, Record<number, number>>()
 
-    // Attribution by CURRENT client owner — transferred-in clients (including
-    // pre-transfer history) count toward the new operator. BrokerageDetail.operatorId
-    // snapshot is preserved but not used for these counted totals.
+    // Hybrid attribution for the selected single month — see src/lib/brokerage-attribution.ts.
     const monthDetails = await prisma.brokerageDetail.findMany({
       where: {
         clientId: { not: null },
-        client: { operatorId: { in: operatorIds } },
+        ...brokerageOperatorFilter(operatorIds, month, year),
         brokerage: { isActive: true, uploadDate: { gte: start, lte: end } },
       },
-      select: { clientId: true, amount: true, client: { select: { operatorId: true } }, brokerage: { select: { uploadDate: true } } },
+      select: {
+        clientId: true,
+        amount: true,
+        operatorId: true,
+        client: { select: { operatorId: true } },
+        brokerage: { select: { uploadDate: true } },
+      },
     })
+    // Pick operator from the right field depending on attribution mode for the selected month.
+    const ownerOf = (d: typeof monthDetails[number]): string =>
+      currentMonth ? d.client!.operatorId : d.operatorId
+
     const tradedSets = new Map<string, Set<string>>()
     const allTradedIds = new Set<string>()
     for (const d of monthDetails) {
-      const ownerId = d.client!.operatorId
+      const ownerId = ownerOf(d)
       if (d.clientId) {
         if (!tradedSets.has(ownerId)) tradedSets.set(ownerId, new Set())
         tradedSets.get(ownerId)!.add(d.clientId)
@@ -115,19 +124,55 @@ export async function GET(request: NextRequest) {
     const tradedMap     = new Map([...tradedSets.entries()].map(([id, set]) => [id, set.size]))
     const tradedClients = allTradedIds.size
 
-    const yearDetails = await prisma.brokerageDetail.findMany({
-      where: {
-        clientId: { not: null },
-        client: { operatorId: { in: operatorIds } },
-        brokerage: { isActive: true, uploadDate: { gte: yearStart, lte: yearEnd } },
-      },
-      select: { amount: true, client: { select: { operatorId: true } }, brokerage: { select: { uploadDate: true } } },
-    })
+    // For the 12-month chart: split into closed-months (snapshot) and current-month (current-owner).
+    // If `year` is a past year, all 12 months are closed → single snapshot query.
+    // If `year` is the current year, months before `now.getMonth()+1` are closed; the current month uses current-owner.
+    const nowYear = now.getFullYear()
+    const nowMonth = now.getMonth() + 1
+    const isThisYear = year === nowYear
+
+    let pastYearEnd: Date
+    if (isThisYear) {
+      // Closed months in this year: Jan 1 .. last day of (nowMonth - 1). If nowMonth === 1, no closed months.
+      pastYearEnd = nowMonth > 1 ? new Date(year, nowMonth - 1, 0, 23, 59, 59, 999) : new Date(year, 0, 0, 23, 59, 59, 999) // before Jan 1 → empty
+    } else {
+      pastYearEnd = yearEnd
+    }
+
+    const [pastYearDetails, curMonthYearDetails] = await Promise.all([
+      pastYearEnd >= yearStart
+        ? prisma.brokerageDetail.findMany({
+            where: {
+              clientId: { not: null },
+              operatorId: { in: operatorIds },
+              brokerage: { isActive: true, uploadDate: { gte: yearStart, lte: pastYearEnd } },
+            },
+            select: { amount: true, operatorId: true, brokerage: { select: { uploadDate: true } } },
+          })
+        : Promise.resolve([] as Array<{ amount: number; operatorId: string; brokerage: { uploadDate: Date } }>),
+      isThisYear
+        ? prisma.brokerageDetail.findMany({
+            where: {
+              clientId: { not: null },
+              client: { operatorId: { in: operatorIds } },
+              brokerage: { isActive: true, uploadDate: { gte: new Date(year, nowMonth - 1, 1), lte: yearEnd } },
+            },
+            select: { amount: true, client: { select: { operatorId: true } }, brokerage: { select: { uploadDate: true } } },
+          })
+        : Promise.resolve([] as Array<{ amount: number; client: { operatorId: string }; brokerage: { uploadDate: Date } }>),
+    ])
 
     const historyMap = new Map<string, Record<string, number>>()
-    for (const d of yearDetails) {
+    const labelOf = (d: Date) => d.toLocaleString('default', { month: 'short', year: '2-digit' })
+    for (const d of pastYearDetails) {
+      const label = labelOf(new Date(d.brokerage.uploadDate))
+      const opHist = historyMap.get(d.operatorId) ?? {}
+      opHist[label] = (opHist[label] ?? 0) + d.amount
+      historyMap.set(d.operatorId, opHist)
+    }
+    for (const d of curMonthYearDetails) {
       const ownerId = d.client!.operatorId
-      const label = new Date(d.brokerage.uploadDate).toLocaleString('default', { month: 'short', year: '2-digit' })
+      const label = labelOf(new Date(d.brokerage.uploadDate))
       const opHist = historyMap.get(ownerId) ?? {}
       opHist[label] = (opHist[label] ?? 0) + d.amount
       historyMap.set(ownerId, opHist)
