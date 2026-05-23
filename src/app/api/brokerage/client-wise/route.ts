@@ -1,6 +1,7 @@
 import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,12 +43,15 @@ export async function GET(request: NextRequest) {
       dateEnd   = new Date(year, month, 0, 23, 59, 59, 999)
     }
 
-    // Attribution by CURRENT client owner — brokerage history follows the client
-    // through transfers. BrokerageDetail.operatorId snapshot is preserved but not used here.
+    // Hybrid attribution — see src/lib/brokerage-attribution.ts. The `day` param
+    // narrows further but stays within the same month, so the month/year-level
+    // attribution decision applies uniformly to the whole result set.
     const dateFilter = { isActive: true, uploadDate: { gte: dateStart, lte: dateEnd } }
-    const baseWhere = operatorId
-      ? { clientId: { not: null }, client: { operatorId }, brokerage: dateFilter }
-      : { clientId: { not: null }, brokerage: dateFilter }
+    const baseWhere = {
+      clientId: { not: null },
+      ...brokerageOperatorFilter(operatorId, month, year),
+      brokerage: dateFilter,
+    }
 
     const [grouped, clientRecords] = await Promise.all([
       prisma.brokerageDetail.groupBy({
