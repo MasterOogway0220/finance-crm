@@ -2,6 +2,7 @@ import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getMonthRange } from '@/lib/utils'
+import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,13 +33,15 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const { start, end } = getMonthRange(now.getMonth() + 1, now.getFullYear())
 
-    // Pre-fetch current month's traded clients per operator.
-    // Attribution by CURRENT client owner — transferred clients count toward their new owner.
+    // Engagement always reports current-month traded engagement → hybrid resolves to
+    // current-owner attribution. Going through the helper for consistency.
     const operatorIds = equityDealers.map((op) => op.id)
+    const curMonth = now.getMonth() + 1
+    const curYear = now.getFullYear()
     const monthDetails = await prisma.brokerageDetail.findMany({
       where: {
         clientId: { not: null },
-        client: { operatorId: { in: operatorIds } },
+        ...brokerageOperatorFilter(operatorIds, curMonth, curYear),
         brokerage: { isActive: true, uploadDate: { gte: start, lte: end } },
       },
       select: { clientId: true, client: { select: { operatorId: true } } },
