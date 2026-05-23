@@ -156,7 +156,12 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   const { activeRole, setActiveRole, clearActiveRole } = useActiveRoleStore()
   const [notifOpen, setNotifOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Defer first paint until after hydration to avoid Radix useId() drift caused by
+  // useSession() + persisted zustand stores resolving asynchronously on the client.
+  useEffect(() => { setMounted(true) }, [])
 
   const primaryRole = session?.user?.role
   const secondaryRole = session?.user?.secondaryRole
@@ -205,6 +210,15 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
 
   const userName = session?.user?.name ?? 'User'
   const initials = getInitials(userName)
+
+  if (!mounted) {
+    return (
+      <header
+        aria-hidden="true"
+        className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card px-4 shadow-sm sm:h-16"
+      />
+    )
+  }
 
   return (
     <>

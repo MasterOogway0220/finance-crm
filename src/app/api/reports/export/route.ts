@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentMonthRange } from '@/lib/utils'
 import { Role } from '@prisma/client'
+import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
 import * as XLSX from 'xlsx'
 
 export async function POST(request: NextRequest) {
@@ -41,11 +42,11 @@ export async function POST(request: NextRequest) {
       const monthStart = new Date(reportYear, reportMonth - 1, 1)
       const monthEnd = new Date(reportYear, reportMonth, 0, 23, 59, 59, 999)
 
-      // Attribution by CURRENT client owner (transferred-in clients show up here too)
-      const detailsWhere: Record<string, unknown> = {
+      // Hybrid attribution — see src/lib/brokerage-attribution.ts.
+      const detailsWhere: import('@prisma/client').Prisma.BrokerageDetailWhereInput = {
+        ...(operatorId ? brokerageOperatorFilter(operatorId, reportMonth, reportYear) : {}),
         brokerage: { uploadDate: { gte: monthStart, lte: monthEnd } },
       }
-      if (operatorId) detailsWhere.client = { operatorId }
 
       const details = await prisma.brokerageDetail.findMany({
         where: detailsWhere,

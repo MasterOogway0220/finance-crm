@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getActiveRole } from '@/lib/auth'
+import { isCurrentMonth } from '@/lib/utils'
 
 // Indian fiscal year (Apr-Mar). Returns "YY-YY" e.g. "25-26" for FY starting Apr 2025.
 function fyLabelOf(d: Date): string {
@@ -88,22 +89,71 @@ export async function GET(request: NextRequest) {
 
     const clientIds = clients.map((c) => c.id)
 
-    // Fetch all BrokerageDetail rows for these clients within the FY window
-    // (only isActive uploads)
-    const details = clientIds.length === 0 ? [] : await prisma.brokerageDetail.findMany({
-      where: {
-        clientId: { in: clientIds },
-        brokerage: {
-          isActive: true,
-          uploadDate: { gte: earliestStart, lt: latestEnd },
-        },
-      },
-      select: {
-        clientId: true,
-        amount: true,
-        brokerage: { select: { uploadDate: true } },
-      },
-    })
+    // See src/lib/brokerage-attribution.ts for the canonical hybrid rule.
+    // Hybrid attribution: this report is about a client's trading activity per FY.
+    // For past months we want the snapshot operator to determine whether the brokerage
+    // counts toward this client's *current* operator's column — but the per-CLIENT
+    // breakdown in this report is keyed by client, not operator. So the operator
+    // attribution doesn't actually change what's displayed for past months: the row is
+    // already keyed by client.id, and we just need rows where clientId is in the
+    // selected client set (the snapshot operator on the row is irrelevant to the
+    // bucket the amount lands in).
+    //
+    // BUT — the client set itself was selected by `clientWhere.operatorId = X` (above).
+    // That filter is "clients CURRENTLY assigned to X". Under the user's golden rule,
+    // past-FY views should show whichever client was X's client AT THE TIME earning
+    // brokerage — which we can detect by checking if any BrokerageDetail row for that
+    // client in that FY had operatorId = X (the snapshot).
+    //
+    // So the correct hybrid behavior here is:
+    //   - Past FYs: include a client in operator X's view only if the snapshot
+    //     operatorId on that FY's brokerage rows was X. The amount shown is the sum
+    //     of those snapshot-matching rows.
+    //   - Current FY: same as today — clients currently assigned to X, brokerage
+    //     summed regardless of snapshot.
+    //
+    // Implementation: fetch ALL details for the current operatorIdFilter via snapshot
+    // for past FYs, then OVERLAY current-FY rows fetched by current-owner.
+    const isThisFyForCurrentMonth = (d: Date) => isCurrentMonth(d.getMonth() + 1, d.getFullYear())
+
+    let details: Array<{
+      clientId: string | null
+      amount: number
+      brokerage: { uploadDate: Date }
+    }> = []
+
+    if (clientIds.length > 0 || operatorIdFilter) {
+      // Past-FY scope: rows in the window whose snapshot operatorId matches the filter
+      // (or all rows in the window if no operator filter — admin "all" view).
+      const pastWhere: import('@prisma/client').Prisma.BrokerageDetailWhereInput = {
+        brokerage: { isActive: true, uploadDate: { gte: earliestStart, lt: latestEnd } },
+      }
+      if (operatorIdFilter) pastWhere.operatorId = operatorIdFilter
+      else if (clientIds.length > 0) pastWhere.clientId = { in: clientIds }
+
+      const pastRows = await prisma.brokerageDetail.findMany({
+        where: pastWhere,
+        select: { clientId: true, amount: true, brokerage: { select: { uploadDate: true } } },
+      })
+
+      // Keep only rows whose upload month is NOT the current calendar month — those go through
+      // the current-owner overlay below to avoid double counting.
+      details = pastRows.filter((d) => !isThisFyForCurrentMonth(new Date(d.brokerage.uploadDate)))
+
+      // Current-month overlay using current-owner attribution: client must currently be in the set.
+      if (clientIds.length > 0) {
+        const curStart = new Date(now.getFullYear(), now.getMonth(), 1)
+        const curEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+        const curRows = await prisma.brokerageDetail.findMany({
+          where: {
+            clientId: { in: clientIds },
+            brokerage: { isActive: true, uploadDate: { gte: curStart, lte: curEnd } },
+          },
+          select: { clientId: true, amount: true, brokerage: { select: { uploadDate: true } } },
+        })
+        details.push(...curRows)
+      }
+    }
 
     // Bucket: per-client per-FY total amount (we'll surface presence + amount)
     const perClient = new Map<string, Map<string, number>>()

@@ -26,12 +26,14 @@ export async function runMonthlyReset() {
   })
 
   await Promise.all(operators.map(async (op) => {
-    // Attribution by CURRENT client owner — transferred-in clients count toward
-    // their new owner in the monthly archive.
+    // Archive uses SNAPSHOT attribution: the just-ended month is now a closed month,
+    // and per the hybrid rule (src/lib/brokerage-attribution.ts) closed-month brokerage
+    // is attributed by BrokerageDetail.operatorId. This locks in the original credit
+    // regardless of subsequent client transfers.
     const details = await prisma.brokerageDetail.findMany({
       where: {
         clientId: { not: null },
-        client: { operatorId: op.id },
+        operatorId: op.id,
         brokerage: { isActive: true, uploadDate: { gte: prevMonthStart, lte: prevMonthEnd } },
       },
       select: { clientId: true, amount: true },
