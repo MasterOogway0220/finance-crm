@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { mfBusinessSchema } from '@/lib/validations'
 import { logActivity } from '@/lib/activity-log'
-import { getEffectiveRole } from '@/lib/roles'
+import { getActiveRole } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,16 +12,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const role = getEffectiveRole(session.user)
+    const role = (await getActiveRole(session.user))
     const { searchParams } = new URL(request.url)
     const month = parseInt(searchParams.get('month') || String(new Date().getMonth() + 1))
     const year = parseInt(searchParams.get('year') || String(new Date().getFullYear()))
+    const range = searchParams.get('range') || 'MONTH'
     const myBusinessOnly = searchParams.get('myBusinessOnly') === 'true'
+    const employeeIdParam = searchParams.get('employeeId')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
 
-    const startDate = new Date(year, month - 1, 1)
-    const endDate = new Date(year, month, 0, 23, 59, 59, 999)
+    let startDate: Date
+    let endDate: Date
+    if (range === 'FULL_YEAR') {
+      startDate = new Date(year, 0, 1)
+      endDate = new Date(year, 11, 31, 23, 59, 59, 999)
+    } else {
+      startDate = new Date(year, month - 1, 1)
+      endDate = new Date(year, month, 0, 23, 59, 59, 999)
+    }
 
     const where: Record<string, unknown> = {
       businessDate: { gte: startDate, lte: endDate },
@@ -36,6 +45,8 @@ export async function GET(request: NextRequest) {
     } else if (role === 'EQUITY_DEALER') {
       // Equity dealer sees only records where they are the referrer (read-only view)
       where.referredById = session.user.id
+    } else if ((role === 'SUPER_ADMIN' || role === 'ADMIN') && employeeIdParam) {
+      where.employeeId = employeeIdParam
     }
 
     const [records, total] = await Promise.all([

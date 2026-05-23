@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const month = parseInt(searchParams.get('month') ?? String(now.getMonth() + 1))
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     // Build date range for the requested month
     const monthStart = new Date(year, month - 1, 1)
@@ -47,48 +47,72 @@ export async function GET(request: NextRequest) {
     const operatorIds = operators.map((o) => o.id)
 
     // ── Batch all data in one parallel round-trip ──────────────────────────
+    // Attribution is by CURRENT Client.operatorId (not the BrokerageDetail snapshot),
+    // so transferred clients' history follows the client to its new owner. The snapshot
+    // BrokerageDetail.operatorId is preserved untouched for historical analysis.
     const [
-      uploads,
-      allClientCounts, tradedCounts, dnaCounts,
+      monthDetails,
+      allClientCounts, dnaCounts,
       historyDetails,
     ] = await Promise.all([
-      // Current month brokerage uploads (for monthly total + daily breakdown)
-      prisma.brokerageUpload.findMany({
-        where: { uploadDate: { gte: monthStart, lte: monthEnd } },
-        include: {
-          details: { where: { clientId: { not: null } }, select: { operatorId: true, amount: true } },
+      // Current month details, attributed via current client owner
+      prisma.brokerageDetail.findMany({
+        where: {
+          clientId: { not: null },
+          client: { operatorId: { in: operatorIds } },
+          brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
+        },
+        select: {
+          amount: true,
+          clientId: true,
+          client: { select: { operatorId: true } },
+          brokerage: { select: { uploadDate: true } },
         },
       }),
-      // Total clients per operator
+      // Total clients per operator (current assignment — used as denominator)
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds } }, _count: { id: true } }),
-      // Traded clients per operator
-      prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, status: 'TRADED' }, _count: { id: true } }),
-      // DID_NOT_ANSWER per operator
+      // DID_NOT_ANSWER per operator (live call-status, separate from traded)
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, remark: 'DID_NOT_ANSWER' }, _count: { id: true } }),
-      // Full 7-month history (one query replaces N×7 aggregates)
+      // Full 7-month history attributed via current client owner
       prisma.brokerageDetail.findMany({
-        where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: historyStart, lte: historyEnd } } },
-        select: { operatorId: true, amount: true, brokerage: { select: { uploadDate: true } } },
+        where: {
+          clientId: { not: null },
+          client: { operatorId: { in: operatorIds } },
+          brokerage: { isActive: true, uploadDate: { gte: historyStart, lte: historyEnd } },
+        },
+        select: {
+          amount: true,
+          client: { select: { operatorId: true } },
+          brokerage: { select: { uploadDate: true } },
+        },
       }),
     ])
 
     // Build O(1) lookup maps for client counts
-    const totalMap  = new Map(allClientCounts.map((r) => [r.operatorId, r._count.id]))
-    const tradedMap = new Map(tradedCounts.map((r) => [r.operatorId, r._count.id]))
-    const dnaMap    = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
+    const totalMap = new Map(allClientCounts.map((r) => [r.operatorId, r._count.id]))
+    const dnaMap   = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
 
-    // Flatten current-month upload details with day numbers
-    type DetailEntry = { operatorId: string; amount: number; day: number }
+    // Flatten current-month details with day numbers + current-owner attribution
+    type DetailEntry = { operatorId: string; clientId: string | null; amount: number; day: number }
     const allDetails: DetailEntry[] = []
-    for (const upload of uploads) {
-      const day = new Date(upload.uploadDate).getDate()
-      for (const detail of upload.details) {
-        allDetails.push({ operatorId: detail.operatorId, amount: detail.amount, day })
-      }
+    for (const d of monthDetails) {
+      const day = new Date(d.brokerage.uploadDate).getDate()
+      allDetails.push({ operatorId: d.client!.operatorId, clientId: d.clientId, amount: d.amount, day })
     }
     const totalMonthlyBrokerage = allDetails.reduce((sum, d) => sum + d.amount, 0)
 
-    // Group monthly total + daily breakdown per operator
+    // Derive traded clients from brokerage records for the selected month
+    // (distinct clients per current-owner who appear in any upload within monthStart..monthEnd)
+    const tradedSets = new Map<string, Set<string>>()
+    for (const d of allDetails) {
+      if (d.clientId) {
+        if (!tradedSets.has(d.operatorId)) tradedSets.set(d.operatorId, new Set())
+        tradedSets.get(d.operatorId)!.add(d.clientId)
+      }
+    }
+    const tradedMap = new Map([...tradedSets.entries()].map(([id, set]) => [id, set.size]))
+
+    // Group monthly total + daily breakdown per current-owner
     const monthlyTotalMap = new Map<string, number>()
     const dailyMap        = new Map<string, Record<number, number>>()
     for (const d of allDetails) {
@@ -98,13 +122,14 @@ export async function GET(request: NextRequest) {
       dailyMap.set(d.operatorId, daily)
     }
 
-    // Group 7-month history per operator + month label
+    // Group 7-month history per current-owner + month label
     const historyMap = new Map<string, Record<string, number>>()
     for (const d of historyDetails) {
+      const ownerId = d.client!.operatorId
       const label = new Date(d.brokerage.uploadDate).toLocaleString('default', { month: 'short', year: '2-digit' })
-      const opHist = historyMap.get(d.operatorId) ?? {}
+      const opHist = historyMap.get(ownerId) ?? {}
       opHist[label] = (opHist[label] ?? 0) + d.amount
-      historyMap.set(d.operatorId, opHist)
+      historyMap.set(ownerId, opHist)
     }
 
     // Assemble per-operator performance from maps

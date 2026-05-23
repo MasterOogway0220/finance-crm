@@ -69,6 +69,8 @@ export interface ClientWithOperator {
   middleName?: string | null
   lastName: string
   phone: string
+  email?: string | null
+  pan?: string | null
   department: Department
   operatorId: string
   operator: { id: string; name: string }
@@ -81,6 +83,7 @@ export interface ClientWithOperator {
   notes?: string | null
   followUpDate?: Date | null
   createdAt: Date
+  tradedThisMonth?: boolean
 }
 
 export interface BrokerageUploadSummary {

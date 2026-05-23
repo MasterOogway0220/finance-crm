@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runMonthlyReset } from '@/lib/monthly-reset'
+import { invalidateCache } from '@/lib/cache'
 
 function isAuthorized(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization')
@@ -16,6 +17,8 @@ export async function GET(request: NextRequest) {
   }
   try {
     const data = await runMonthlyReset()
+    invalidateCache('dashboard:admin')
+    invalidateCache('dashboard:equity')
     return NextResponse.json({ success: true, data })
   } catch (error) {
     console.error('[GET /api/cron/monthly-reset]', error)
@@ -23,13 +26,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: manual trigger (x-cron-secret header)
+// POST: manual trigger (x-cron-secret header or Authorization: Bearer)
 export async function POST(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
   try {
     const data = await runMonthlyReset()
+    invalidateCache('dashboard:admin')
+    invalidateCache('dashboard:equity')
     return NextResponse.json({ success: true, data })
   } catch (error) {
     console.error('[POST /api/cron/monthly-reset]', error)

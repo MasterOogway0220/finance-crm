@@ -1,9 +1,8 @@
 'use client'
-import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
-import { IndianRupee, CheckSquare, Users, ArrowRight, CalendarDays, TrendingUp } from 'lucide-react'
-import { getEffectiveRole } from '@/lib/roles'
+import { IndianRupee, CheckSquare, Users, ArrowRight, CalendarDays, TrendingUp, Ban } from 'lucide-react'
+import { useActiveRoleStore } from '@/stores/active-role-store'
 
 const ADMIN_REPORTS = [
   { title: 'Equity Brokerage Report', desc: 'Monthly brokerage analysis per operator', icon: IndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-50 ring-1 ring-emerald-200/50', href: '/reports/brokerage' },
@@ -11,6 +10,7 @@ const ADMIN_REPORTS = [
   { title: 'Client Engagement Report', desc: 'Client trading status and follow-up data', icon: Users, color: 'text-purple-600', bg: 'bg-purple-50 ring-1 ring-purple-200/50', href: '/reports/engagement' },
   { title: 'Employee Leave Report', desc: 'Leave balance and usage across departments', icon: CalendarDays, color: 'text-amber-600', bg: 'bg-amber-50 ring-1 ring-amber-200/50', href: '/reports/leave' },
   { title: 'MF Business Report', desc: 'Mutual fund sales and commission by department', icon: TrendingUp, color: 'text-cyan-600', bg: 'bg-cyan-50 ring-1 ring-cyan-200/50', href: '/reports/mf-business' },
+  { title: 'No Business — Equity', desc: 'Equity clients with no brokerage for over 2 months', icon: Ban, color: 'text-orange-600', bg: 'bg-orange-50 ring-1 ring-orange-200/50', href: '/reports/no-business' },
 ]
 
 const EQUITY_REPORTS = [
@@ -26,9 +26,9 @@ const BO_REPORTS = [
 ]
 
 export default function ReportsPage() {
-  const { data: session } = useSession()
   const router = useRouter()
-  const role = session?.user ? getEffectiveRole(session.user) : undefined
+  const { activeRole } = useActiveRoleStore()
+  const role = activeRole || undefined
 
   const reports = role === 'SUPER_ADMIN' || role === 'ADMIN' ? ADMIN_REPORTS
     : role === 'EQUITY_DEALER' ? EQUITY_REPORTS

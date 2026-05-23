@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = { userId: session.user.id }
     if (unreadOnly) where.isRead = false
 
-    const [notifications, unreadCount] = await Promise.all([
+    const [notifications, unreadCount, taskAssignedCount] = await Promise.all([
       prisma.notification.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -25,11 +25,14 @@ export async function GET(request: NextRequest) {
       prisma.notification.count({
         where: { userId: session.user.id, isRead: false },
       }),
+      prisma.notification.count({
+        where: { userId: session.user.id, isRead: false, type: 'TASK_ASSIGNED' },
+      }),
     ])
 
     return NextResponse.json({
       success: true,
-      data: { notifications, unreadCount },
+      data: { notifications, unreadCount, taskAssignedCount },
     })
   } catch (error) {
     console.error('[GET /api/notifications]', error)

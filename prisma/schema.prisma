@@ -95,9 +95,10 @@ model Employee {
   leaveApplications    LeaveApplication[] @relation("LeaveApplicant")
   reviewedLeaves       LeaveApplication[] @relation("LeaveReviewer")
   loginLogs            EmployeeLoginLog[]
-  mfBusinessRecorded   MFBusiness[]       @relation("MFBusinessEmployee")
-  mfBusinessReferred   MFBusiness[]       @relation("MFBusinessReferrer")
-  mfServicesRecorded   MFService[]        @relation("MFServiceEmployee")
+  mfBusinessRecorded   MFBusiness[]          @relation("MFBusinessEmployee")
+  mfBusinessReferred   MFBusiness[]          @relation("MFBusinessReferrer")
+  mfServicesRecorded   MFService[]           @relation("MFServiceEmployee")
+  noBusinessDismissals NoBusinessDismissal[] @relation("DismissalAdmin")
 
   @@index([department])
   @@index([role])
@@ -146,9 +147,10 @@ model Client {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  brokerageDetails BrokerageDetail[]
-  mfBusinesses     MFBusiness[]
-  mfServices       MFService[]
+  brokerageDetails    BrokerageDetail[]
+  mfBusinesses        MFBusiness[]
+  mfServices          MFService[]
+  noBusinessDismissal NoBusinessDismissal?
 
   @@unique([clientCode, department])
   @@index([operatorId])
@@ -218,6 +220,9 @@ model TaskComment {
 model BrokerageUpload {
   id            String    @id @default(cuid())
   uploadDate    DateTime
+  branch        String    @default("Mumbai")
+  version       Int       @default(1)
+  isActive      Boolean   @default(true)
   uploadedById  String?
   uploadedBy    Employee? @relation(fields: [uploadedById], references: [id])
   totalAmount   Float     @default(0)
@@ -226,8 +231,9 @@ model BrokerageUpload {
 
   details       BrokerageDetail[]
 
-  @@unique([uploadDate])
+  @@unique([uploadDate, branch, version])
   @@index([uploadDate])
+  @@index([uploadDate, branch])
 }
 
 model BrokerageDetail {
@@ -429,4 +435,13 @@ model MFService {
   @@index([employeeId])
   @@index([serviceDate])
   @@index([employeeId, serviceDate])
+}
+
+model NoBusinessDismissal {
+  id            String   @id @default(cuid())
+  clientId      String   @unique
+  client        Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  dismissedById String
+  dismissedBy   Employee @relation("DismissalAdmin", fields: [dismissedById], references: [id])
+  dismissedAt   DateTime @default(now())
 }

@@ -1,5 +1,19 @@
 import { prisma } from '@/lib/prisma'
 import { notifyEmployeeWhatsApp } from '@/lib/whatsapp'
+import { Department } from '@prisma/client'
+
+export function tasksLinkForDepartment(department: Department): string {
+  switch (department) {
+    case 'EQUITY':
+      return '/equity/tasks'
+    case 'MUTUAL_FUND':
+      return '/mf/tasks'
+    case 'BACK_OFFICE':
+      return '/backoffice/tasks'
+    case 'ADMIN':
+      return '/tasks'
+  }
+}
 
 export async function createNotification(params: {
   userId: string

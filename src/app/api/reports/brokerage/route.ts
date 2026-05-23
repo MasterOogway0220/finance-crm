@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
     const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
     const isEquityDealer = userRole === 'EQUITY_DEALER'
     if (!isAdmin && !isEquityDealer) {
@@ -78,15 +78,18 @@ export async function GET(request: NextRequest) {
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
 
+    // Attribution by CURRENT client owner — transferred clients' history follows
+    // the client to its new owner. BrokerageDetail.operatorId snapshot is preserved
+    // but not used for these counted totals.
     const details = await prisma.brokerageDetail.findMany({
       where: {
         clientId: { not: null },
-        operatorId: { in: equityDealers.map((e) => e.id) },
+        client: { operatorId: { in: equityDealers.map((e) => e.id) } },
         brokerage: { uploadDate: { gte: yearStart, lte: yearEnd } },
       },
       select: {
-        operatorId: true,
         amount: true,
+        client: { select: { operatorId: true } },
         brokerage: { select: { uploadDate: true } },
       },
     })
@@ -95,7 +98,7 @@ export async function GET(request: NextRequest) {
     const opIdToName = new Map(equityDealers.map((e) => [e.id, e.name]))
     const activeMonthSet = new Set(activeMonthIndices)
     for (const detail of details) {
-      const opName = opIdToName.get(detail.operatorId)
+      const opName = opIdToName.get(detail.client!.operatorId)
       if (!opName) continue
       const uploadDate = new Date(detail.brokerage.uploadDate)
       const monthIdx = uploadDate.getMonth()

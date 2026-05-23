@@ -28,19 +28,19 @@ export function TaskPieChart({ pending, completed, expired }: TaskPieChartProps)
       </CardHeader>
       <CardContent className="pt-2">
         {total === 0 ? (
-          <div className="empty-state h-[280px]">
+          <div className="empty-state h-[240px]">
             <p className="text-sm">No task data available</p>
           </div>
         ) : (
           <div className="relative">
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie
                   data={data}
                   cx="50%"
-                  cy="45%"
-                  innerRadius={72}
-                  outerRadius={108}
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
                   paddingAngle={3}
                   dataKey="value"
                   strokeWidth={2}
@@ -62,8 +62,8 @@ export function TaskPieChart({ pending, completed, expired }: TaskPieChartProps)
                 />
               </PieChart>
             </ResponsiveContainer>
-            {/* Center text */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ top: '-24px' }}>
+            {/* Center text — aligned to true chart center */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center">
                 <p className="stat-value text-foreground">{total}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Total Tasks</p>

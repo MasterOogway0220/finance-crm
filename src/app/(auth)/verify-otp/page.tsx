@@ -1,9 +1,10 @@
-'use client'
+﻿'use client'
 
+import logoImg from '../../../../public/logo.png'
 import { useState, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { TrendingUp, Loader2, AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react'
+import { Loader2, AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -89,8 +90,9 @@ function VerifyOtpForm() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="h-8 w-8 text-blue-500" />
-            <span className="text-2xl font-bold text-gray-900">FinanceCRM</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logoImg.src} alt="Kesar Securities" className="h-8 w-8 object-contain" />
+            <span className="text-2xl font-bold text-gray-900">Kesar Securities CRM</span>
           </div>
           <div className="mt-3 p-3 bg-green-50 rounded-full">
             <ShieldCheck className="h-6 w-6 text-green-500" />
@@ -137,7 +139,7 @@ function VerifyOtpForm() {
             className="w-full h-10 text-sm font-semibold"
             style={{ backgroundColor: '#1B73E8' }}
           >
-            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying…</> : 'Verify OTP'}
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifyingâ€¦</> : 'Verify OTP'}
           </Button>
         </form>
 
@@ -148,7 +150,7 @@ function VerifyOtpForm() {
             disabled={resending}
             className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
           >
-            {resending ? 'Resending…' : "Didn't get it? Resend OTP"}
+            {resending ? 'Resendingâ€¦' : "Didn't get it? Resend OTP"}
           </button>
           <div>
             <Link href="/login" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">

@@ -11,6 +11,9 @@ import { formatDate, getDaysRemaining, getInitials } from '@/lib/utils'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
+const MONTHS = Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: new Date(0, i).toLocaleString('default', { month: 'long' }) }))
+const YEARS  = ['2024', '2025', '2026', '2027'].map((y) => ({ value: y, label: y }))
+
 const STATUS_COLORS: Record<string, string> = {
   PENDING:   'badge-warning',
   COMPLETED: 'badge-success',
@@ -47,6 +50,9 @@ export default function AdminTasksPage() {
   const [dept, setDept] = useState('all')
   const [search, setSearch] = useState('')
   const [selectedTask, setSelectedTask] = useState<TaskWithRelations | null>(null)
+  const now2 = new Date()
+  const [taskMonth, setTaskMonth] = useState(String(now2.getMonth() + 1))
+  const [taskYear, setTaskYear]   = useState(String(now2.getFullYear()))
 
   const fetchTasks = useCallback(() => {
     setLoading(true)
@@ -55,18 +61,22 @@ export default function AdminTasksPage() {
     if (priority !== 'all') params.set('priority', priority)
     if (dept !== 'all') params.set('department', dept)
     if (search) params.set('search', search)
+    params.set('month', taskMonth)
+    params.set('year', taskYear)
     fetch(`/api/tasks?${params}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setTasks(d.data.tasks || []) })
       .finally(() => setLoading(false))
-  }, [status, priority, dept, search])
+  }, [status, priority, dept, search, taskMonth, taskYear])
 
   useEffect(() => {
     const timer = setTimeout(fetchTasks, 300)
     return () => clearTimeout(timer)
   }, [fetchTasks])
 
+  const now3 = new Date()
   const hasFilters = status !== 'all' || priority !== 'all' || dept !== 'all' || search !== ''
+    || taskMonth !== String(now3.getMonth() + 1) || taskYear !== String(now3.getFullYear())
 
   return (
     <div className="page-container space-y-5">
@@ -124,8 +134,16 @@ export default function AdminTasksPage() {
               <SelectItem value="ADMIN">Admin</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={taskMonth} onValueChange={setTaskMonth}>
+            <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{MONTHS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={taskYear} onValueChange={setTaskYear}>
+            <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
+          </Select>
           {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setStatus('all'); setPriority('all'); setDept('all') }} className="gap-1.5 text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setStatus('all'); setPriority('all'); setDept('all'); setTaskMonth(String(now3.getMonth() + 1)); setTaskYear(String(now3.getFullYear())) }} className="gap-1.5 text-muted-foreground hover:text-foreground">
               <X className="h-3.5 w-3.5" />Clear
             </Button>
           )}
@@ -200,8 +218,10 @@ export default function AdminTasksPage() {
         onClose={() => setSelectedTask(null)}
         onTaskCompleted={() => { setSelectedTask(null); fetchTasks() }}
         onTaskUpdated={(updated) => { setSelectedTask(updated); fetchTasks() }}
+        onTaskDeleted={() => { setSelectedTask(null); fetchTasks() }}
         canComplete={false}
         canEdit={true}
+        canDelete={true}
       />
     </div>
   )

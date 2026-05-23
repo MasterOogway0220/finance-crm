@@ -1,6 +1,7 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getMonthRange } from '@/lib/utils'
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
     const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
     const isEquityDealer = userRole === 'EQUITY_DEALER'
     if (!isAdmin && !isEquityDealer) {
@@ -29,12 +30,32 @@ export async function GET(request: NextRequest) {
     })
 
     const now = new Date()
+    const { start, end } = getMonthRange(now.getMonth() + 1, now.getFullYear())
+
+    // Pre-fetch current month's traded clients per operator.
+    // Attribution by CURRENT client owner — transferred clients count toward their new owner.
+    const operatorIds = equityDealers.map((op) => op.id)
+    const monthDetails = await prisma.brokerageDetail.findMany({
+      where: {
+        clientId: { not: null },
+        client: { operatorId: { in: operatorIds } },
+        brokerage: { isActive: true, uploadDate: { gte: start, lte: end } },
+      },
+      select: { clientId: true, client: { select: { operatorId: true } } },
+    })
+    const tradedSets = new Map<string, Set<string>>()
+    for (const d of monthDetails) {
+      if (d.clientId && d.client) {
+        const ownerId = d.client.operatorId
+        if (!tradedSets.has(ownerId)) tradedSets.set(ownerId, new Set())
+        tradedSets.get(ownerId)!.add(d.clientId)
+      }
+    }
 
     const operators = await Promise.all(
       equityDealers.map(async (op) => {
-        const [total, traded, followUpCount, remarkRows] = await Promise.all([
+        const [total, followUpCount, remarkRows] = await Promise.all([
           prisma.client.count({ where: { operatorId: op.id } }),
-          prisma.client.count({ where: { operatorId: op.id, status: 'TRADED' } }),
           prisma.client.count({
             where: { operatorId: op.id, followUpDate: { gte: now } },
           }),
@@ -44,6 +65,7 @@ export async function GET(request: NextRequest) {
             _count: { remark: true },
           }),
         ])
+        const traded = tradedSets.get(op.id)?.size ?? 0
 
         const remarks: Record<string, number> = {}
         for (const r of remarkRows) {

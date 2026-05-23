@@ -1,9 +1,10 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { clientSchema } from '@/lib/validations'
 import { validateClientCode } from '@/lib/client-code-validator'
+import { getMonthRange } from '@/lib/utils'
 import { ClientRemark, ClientStatus, Department, MFClientRemark, MFClientStatus, Role, Prisma } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -26,19 +27,94 @@ export async function GET(request: NextRequest) {
     const department = searchParams.get('department') as Department | null
     const search = searchParams.get('search')
     const ageRange = searchParams.get('ageRange') // e.g. "10-25"
+    const inactive2m = searchParams.get('inactive2m') === 'true'
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
+
+    // --- Inactive 2-month filter (bypasses all other filters) ---
+    if (inactive2m) {
+      if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN' && userRole !== 'EQUITY_DEALER') {
+        return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+      }
+      const now = new Date()
+      const cutoff = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+
+      const mfActiveClients = await prisma.client.findMany({
+        where: {
+          department: 'MUTUAL_FUND',
+          OR: [
+            { mfBusinesses: { some: { businessDate: { gte: cutoff } } } },
+            { mfServices: { some: { serviceDate: { gte: cutoff } } } },
+          ],
+        },
+        select: { clientCode: true },
+      })
+      const mfActiveCodes = mfActiveClients.map((c) => c.clientCode)
+
+      const notConditions: Prisma.ClientWhereInput[] = [
+        { brokerageDetails: { some: { brokerage: { isActive: true, uploadDate: { gte: cutoff } } } } },
+      ]
+      if (mfActiveCodes.length > 0) {
+        notConditions.push({ clientCode: { in: mfActiveCodes } })
+      }
+
+      const inactiveWhere: Prisma.ClientWhereInput = {
+        department: 'EQUITY',
+        NOT: notConditions,
+      }
+
+      const [clients, total] = await Promise.all([
+        prisma.client.findMany({
+          where: inactiveWhere,
+          include: { operator: { select: { id: true, name: true, email: true } } },
+          orderBy: { updatedAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        prisma.client.count({ where: inactiveWhere }),
+      ])
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          clients,
+          pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+          cutoffDate: cutoff.toISOString(),
+        },
+      })
+    }
 
     const where: Record<string, unknown> = {}
 
-    // EQUITY_DEALER can only see their own clients
+    // EQUITY_DEALER can only see their own clients.
+    // Track the operatorId scope so brokerage-based traded checks match the brokerage page
+    // (which attributes trades to the operator recorded in BrokerageDetail, not the client's current assignment).
+    let brokerageOperatorScope: string | null = null
     if (userRole === 'EQUITY_DEALER') {
       where.operatorId = session.user.id
+      brokerageOperatorScope = session.user.id
     } else if (operatorIdParam) {
       where.operatorId = operatorIdParam
+      brokerageOperatorScope = operatorIdParam
     }
 
-    if (status) where.status = status
+    if (status) {
+      const isEquityScope = !department || department === 'EQUITY'
+      if (isEquityScope) {
+        const now = new Date()
+        const { start, end } = getMonthRange(now.getMonth() + 1, now.getFullYear())
+        where.department = 'EQUITY'
+        const detailFilter: Record<string, unknown> = { brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } }
+        if (brokerageOperatorScope) detailFilter.operatorId = brokerageOperatorScope
+        if (status === 'TRADED') {
+          where.brokerageDetails = { some: detailFilter }
+        } else {
+          where.brokerageDetails = { none: detailFilter }
+        }
+      } else {
+        where.status = status
+      }
+    }
     if (remark) where.remark = remark
     if (mfStatus) where.mfStatus = mfStatus
     if (mfRemark) where.mfRemark = mfRemark
@@ -87,10 +163,35 @@ export async function GET(request: NextRequest) {
       prisma.client.count({ where }),
     ])
 
+    // Compute tradedThisMonth for EQUITY clients from BrokerageDetail.
+    // Scope to brokerageOperatorScope (operator's own ID) when set so the count matches
+    // the brokerage page, which attributes trades by BrokerageDetail.operatorId.
+    const now = new Date()
+    const { start: mStart, end: mEnd } = getMonthRange(now.getMonth() + 1, now.getFullYear())
+    const equityIds = clients.filter(c => c.department === 'EQUITY').map(c => c.id)
+    const tradedSet = new Set<string>()
+    if (equityIds.length > 0) {
+      const tradedDetailWhere: Prisma.BrokerageDetailWhereInput = {
+        clientId: { in: equityIds },
+        brokerage: { isActive: true, uploadDate: { gte: mStart, lte: mEnd } },
+      }
+      if (brokerageOperatorScope) tradedDetailWhere.operatorId = brokerageOperatorScope
+      const tradedRows = await prisma.brokerageDetail.findMany({
+        where: tradedDetailWhere,
+        select: { clientId: true },
+        distinct: ['clientId'],
+      })
+      tradedRows.forEach(r => { if (r.clientId) tradedSet.add(r.clientId) })
+    }
+    const enrichedClients = clients.map(c => ({
+      ...c,
+      tradedThisMonth: c.department === 'EQUITY' ? tradedSet.has(c.id) : undefined,
+    }))
+
     return NextResponse.json({
       success: true,
       data: {
-        clients,
+        clients: enrichedClients,
         pagination: {
           page,
           limit,

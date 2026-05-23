@@ -27,8 +27,10 @@ interface TaskDetailModalProps {
   onClose: () => void
   onTaskCompleted?: (taskId: string) => void
   onTaskUpdated?: (updatedTask: TaskWithRelations) => void
+  onTaskDeleted?: (taskId: string) => void
   canComplete?: boolean
   canEdit?: boolean
+  canDelete?: boolean
 }
 
 const priorityColor: Record<string, string> = {
@@ -71,11 +73,15 @@ export function TaskDetailModal({
   onClose,
   onTaskCompleted,
   onTaskUpdated,
+  onTaskDeleted,
   canComplete = true,
   canEdit = false,
+  canDelete = false,
 }: TaskDetailModalProps) {
   const [showConfirm, setShowConfirm] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [draft, setDraft] = useState<DraftState>({
@@ -210,6 +216,24 @@ export function TaskDetailModal({
     window.open(`/api/tasks/${task.id}/proof/${proofId}/download`, '_blank')
   }
 
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        toast.success('Task deleted')
+        onTaskDeleted?.(task.id)
+        onClose()
+      } else {
+        toast.error(data.error || 'Failed to delete task')
+      }
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }
+
   const showEditButton = canEdit && task.status === 'PENDING'
 
   return (
@@ -233,6 +257,17 @@ export function TaskDetailModal({
                   <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)} className="h-7 gap-1.5 text-xs text-gray-500">
                     <X className="h-3 w-3" />
                     Cancel
+                  </Button>
+                )}
+                {canDelete && !isEditing && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                    title="Delete task"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 )}
               </div>
@@ -444,6 +479,29 @@ export function TaskDetailModal({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete &ldquo;{task.title}&rdquo; and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <Button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isDeleting ? 'Deleting…' : 'Delete'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Completion confirmation dialog with proof form */}
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>

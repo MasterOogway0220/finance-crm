@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
           <h2 style="color:#1B73E8;margin-bottom:8px">Password Reset</h2>
           <p style="color:#444;margin-bottom:20px">Hi ${employee.name},</p>
-          <p style="color:#444">Use the OTP below to reset your FinanceCRM password. It expires in <strong>10 minutes</strong>.</p>
+          <p style="color:#444">Use the OTP below to reset your Kesar Securities CRM password. It expires in <strong>10 minutes</strong>.</p>
           <div style="background:#F3F4F6;border-radius:8px;padding:20px;text-align:center;margin:24px 0">
             <span style="font-size:36px;font-weight:700;letter-spacing:12px;color:#1B73E8">${otp}</span>
           </div>

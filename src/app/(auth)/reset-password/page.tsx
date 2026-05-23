@@ -1,12 +1,13 @@
-'use client'
+﻿'use client'
 
+import logoImg from '../../../../public/logo.png'
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
-import { TrendingUp, Loader2, AlertCircle, Eye, EyeOff, KeyRound, CheckCircle } from 'lucide-react'
+import { Loader2, AlertCircle, Eye, EyeOff, KeyRound, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -57,7 +58,7 @@ function ResetPasswordForm() {
         <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center">
           <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
           <h1 className="text-xl font-semibold text-gray-900">Password reset!</h1>
-          <p className="mt-2 text-sm text-gray-500">Redirecting you to sign in…</p>
+          <p className="mt-2 text-sm text-gray-500">Redirecting you to sign inâ€¦</p>
         </div>
       </div>
     )
@@ -68,8 +69,9 @@ function ResetPasswordForm() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="h-8 w-8 text-blue-500" />
-            <span className="text-2xl font-bold text-gray-900">FinanceCRM</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logoImg.src} alt="Kesar Securities" className="h-8 w-8 object-contain" />
+            <span className="text-2xl font-bold text-gray-900">Kesar Securities CRM</span>
           </div>
           <div className="mt-3 p-3 bg-blue-50 rounded-full">
             <KeyRound className="h-6 w-6 text-blue-500" />
@@ -92,7 +94,7 @@ function ResetPasswordForm() {
               <Input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 className="pr-10"
                 aria-invalid={!!errors.password}
                 {...register('password')}
@@ -110,7 +112,7 @@ function ResetPasswordForm() {
               <Input
                 id="confirm"
                 type={showConfirm ? 'text' : 'password'}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 className="pr-10"
                 aria-invalid={!!errors.confirm}
                 {...register('confirm')}
@@ -128,7 +130,7 @@ function ResetPasswordForm() {
             className="w-full h-10 text-sm font-semibold"
             style={{ backgroundColor: '#1B73E8' }}
           >
-            {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : 'Reset Password'}
+            {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Savingâ€¦</> : 'Reset Password'}
           </Button>
         </form>
 

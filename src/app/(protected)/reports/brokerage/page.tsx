@@ -1,13 +1,13 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useState, useEffect, useMemo } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/utils'
-import { Download, ArrowLeft } from 'lucide-react'
-import { getEffectiveRole } from '@/lib/roles'
+import { Download, ArrowLeft, AlertTriangle, Check, X, Search } from 'lucide-react'
+import { useActiveRoleStore } from '@/stores/active-role-store'
 import Link from 'next/link'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -46,8 +46,8 @@ const formatYAxis = (v: number) => {
 }
 
 export default function BrokerageReportPage() {
-  const { data: session } = useSession()
-  const role = session?.user ? getEffectiveRole(session.user) : undefined
+  const { activeRole } = useActiveRoleStore()
+  const role = activeRole || undefined
   const isEquityDealer = role === 'EQUITY_DEALER'
   const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN'
 
@@ -57,6 +57,28 @@ export default function BrokerageReportPage() {
   const [operators, setOperators] = useState<Operator[]>([])
   const [data, setData] = useState<{ matrix: Record<string, Record<string, number>>; months: string[]; operators: string[] } | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // FY comparison table state
+  const [fyYears, setFyYears] = useState<number>(2)
+  const [fyOperatorId, setFyOperatorId] = useState<string>('all')
+  const [fySearch, setFySearch] = useState<string>('')
+  const [fyOnlyFollowUp, setFyOnlyFollowUp] = useState<boolean>(false)
+  const [fyData, setFyData] = useState<{
+    fyLabels: string[]
+    currentFy: string
+    operators: Operator[]
+    clients: Array<{
+      id: string
+      clientCode: string
+      name: string
+      phone: string
+      operatorId: string
+      operatorName: string
+      perFy: Record<string, { traded: boolean; amount: number }>
+      followUpRequired: boolean
+    }>
+  } | null>(null)
+  const [fyLoading, setFyLoading] = useState<boolean>(true)
 
   // Only fetch operators list for admins
   useEffect(() => {
@@ -75,6 +97,34 @@ export default function BrokerageReportPage() {
       .then((d) => { if (d.success) setData(d.data) })
       .finally(() => setLoading(false))
   }, [year, range, operatorId, isAdmin])
+
+  // FY comparison data fetch
+  useEffect(() => {
+    setFyLoading(true)
+    const params = new URLSearchParams({ years: String(fyYears) })
+    if (isAdmin && fyOperatorId !== 'all') params.set('operatorId', fyOperatorId)
+    fetch(`/api/reports/brokerage-fy-comparison?${params}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setFyData(d.data) })
+      .finally(() => setFyLoading(false))
+  }, [fyYears, fyOperatorId, isAdmin])
+
+  // Filtered FY clients (search + follow-up only)
+  const visibleFyClients = useMemo(() => {
+    if (!fyData) return []
+    const q = fySearch.trim().toLowerCase()
+    return fyData.clients.filter((c) => {
+      if (fyOnlyFollowUp && !c.followUpRequired) return false
+      if (!q) return true
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.clientCode.toLowerCase().includes(q) ||
+        (c.phone ?? '').toLowerCase().includes(q)
+      )
+    })
+  }, [fyData, fySearch, fyOnlyFollowUp])
+
+  const followUpCount = fyData?.clients.filter((c) => c.followUpRequired).length ?? 0
 
   const handleExport = async () => {
     const res = await fetch('/api/reports/export', {
@@ -231,6 +281,143 @@ export default function BrokerageReportPage() {
           </div>
         </>
       )}
+
+      {/* ─── FY-by-FY Comparison Table ─────────────────────────────────────── */}
+      <div className="space-y-3 pt-2">
+        <div className="flex items-end justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Year-by-Year Client Trading</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Track whether each client has paid brokerage in past financial years vs the current one. Clients flagged
+              <span className="mx-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                <AlertTriangle className="h-3 w-3" /> Follow-up
+              </span>
+              traded in a previous FY but not in {fyData?.currentFy ? `FY ${fyData.currentFy}` : 'the current FY'}.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {isAdmin && (
+              <Select value={fyOperatorId} onValueChange={setFyOperatorId}>
+                <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="Employee" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Employees</SelectItem>
+                  {(fyData?.operators ?? operators).map((op) => (
+                    <SelectItem key={op.id} value={op.id}>{op.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={String(fyYears)} onValueChange={(v) => setFyYears(parseInt(v, 10))}>
+              <SelectTrigger className="w-36 h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2">Past 2 years</SelectItem>
+                <SelectItem value="3">Past 3 years</SelectItem>
+                <SelectItem value="4">Past 4 years</SelectItem>
+                <SelectItem value="5">Past 5 years</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Input
+                value={fySearch}
+                onChange={(e) => setFySearch(e.target.value)}
+                placeholder="Search name / code / phone"
+                className="h-9 w-56 pl-7 text-sm"
+              />
+            </div>
+            <Button
+              size="sm"
+              variant={fyOnlyFollowUp ? 'default' : 'outline'}
+              onClick={() => setFyOnlyFollowUp((v) => !v)}
+              className="h-9 gap-1.5"
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Follow-up only{followUpCount > 0 ? ` (${followUpCount})` : ''}
+            </Button>
+          </div>
+        </div>
+
+        {fyLoading ? (
+          <Skeleton className="h-64 rounded-lg" />
+        ) : fyData && fyData.clients.length === 0 ? (
+          <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No clients match the current filters.</CardContent></Card>
+        ) : fyData && (
+          <div className="table-responsive">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-800">
+                <tr>
+                  <th className="px-3 py-3 text-white text-left text-xs font-semibold uppercase tracking-wider">Client</th>
+                  <th className="px-3 py-3 text-white text-left text-xs font-semibold uppercase tracking-wider">Code</th>
+                  {isAdmin && (
+                    <th className="px-3 py-3 text-white text-left text-xs font-semibold uppercase tracking-wider">Employee</th>
+                  )}
+                  {fyData.fyLabels.map((label) => {
+                    const isCurrent = label === fyData.currentFy
+                    return (
+                      <th
+                        key={label}
+                        className={`px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap ${isCurrent ? 'text-amber-200' : 'text-white'}`}
+                      >
+                        FY {label}{isCurrent && <span className="block text-[9px] font-normal normal-case opacity-80">current</span>}
+                      </th>
+                    )
+                  })}
+                  <th className="px-3 py-3 text-white text-center text-xs font-semibold uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleFyClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={2 + (isAdmin ? 1 : 0) + fyData.fyLabels.length + 1} className="px-3 py-6 text-center text-muted-foreground text-sm">
+                      No clients match the current filters.
+                    </td>
+                  </tr>
+                ) : visibleFyClients.map((c, idx) => (
+                  <tr
+                    key={c.id}
+                    className={`border-b border-border/50 ${c.followUpRequired ? 'bg-amber-50/70 hover:bg-amber-100/60' : idx % 2 === 0 ? 'bg-card' : 'bg-muted/30'}`}
+                  >
+                    <td className="px-3 py-2 text-foreground">
+                      <div className="font-medium">{c.name || '—'}</div>
+                      {c.phone && <div className="text-[11px] text-muted-foreground">{c.phone}</div>}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground text-xs tabular-nums">{c.clientCode}</td>
+                    {isAdmin && (
+                      <td className="px-3 py-2 text-muted-foreground text-xs">{c.operatorName}</td>
+                    )}
+                    {fyData.fyLabels.map((label) => {
+                      const cell = c.perFy[label]
+                      return (
+                        <td key={label} className="px-3 py-2 text-center tabular-nums">
+                          {cell?.traded ? (
+                            <div className="flex flex-col items-center">
+                              <Check className="h-4 w-4 text-emerald-600" />
+                              <span className="text-[10px] text-muted-foreground mt-0.5">{formatCurrency(cell.amount)}</span>
+                            </div>
+                          ) : (
+                            <X className="h-4 w-4 text-rose-400 mx-auto" />
+                          )}
+                        </td>
+                      )
+                    })}
+                    <td className="px-3 py-2 text-center">
+                      {c.followUpRequired ? (
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                          <AlertTriangle className="h-3 w-3" /> Follow-up
+                        </span>
+                      ) : c.perFy[fyData.currentFy]?.traded ? (
+                        <span className="inline-flex items-center rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">Active</span>
+                      ) : (
+                        <span className="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">No history</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

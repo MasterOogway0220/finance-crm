@@ -1,14 +1,34 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
+// Cookie that mirrors `activeRole` so API routes (server) can read the user's
+// chosen role and apply permission checks against it — not just the highest
+// priority role from getEffectiveRole().
+const ACTIVE_ROLE_COOKIE = 'activeRole'
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30 // 30 days
+
+function writeActiveRoleCookie(role: string) {
+  if (typeof document === 'undefined') return
+  if (!role) {
+    document.cookie = `${ACTIVE_ROLE_COOKIE}=; path=/; max-age=0; SameSite=Lax`
+    return
+  }
+  document.cookie =
+    `${ACTIVE_ROLE_COOKIE}=${role}; path=/; max-age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`
+}
+
 interface ActiveRoleState {
   activeRole: string
   userId: string
-  // Call on session load — only resets role if a *confirmed* different user logs in
+  hasHydrated: boolean
+  // Call on session load — pre-seeds role for new users, resets on user change.
   initForUser: (userId: string, primaryRole: string) => void
   setActiveRole: (role: string) => void
-  // Called from the login role-picker — sets both so initForUser never resets it
+  // Called from login role-picker / single-role redirect.
   setRoleForNewLogin: (userId: string, role: string) => void
+  // Wipes both Zustand state and the cookie — call before signOut.
+  clearActiveRole: () => void
+  setHasHydrated: (state: boolean) => void
 }
 
 export const useActiveRoleStore = create<ActiveRoleState>()(
@@ -16,24 +36,43 @@ export const useActiveRoleStore = create<ActiveRoleState>()(
     (set, get) => ({
       activeRole: '',
       userId: '',
+      hasHydrated: false,
 
       initForUser: (userId, primaryRole) => {
         const state = get()
         if (!state.userId) {
-          // Store not yet hydrated from sessionStorage — just record userId,
-          // leave activeRole alone (will be set by rehydration or setRoleForNewLogin)
-          set({ userId })
+          // Fresh state with no prior choice — default to primary role.
+          // For dual-role users, the login picker sets the role explicitly via
+          // setRoleForNewLogin BEFORE this runs, so we only land here for
+          // single-role users or for the rare case where storage was cleared.
+          set({ userId, activeRole: primaryRole })
+          writeActiveRoleCookie(primaryRole)
         } else if (state.userId !== userId) {
-          // Confirmed different user logged in — reset to their primary role
+          // Confirmed different user logged in — reset to their primary role.
           set({ activeRole: primaryRole, userId })
+          writeActiveRoleCookie(primaryRole)
+        } else if (state.activeRole) {
+          // Same user with existing role — keep it, but make sure cookie matches.
+          writeActiveRoleCookie(state.activeRole)
         }
-        // Same user with an existing role → do nothing
       },
 
-      setActiveRole: (role) => set({ activeRole: role }),
+      setActiveRole: (role) => {
+        set({ activeRole: role })
+        writeActiveRoleCookie(role)
+      },
 
-      // Sets both userId and role atomically so initForUser can never override it
-      setRoleForNewLogin: (userId, role) => set({ activeRole: role, userId }),
+      setRoleForNewLogin: (userId, role) => {
+        set({ activeRole: role, userId })
+        writeActiveRoleCookie(role)
+      },
+
+      clearActiveRole: () => {
+        set({ activeRole: '', userId: '' })
+        writeActiveRoleCookie('')
+      },
+
+      setHasHydrated: (state) => set({ hasHydrated: state }),
     }),
     {
       name: 'finance-crm-active-role',
@@ -45,8 +84,16 @@ export const useActiveRoleStore = create<ActiveRoleState>()(
             removeItem: () => {},
           }
         }
-        return sessionStorage
+        return localStorage
       }),
+      onRehydrateStorage: () => (state) => {
+        // Re-sync the cookie after hydration so a new tab (which only got the
+        // role from localStorage) immediately has a matching cookie for APIs.
+        if (state?.activeRole) {
+          writeActiveRoleCookie(state.activeRole)
+        }
+        state?.setHasHydrated(true)
+      },
     },
   ),
 )

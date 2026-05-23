@@ -1,7 +1,7 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentMonthRange, getLastMonthRange } from '@/lib/utils'
+import { getMonthRange, isCurrentMonth } from '@/lib/utils'
 import { getCached, setCache } from '@/lib/cache'
 
 export async function GET(request: NextRequest) {
@@ -11,46 +11,56 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
     if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
-    const cacheKey = 'dashboard:admin'
+    const { searchParams } = new URL(request.url)
+    const now = new Date()
+    const month = parseInt(searchParams.get('month') ?? String(now.getMonth() + 1))
+    const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
+    if (isNaN(month) || isNaN(year) || month < 1 || month > 12) {
+      return NextResponse.json({ success: false, error: 'Invalid month/year' }, { status: 400 })
+    }
+    const currentMonth = isCurrentMonth(month, year)
+
+    const cacheKey = `dashboard:admin:${month}:${year}`
     const cached = getCached<Record<string, unknown>>(cacheKey)
     if (cached) return NextResponse.json({ success: true, data: cached })
 
-    const { start, end } = getCurrentMonthRange()
-    const { start: lastStart, end: lastEnd } = getLastMonthRange()
-    const now = new Date()
+    const { start, end } = getMonthRange(month, year)
 
-    // ── Build 12-month range for the current year ──────────────────────────
-    const yearStart = new Date(now.getFullYear(), 0, 1)
-    const yearEnd   = new Date(now.getFullYear(), 11, 31, 23, 59, 59)
+    // Previous month for brokerage trend comparison
+    const prevMonth = month === 1 ? 12 : month - 1
+    const prevYear = month === 1 ? year - 1 : year
+    const { start: lastStart, end: lastEnd } = getMonthRange(prevMonth, prevYear)
+
+    // Build 12-month range for selected year (for brokerage chart)
     const months: Array<{ label: string; start: Date; end: Date }> = []
     for (let m = 0; m < 12; m++) {
-      const s = new Date(now.getFullYear(), m, 1)
-      const e = new Date(now.getFullYear(), m + 1, 0, 23, 59, 59)
+      const s = new Date(year, m, 1)
+      const e = new Date(year, m + 1, 0, 23, 59, 59)
       months.push({ label: s.toLocaleString('default', { month: 'short', year: '2-digit' }), start: s, end: e })
     }
+    const yearStart = new Date(year, 0, 1)
+    const yearEnd   = new Date(year, 11, 31, 23, 59, 59)
     const brokerageMonths = months.map((m) => m.label)
 
-    // ── All top-level stats + operators in one parallel batch ──────────────
     const [
-      totalEmployees, equityCount, mfCount, tradedClients,
+      totalEmployees, equityCount, mfCount,
       pendingTasks, overdueTasks, completedTasks, expiredTasks,
       brokerageSum, lastMonthBrokerageSum, operators, mfBusinessAgg, closedClientsCount,
     ] = await Promise.all([
       prisma.employee.count({ where: { isActive: true } }),
       prisma.client.count({ where: { department: 'EQUITY' } }),
       prisma.client.count({ where: { department: 'MUTUAL_FUND' } }),
-      prisma.client.count({ where: { status: 'TRADED' } }),
-      prisma.task.count({ where: { status: 'PENDING' } }),
-      prisma.task.count({ where: { status: 'PENDING', deadline: { lt: now } } }),
-      prisma.task.count({ where: { status: 'COMPLETED' } }),
-      prisma.task.count({ where: { status: 'EXPIRED' } }),
-      prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { uploadDate: { gte: start, lte: end } } } }),
-      prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { uploadDate: { gte: lastStart, lte: lastEnd } } } }),
+      prisma.task.count({ where: { status: 'PENDING', createdAt: { gte: start, lte: end } } }),
+      prisma.task.count({ where: { status: 'PENDING', deadline: { lt: currentMonth ? now : end }, createdAt: { gte: start, lte: end } } }),
+      prisma.task.count({ where: { status: 'COMPLETED', createdAt: { gte: start, lte: end } } }),
+      prisma.task.count({ where: { status: 'EXPIRED', createdAt: { gte: start, lte: end } } }),
+      prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { isActive: true, uploadDate: { gte: start, lte: end } } } }),
+      prisma.brokerageDetail.aggregate({ _sum: { amount: true }, where: { brokerage: { isActive: true, uploadDate: { gte: lastStart, lte: lastEnd } } } }),
       prisma.employee.findMany({ where: { role: 'EQUITY_DEALER', isActive: true }, select: { id: true, name: true } }),
       prisma.mFBusiness.aggregate({
         _sum: { yearlyContribution: true, commissionAmount: true },
@@ -63,54 +73,73 @@ export async function GET(request: NextRequest) {
     const lastMonthBrokerage  = lastMonthBrokerageSum._sum.amount ?? 0
     const operatorIds         = operators.map((o) => o.id)
 
-    // ── Batch all per-operator data — 5 queries instead of N×16 ───────────
-    const [
-      allClientCounts, tradedCounts, dnaCounts,
-      currentMonthDetails, yearDetails,
-    ] = await Promise.all([
+    const [allClientCounts, dnaCounts] = await Promise.all([
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds } }, _count: { id: true } }),
-      prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, status: 'TRADED' }, _count: { id: true } }),
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, remark: 'DID_NOT_ANSWER' }, _count: { id: true } }),
-      prisma.brokerageDetail.findMany({
-        where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: start, lte: end } } },
-        select: { operatorId: true, amount: true, brokerage: { select: { uploadDate: true } } },
-      }),
-      prisma.brokerageDetail.findMany({
-        where: { operatorId: { in: operatorIds }, clientId: { not: null }, brokerage: { uploadDate: { gte: yearStart, lte: yearEnd } } },
-        select: { operatorId: true, amount: true, brokerage: { select: { uploadDate: true } } },
-      }),
     ])
 
-    // Build O(1) lookup maps
-    const totalMap   = new Map(allClientCounts.map((r) => [r.operatorId, r._count.id]))
-    const tradedMap  = new Map(tradedCounts.map((r) => [r.operatorId, r._count.id]))
-    const dnaMap     = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
+    const totalMap = new Map(allClientCounts.map((r) => [r.operatorId, r._count.id]))
+    const dnaMap   = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
 
+    // Always derive traded counts from BrokerageDetail — Client.status accumulates across
+    // uploads and is not reliably reset, so it diverges from actual brokerage data.
     const monthlyTotalMap = new Map<string, number>()
     const dailyMap        = new Map<string, Record<number, number>>()
-    for (const d of currentMonthDetails) {
-      monthlyTotalMap.set(d.operatorId, (monthlyTotalMap.get(d.operatorId) ?? 0) + d.amount)
-      const daily = dailyMap.get(d.operatorId) ?? {}
+
+    // Attribution by CURRENT client owner — transferred-in clients (including
+    // pre-transfer history) count toward the new operator. BrokerageDetail.operatorId
+    // snapshot is preserved but not used for these counted totals.
+    const monthDetails = await prisma.brokerageDetail.findMany({
+      where: {
+        clientId: { not: null },
+        client: { operatorId: { in: operatorIds } },
+        brokerage: { isActive: true, uploadDate: { gte: start, lte: end } },
+      },
+      select: { clientId: true, amount: true, client: { select: { operatorId: true } }, brokerage: { select: { uploadDate: true } } },
+    })
+    const tradedSets = new Map<string, Set<string>>()
+    const allTradedIds = new Set<string>()
+    for (const d of monthDetails) {
+      const ownerId = d.client!.operatorId
+      if (d.clientId) {
+        if (!tradedSets.has(ownerId)) tradedSets.set(ownerId, new Set())
+        tradedSets.get(ownerId)!.add(d.clientId)
+        allTradedIds.add(d.clientId)
+      }
+      monthlyTotalMap.set(ownerId, (monthlyTotalMap.get(ownerId) ?? 0) + d.amount)
+      const daily = dailyMap.get(ownerId) ?? {}
       const day   = new Date(d.brokerage.uploadDate).getDate()
       daily[day]  = (daily[day] ?? 0) + d.amount
-      dailyMap.set(d.operatorId, daily)
+      dailyMap.set(ownerId, daily)
     }
+    const tradedMap     = new Map([...tradedSets.entries()].map(([id, set]) => [id, set.size]))
+    const tradedClients = allTradedIds.size
+
+    const yearDetails = await prisma.brokerageDetail.findMany({
+      where: {
+        clientId: { not: null },
+        client: { operatorId: { in: operatorIds } },
+        brokerage: { isActive: true, uploadDate: { gte: yearStart, lte: yearEnd } },
+      },
+      select: { amount: true, client: { select: { operatorId: true } }, brokerage: { select: { uploadDate: true } } },
+    })
 
     const historyMap = new Map<string, Record<string, number>>()
     for (const d of yearDetails) {
+      const ownerId = d.client!.operatorId
       const label = new Date(d.brokerage.uploadDate).toLocaleString('default', { month: 'short', year: '2-digit' })
-      const opHist = historyMap.get(d.operatorId) ?? {}
+      const opHist = historyMap.get(ownerId) ?? {}
       opHist[label] = (opHist[label] ?? 0) + d.amount
-      historyMap.set(d.operatorId, opHist)
+      historyMap.set(ownerId, opHist)
     }
 
     const operatorPerformance = operators.map((op) => {
-      const opTotal       = totalMap.get(op.id)   ?? 0
-      const opTraded      = tradedMap.get(op.id)  ?? 0
-      const opDNA         = dnaMap.get(op.id)     ?? 0
-      const monthlyTotal  = monthlyTotalMap.get(op.id) ?? 0
+      const opTotal        = totalMap.get(op.id)  ?? 0
+      const opTraded       = tradedMap.get(op.id) ?? 0
+      const opDNA          = dnaMap.get(op.id)    ?? 0
+      const monthlyTotal   = monthlyTotalMap.get(op.id) ?? 0
       const dailyBreakdown = dailyMap.get(op.id)  ?? {}
-      const opHistory     = historyMap.get(op.id) ?? {}
+      const opHistory      = historyMap.get(op.id) ?? {}
       const monthlyHistory: Record<string, number> = {}
       for (const m of months) monthlyHistory[m.label] = opHistory[m.label] ?? 0
 
@@ -151,7 +180,8 @@ export async function GET(request: NextRequest) {
       brokerageMonths,
     }
 
-    setCache(cacheKey, responseData, 60)
+    // Short TTL for current month (reflects client changes quickly); longer for past months
+    setCache(cacheKey, responseData, currentMonth ? 10 : 300)
 
     return NextResponse.json({ success: true, data: responseData })
   } catch (error) {

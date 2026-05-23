@@ -1,9 +1,39 @@
 import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
+import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { Role, Department } from '@prisma/client'
+import { getEffectiveRole } from '@/lib/roles'
 export { getEffectiveRole } from '@/lib/roles'
+
+/**
+ * Returns the role the user is currently acting as in the UI.
+ *
+ * Reads the `activeRole` cookie (set by the client when the user picks a role
+ * via the login picker or topbar switcher). If the cookie names one of the
+ * user's actual roles (primary or secondary) we honour it. Otherwise we fall
+ * back to the highest-priority role from getEffectiveRole().
+ *
+ * Use this in API routes for "is this user currently acting as admin?" checks.
+ * Use getEffectiveRole when you need the user's maximum privilege regardless
+ * of UI state.
+ */
+export async function getActiveRole(
+  user: { role: Role; secondaryRole?: Role | null },
+): Promise<Role> {
+  try {
+    const cookieStore = await cookies()
+    const cookieRole = cookieStore.get('activeRole')?.value as Role | undefined
+    if (cookieRole) {
+      const validRoles = [user.role, user.secondaryRole].filter(Boolean) as Role[]
+      if (validRoles.includes(cookieRole)) return cookieRole
+    }
+  } catch {
+    // cookies() can throw outside a request scope — fall through to the default
+  }
+  return getEffectiveRole(user)
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [

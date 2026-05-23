@@ -53,6 +53,27 @@ export default function AllClientsPage() {
 
   useEffect(() => { const t = setTimeout(fetchClients, 300); return () => clearTimeout(t) }, [fetchClients])
 
+  useEffect(() => {
+    const lastUpdatedRef = { current: null as string | null }
+    const check = async () => {
+      try {
+        const res = await fetch('/api/reset-status')
+        const d = await res.json()
+        if (lastUpdatedRef.current === null) {
+          if (d.lastUpdated) lastUpdatedRef.current = d.lastUpdated
+        } else if (d.lastUpdated && d.lastUpdated !== lastUpdatedRef.current) {
+          lastUpdatedRef.current = d.lastUpdated
+          fetchClients()
+        }
+      } catch {
+        // ignore transient network errors
+      }
+    }
+    check()
+    const id = setInterval(check, 30_000)
+    return () => clearInterval(id)
+  }, [fetchClients])
+
   const allSelected = clients.length > 0 && selected.size === clients.length
 
   const toggleSelectAll = (checked: boolean) => {
@@ -158,7 +179,7 @@ export default function AllClientsPage() {
                   />
                 </th>
               )}
-              {['Code', 'Name', 'Phone', 'Department', 'Operator', 'Status', 'Remark', 'Added'].map((h) => (
+              {['Code', 'Name', 'Phone', 'Email', 'PAN', 'Department', 'Operator', 'Status', 'Added'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -166,17 +187,17 @@ export default function AllClientsPage() {
           <tbody>
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => (
-                <tr key={i}><td colSpan={isAdmin ? 9 : 8} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
+                <tr key={i}><td colSpan={isAdmin ? 10 : 9} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
               ))
             ) : clients.length === 0 ? (
-              <tr><td colSpan={isAdmin ? 9 : 8} className="px-4 py-12 text-center text-gray-400">
+              <tr><td colSpan={isAdmin ? 10 : 9} className="px-4 py-12 text-center text-gray-400">
                 <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No clients found</p>
               </td></tr>
             ) : clients.map((c) => (
               <tr key={c.id} className={cn(
                 'border-b border-gray-100 hover:bg-gray-50',
-                selected.has(c.id) ? 'bg-blue-50' : c.status === 'TRADED' ? 'bg-green-50' : 'bg-white'
+                selected.has(c.id) ? 'bg-blue-50' : c.tradedThisMonth ? 'bg-green-50' : 'bg-white'
               )}>
                 {isAdmin && (
                   <td className="px-4 py-3">
@@ -196,6 +217,12 @@ export default function AllClientsPage() {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-gray-600 text-xs">{c.phone}</td>
+                <td className="px-4 py-3 text-gray-600 text-xs">
+                  {c.email ? <a href={`mailto:${c.email}`} className="hover:text-blue-600">{c.email}</a> : <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                  {c.pan || <span className="text-gray-300">—</span>}
+                </td>
                 <td className="px-4 py-3">
                   <span className={`text-xs px-2 py-1 rounded-full font-medium ${c.department === 'EQUITY' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                     {c.department === 'EQUITY' ? 'Equity' : 'Mutual Fund'}
@@ -203,12 +230,15 @@ export default function AllClientsPage() {
                 </td>
                 <td className="px-4 py-3 text-gray-600 text-xs">{c.operator.name}</td>
                 <td className="px-4 py-3">
-                  <span className={cn('text-xs px-2 py-1 rounded-full font-medium', c.status === 'TRADED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600')}>
-                    {c.department === 'EQUITY' ? c.status.replace('_', ' ') : c.mfStatus.replace('_', ' ')}
+                  <span className={cn('text-xs px-2 py-1 rounded-full font-medium',
+                    c.department === 'EQUITY'
+                      ? c.tradedThisMonth ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                      : c.mfStatus === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                  )}>
+                    {c.department === 'EQUITY'
+                      ? (c.tradedThisMonth ? 'TRADED' : 'NOT TRADED')
+                      : c.mfStatus.replace('_', ' ')}
                   </span>
-                </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">
-                  {c.department === 'EQUITY' ? c.remark.replace(/_/g, ' ') : c.mfRemark.replace(/_/g, ' ')}
                 </td>
                 <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(c.createdAt)}</td>
               </tr>

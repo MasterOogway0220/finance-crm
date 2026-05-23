@@ -1,9 +1,10 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
-import { createNotification } from '@/lib/notifications'
+import { createNotification, tasksLinkForDepartment } from '@/lib/notifications'
 import { taskSchema } from '@/lib/validations'
+import { getMonthRange } from '@/lib/utils'
 import { Department, Role, TaskPriority, TaskStatus } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -25,8 +26,10 @@ export async function GET(request: NextRequest) {
     const department = searchParams.get('department') as Department | null
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
+    const monthParam = searchParams.get('month')
+    const yearParam  = searchParams.get('year')
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     const where: Record<string, unknown> = {}
 
@@ -67,6 +70,15 @@ export async function GET(request: NextRequest) {
 
     if (status) where.status = status
     if (priority) where.priority = priority
+
+    if (monthParam && yearParam) {
+      const m = parseInt(monthParam)
+      const y = parseInt(yearParam)
+      if (!isNaN(m) && !isNaN(y) && m >= 1 && m <= 12) {
+        const { start: createdStart, end: createdEnd } = getMonthRange(m, y)
+        where.createdAt = { gte: createdStart, lte: createdEnd }
+      }
+    }
 
     if (department) {
       where.assignedTo = { department }
@@ -120,7 +132,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     // BACK_OFFICE employees cannot assign tasks
     if (userRole === 'BACK_OFFICE') {
@@ -184,7 +196,7 @@ export async function POST(request: NextRequest) {
       type: 'TASK_ASSIGNED',
       title: 'New task assigned',
       message: `New task assigned: ${data.title}`,
-      link: `/tasks/${task.id}`,
+      link: tasksLinkForDepartment(task.assignedTo.department),
     })
 
     await logActivity({

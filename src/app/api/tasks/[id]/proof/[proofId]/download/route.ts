@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -25,7 +25,7 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Task not found' }, { status: 404 })
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
     if (
       userRole === 'BACK_OFFICE' &&
       task.assignedToId !== session.user.id &&

@@ -1,11 +1,11 @@
-'use client'
+﻿'use client'
 
+import logoImg from '../../../public/logo.png'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import {
-  TrendingUp,
   LayoutDashboard,
   Users,
   IndianRupee,
@@ -21,19 +21,23 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
-import { useActiveRoleStore } from '@/stores/active-role-store'
+import { useActiveRoleStore, ROLE_LABELS } from '@/stores/active-role-store'
+import { useNotificationStore } from '@/stores/notification-store'
+
+type NavBadge = 'taskAssigned'
 
 interface NavItem {
   label: string
   href?: string
   icon: React.ElementType
   children?: NavItem[]
+  badge?: NavBadge
 }
 
 const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
 { label: 'Brokerage', href: '/brokerage', icon: IndianRupee },
-  { label: 'Tasks', href: '/tasks', icon: CheckSquare },
+  { label: 'Tasks', href: '/tasks', icon: CheckSquare, badge: 'taskAssigned' },
   { label: 'Document Pool', href: '/documents', icon: FolderOpen },
   { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
@@ -58,9 +62,10 @@ const EQUITY_DEALER_NAV: NavItem[] = [
   {
     label: 'Tasks',
     icon: CheckSquare,
+    badge: 'taskAssigned',
     children: [
       { label: 'Assign Task', href: '/tasks/assign', icon: CheckSquare },
-      { label: 'My Tasks', href: '/equity/tasks', icon: CheckSquare },
+      { label: 'My Tasks', href: '/equity/tasks', icon: CheckSquare, badge: 'taskAssigned' },
     ],
   },
   { label: 'Document Pool', href: '/documents', icon: FolderOpen },
@@ -90,9 +95,10 @@ const MF_DEALER_NAV: NavItem[] = [
   {
     label: 'Tasks',
     icon: CheckSquare,
+    badge: 'taskAssigned',
     children: [
       { label: 'Assign Task', href: '/tasks/assign', icon: CheckSquare },
-      { label: 'My Tasks', href: '/mf/tasks', icon: CheckSquare },
+      { label: 'My Tasks', href: '/mf/tasks', icon: CheckSquare, badge: 'taskAssigned' },
     ],
   },
   { label: 'Document Pool', href: '/documents', icon: FolderOpen },
@@ -101,7 +107,7 @@ const MF_DEALER_NAV: NavItem[] = [
 
 const BACK_OFFICE_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/backoffice/dashboard', icon: LayoutDashboard },
-  { label: 'Tasks', href: '/backoffice/tasks', icon: CheckSquare },
+  { label: 'Tasks', href: '/backoffice/tasks', icon: CheckSquare, badge: 'taskAssigned' },
   { label: 'Document Pool', href: '/documents', icon: FolderOpen },
   { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
@@ -123,6 +129,24 @@ function getNavItems(role: string): NavItem[] {
   }
 }
 
+function NavBadgeDot({ count }: { count: number }) {
+  if (count <= 0) return null
+  return (
+    <span
+      className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold leading-none text-white shadow-sm"
+      aria-label={`${count} unread`}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
+function useBadgeCount(badge: NavBadge | undefined): number {
+  const taskAssignedCount = useNotificationStore((s) => s.taskAssignedCount)
+  if (badge === 'taskAssigned') return taskAssignedCount
+  return 0
+}
+
 interface NavLinkProps {
   item: NavItem
   pathname: string
@@ -133,6 +157,7 @@ interface NavLinkProps {
 function NavLink({ item, pathname, depth = 0, onClose }: NavLinkProps) {
   const isActive = item.href ? pathname === item.href || pathname.startsWith(item.href + '/') : false
   const Icon = item.icon
+  const badgeCount = useBadgeCount(item.badge)
 
   if (!item.href) return null
 
@@ -152,7 +177,8 @@ function NavLink({ item, pathname, depth = 0, onClose }: NavLinkProps) {
         <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-blue-500" />
       )}
       <Icon className={cn('h-[18px] w-[18px] shrink-0', isActive && 'text-blue-400')} />
-      {item.label}
+      <span className="flex-1">{item.label}</span>
+      <NavBadgeDot count={badgeCount} />
     </Link>
   )
 }
@@ -169,6 +195,7 @@ function ExpandableNavItem({ item, pathname, onClose }: ExpandableNavItemProps) 
   )
   const [open, setOpen] = useState(hasActiveChild ?? false)
   const Icon = item.icon
+  const badgeCount = useBadgeCount(item.badge)
 
   return (
     <div>
@@ -187,6 +214,7 @@ function ExpandableNavItem({ item, pathname, onClose }: ExpandableNavItemProps) 
         )}
         <Icon className={cn('h-[18px] w-[18px] shrink-0', hasActiveChild && 'text-blue-400')} />
         <span className="flex-1 text-left">{item.label}</span>
+        {!open && <NavBadgeDot count={badgeCount} />}
         {open ? (
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform duration-200" />
         ) : (
@@ -209,10 +237,23 @@ interface SidebarProps {
   onClose?: () => void
 }
 
+const MY_TASKS_PATHS = new Set([
+  '/tasks',
+  '/backoffice/tasks',
+  '/equity/tasks',
+  '/mf/tasks',
+])
+
 export default function Sidebar({ onClose }: SidebarProps) {
   const { data: session } = useSession()
   const pathname = usePathname()
-  const { activeRole, initForUser } = useActiveRoleStore()
+  const { activeRole, initForUser, clearActiveRole } = useActiveRoleStore()
+  const markTaskAssignedRead = useNotificationStore((s) => s.markTaskAssignedRead)
+
+  const handleSignOut = () => {
+    clearActiveRole()
+    signOut({ callbackUrl: '/login' })
+  }
 
   // Initialise the store whenever session loads
   useEffect(() => {
@@ -221,22 +262,34 @@ export default function Sidebar({ onClose }: SidebarProps) {
     }
   }, [session?.user?.id, session?.user?.role, initForUser])
 
+  // Clear the red "new task assigned" badge when the user visits their tasks page
+  useEffect(() => {
+    if (MY_TASKS_PATHS.has(pathname)) {
+      markTaskAssignedRead()
+    }
+  }, [pathname, markTaskAssignedRead])
+
   const effectiveRole = activeRole || session?.user?.role || ''
-  const navItems = getNavItems(effectiveRole)
+  const isPradip = session?.user?.email === 'pradipmahadik1982@gmail.com'
+  const baseNav = getNavItems(effectiveRole)
+  const navItems = isPradip && !baseNav.some(i => i.href === '/login-history')
+    ? [...baseNav, { label: 'Login/Logoff History', href: '/login-history', icon: ClipboardList } as NavItem]
+    : baseNav
 
   const userName = session?.user?.name ?? 'User'
-  const designation = session?.user?.designation ?? ''
+  const roleLabel = ROLE_LABELS[effectiveRole] ?? ''
   const initials = getInitials(userName)
 
   return (
     <aside className="flex h-full w-64 flex-col bg-sidebar">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
-          <TrendingUp className="h-5 w-5 text-white shrink-0" />
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white shrink-0 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoImg.src} alt="Kesar Securities" className="h-9 w-9 object-contain" />
         </div>
         <div>
-          <p className="text-lg font-bold leading-none text-white" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>FinanceCRM</p>
+          <p className="text-lg font-bold leading-none text-white" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>Kesar Securities CRM</p>
           <p className="mt-0.5 text-[11px] text-slate-400 tracking-wide uppercase">Brokerage Platform</p>
         </div>
       </div>
@@ -262,14 +315,14 @@ export default function Sidebar({ onClose }: SidebarProps) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-white">{userName}</p>
-            {designation && (
-              <p className="truncate text-xs text-slate-400">{designation}</p>
+            {roleLabel && (
+              <p className="truncate text-xs text-slate-400">{roleLabel}</p>
             )}
           </div>
           <button
             type="button"
             title="Sign out"
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={handleSignOut}
             className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-all duration-200 hover:bg-white/10 hover:text-white"
           >
             <LogOut className="h-4 w-4" />

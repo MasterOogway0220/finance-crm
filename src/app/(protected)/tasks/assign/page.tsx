@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation'
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { TaskAssignmentForm } from '@/components/tasks/task-assignment-form'
 
 export default async function AssignTaskPage() {
   const session = await auth()
-  const role = session?.user ? getEffectiveRole(session.user) : null
+  const role = session?.user ? await getActiveRole(session.user) : null
 
   if (role === 'BACK_OFFICE') {
     redirect('/backoffice/tasks')

@@ -153,7 +153,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   const router = useRouter()
   const { notifications, unreadCount, fetchNotifications, markAsRead, markAllRead } =
     useNotificationStore()
-  const { activeRole, setActiveRole } = useActiveRoleStore()
+  const { activeRole, setActiveRole, clearActiveRole } = useActiveRoleStore()
   const [notifOpen, setNotifOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -166,6 +166,11 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
   const handleSwitchRole = (role: string) => {
     setActiveRole(role)
     window.location.href = getDashboardForRole(role)
+  }
+
+  const handleSignOut = () => {
+    clearActiveRole()
+    signOut({ callbackUrl: '/login' })
   }
 
   // Initial fetch + 30s polling, paused when tab is hidden
@@ -215,7 +220,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
             <Menu className="h-5 w-5" />
           </button>
           {/* Brand name – visible on mobile only */}
-          <span className="text-sm font-bold text-gray-800 lg:hidden">FinanceCRM</span>
+          <span className="text-sm font-bold text-gray-800 lg:hidden">Kesar Securities CRM</span>
         </div>
 
         {/* Right actions */}
@@ -334,7 +339,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
           {/* Logout button — always visible in topbar */}
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={handleSignOut}
             className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 hover:border-red-300 active:bg-red-200"
           >
             <LogOut className="h-4 w-4" />

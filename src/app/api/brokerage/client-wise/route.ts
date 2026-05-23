@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -15,19 +15,22 @@ export async function GET(request: NextRequest) {
     const year  = parseInt(searchParams.get('year')  ?? String(now.getFullYear()))
     const day   = searchParams.get('day')
 
-    const userRole     = getEffectiveRole(session.user)
+    const userRole     = (await getActiveRole(session.user))
+    const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
     const isEquityDealer = session.user.role === 'EQUITY_DEALER' || session.user.secondaryRole === 'EQUITY_DEALER'
+    const operatorIdParam = searchParams.get('operatorId')
 
-    let operatorId: string
+    let operatorId: string | null = null
     if (userRole === 'EQUITY_DEALER') {
       operatorId = session.user.id
-    } else if (searchParams.get('operatorId')) {
-      operatorId = searchParams.get('operatorId')!
-    } else if (isEquityDealer) {
+    } else if (operatorIdParam && operatorIdParam !== 'all') {
+      operatorId = operatorIdParam
+    } else if (isEquityDealer && !isAdmin) {
       operatorId = session.user.id
-    } else {
+    } else if (!isAdmin) {
       return NextResponse.json({ success: false, error: 'operatorId is required' }, { status: 400 })
     }
+    // isAdmin with no operatorId (or 'all') => operatorId stays null → query all operators
 
     let dateStart: Date, dateEnd: Date
     if (day) {
@@ -39,17 +42,22 @@ export async function GET(request: NextRequest) {
       dateEnd   = new Date(year, month, 0, 23, 59, 59, 999)
     }
 
-    // Use groupBy instead of fetching all rows and aggregating in JS
+    // Attribution by CURRENT client owner — brokerage history follows the client
+    // through transfers. BrokerageDetail.operatorId snapshot is preserved but not used here.
+    const dateFilter = { isActive: true, uploadDate: { gte: dateStart, lte: dateEnd } }
+    const baseWhere = operatorId
+      ? { clientId: { not: null }, client: { operatorId }, brokerage: dateFilter }
+      : { clientId: { not: null }, brokerage: dateFilter }
+
     const [grouped, clientRecords] = await Promise.all([
       prisma.brokerageDetail.groupBy({
         by: ['clientCode', 'clientId'],
-        where: { operatorId, clientId: { not: null }, brokerage: { uploadDate: { gte: dateStart, lte: dateEnd } } },
+        where: baseWhere,
         _sum: { amount: true },
         orderBy: { _sum: { amount: 'desc' } },
       }),
-      // Fetch client names separately in one query
       prisma.brokerageDetail.findMany({
-        where: { operatorId, clientId: { not: null }, brokerage: { uploadDate: { gte: dateStart, lte: dateEnd } } },
+        where: baseWhere,
         select: { clientId: true, client: { select: { firstName: true, lastName: true } } },
         distinct: ['clientId'],
       }),

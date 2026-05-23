@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
@@ -68,12 +68,16 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = getEffectiveRole(session.user)
-    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+    const userRole = (await getActiveRole(session.user))
+    const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
+
+    const { id } = await params
+    const isSelf = id === session.user.id
+
+    if (!isAdmin && !isSelf) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
-    const { id } = await params
     const body = await request.json()
     const parsed = updateEmployeeSchema.safeParse(body)
 
@@ -87,6 +91,25 @@ export async function PATCH(
     const existing = await prisma.employee.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Employee not found' }, { status: 404 })
+    }
+
+    // Non-admins can only change their own password (with current password verification)
+    if (!isAdmin && isSelf) {
+      if (!parsed.data.password) {
+        return NextResponse.json({ success: false, error: 'Password is required' }, { status: 400 })
+      }
+      if (!body.currentPassword) {
+        return NextResponse.json({ success: false, error: 'Current password is required' }, { status: 400 })
+      }
+      const isValid = await bcrypt.compare(body.currentPassword, existing.password)
+      if (!isValid) {
+        return NextResponse.json({ success: false, error: 'Current password is incorrect' }, { status: 400 })
+      }
+      await prisma.employee.update({
+        where: { id },
+        data: { password: await bcrypt.hash(parsed.data.password, 12) },
+      })
+      return NextResponse.json({ success: true })
     }
 
     const { password, ...rest } = parsed.data
@@ -137,7 +160,7 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
     if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
@@ -217,7 +240,10 @@ export async function DELETE(
       )
     }
 
-    // Transfer clients to new employee if requested
+    // Transfer clients to new employee if requested.
+    // Note: we deliberately do NOT touch BrokerageDetail.operatorId — the snapshot
+    // preserves the original operator who earned that brokerage (for historical
+    // analysis). Current-attribution queries should filter by Client.operatorId.
     if (transferToId && _count.assignedClients > 0) {
       await prisma.client.updateMany({ where: { operatorId: id }, data: { operatorId: transferToId } })
     }

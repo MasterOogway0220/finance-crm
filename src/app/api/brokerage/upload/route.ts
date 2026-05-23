@@ -1,9 +1,10 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { createNotificationForMany } from '@/lib/notifications'
-import { Role } from '@prisma/client'
+import { invalidateCache } from '@/lib/cache'
+import { Prisma, Role } from '@prisma/client'
 import * as XLSX from 'xlsx'
 
 function findColumnIndex(headers: string[], candidates: string[]): number {
@@ -54,6 +55,8 @@ function extractClientCodeFromNarration(narration: string): string {
   return trimmed.slice(lastSpaceIdx + 1).trim().toUpperCase()
 }
 
+const VALID_BRANCHES = ['Mumbai', 'Karad', 'Pune']
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth()
@@ -61,7 +64,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
     if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
@@ -85,6 +88,14 @@ export async function POST(request: NextRequest) {
     const uploadDate = new Date(`${dateParam}T00:00:00.000Z`)
     if (isNaN(uploadDate.getTime())) {
       return NextResponse.json({ success: false, error: 'Invalid date' }, { status: 400 })
+    }
+
+    const branch = (formData.get('branch') as string | null)?.trim()
+    if (!branch) {
+      return NextResponse.json({ success: false, error: 'Branch is required' }, { status: 400 })
+    }
+    if (!VALID_BRANCHES.includes(branch)) {
+      return NextResponse.json({ success: false, error: 'Invalid branch' }, { status: 400 })
     }
 
     // Parse xlsx/csv with SheetJS
@@ -231,8 +242,13 @@ export async function POST(request: NextRequest) {
     }
     const operatorSummary = Array.from(opSummaryMap.values())
 
-    const existingUpload = await prisma.brokerageUpload.findUnique({ where: { uploadDate } })
-    const dateExists = !!existingUpload
+    const existingUploads = await prisma.brokerageUpload.findMany({
+      where: { uploadDate, branch },
+      select: { id: true, version: true, isActive: true },
+      orderBy: { version: 'desc' },
+    })
+    const existingVersions = existingUploads.length
+    const nextVersion = existingVersions > 0 ? existingUploads[0].version + 1 : 1
 
     // Preview mode — return summary without writing to DB
     const isPreview = formData.get('preview') === 'true'
@@ -245,32 +261,63 @@ export async function POST(request: NextRequest) {
           totalAmount,
           unmappedCodes,
           duplicatesConsolidated,
-          dateExists,
+          existingVersions,
+          nextVersion,
         },
       })
     }
 
-    // Confirm mode — write to DB
-    if (existingUpload) {
-      await prisma.brokerageUpload.delete({ where: { id: existingUpload.id } })
-    }
+    // Confirm mode — create new version, deactivate previous versions
+    const autoTradedClientIds = details
+      .filter((d) => d.clientId !== null && d.amount > 0)
+      .map((d) => d.clientId!)
 
-    // Create BrokerageUpload + BrokerageDetails in a transaction
     const upload = await prisma.$transaction(async (tx) => {
+      // Collect client IDs from existing versions before deactivating them
+      let prevClientIds: string[] = []
+      if (existingUploads.length > 0) {
+        const prevDetails = await tx.brokerageDetail.findMany({
+          where: { brokerageId: { in: existingUploads.map(u => u.id) }, clientId: { not: null } },
+          select: { clientId: true },
+        })
+        prevClientIds = [...new Set(prevDetails.map(d => d.clientId!))]
+        await tx.brokerageUpload.updateMany({
+          where: { uploadDate, branch },
+          data: { isActive: false },
+        })
+      }
+
       const newUpload = await tx.brokerageUpload.create({
         data: {
           uploadDate,
+          branch,
+          version: nextVersion,
+          isActive: true,
           uploadedById: session.user.id,
           totalAmount,
           fileName: file.name,
-          details: {
-            create: details,
-          },
+          details: { create: details },
         },
-        include: {
-          details: true,
-        },
+        include: { details: true },
       })
+
+      if (autoTradedClientIds.length > 0) {
+        await tx.client.updateMany({
+          where: { id: { in: autoTradedClientIds }, department: 'EQUITY' },
+          data: { status: 'TRADED' },
+        })
+      }
+
+      // Reset clients in old version who are NOT in the new version back to NOT_TRADED
+      const newTradedSet = new Set(autoTradedClientIds)
+      const toResetIds = prevClientIds.filter(id => !newTradedSet.has(id))
+      if (toResetIds.length > 0) {
+        await tx.client.updateMany({
+          where: { id: { in: toResetIds }, department: 'EQUITY' },
+          data: { status: 'NOT_TRADED' },
+        })
+      }
+
       return newUpload
     })
 
@@ -285,7 +332,7 @@ export async function POST(request: NextRequest) {
         userIds: equityDealers.map((e) => e.id),
         type: 'BROKERAGE_UPLOAD',
         title: 'Brokerage data uploaded',
-        message: `Brokerage data for ${uploadDate.toDateString()} has been uploaded.`,
+        message: `Brokerage data for ${branch} branch on ${uploadDate.toDateString()} has been uploaded.`,
         link: '/brokerage',
       })
     }
@@ -294,21 +341,29 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       action: 'UPLOAD',
       module: 'BROKERAGE',
-      details: `Uploaded brokerage for ${uploadDate.toISOString().split('T')[0]}. Total: ${totalAmount}. Mapped: ${details.length}. Unmapped: ${unmappedCodes.length}`,
+      details: `Uploaded brokerage for ${uploadDate.toISOString().split('T')[0]} (${branch}). Total: ${totalAmount}. Mapped: ${details.length}. Unmapped: ${unmappedCodes.length}`,
     })
+
+    // Invalidate admin dashboard cache so traded-client counts reflect the new upload immediately
+    invalidateCache('dashboard:')
 
     return NextResponse.json({
       success: true,
       data: {
         uploadId: upload.id,
         uploadDate: upload.uploadDate,
+        version: upload.version,
         totalAmount,
         mappedCount: details.length,
         unmappedCount: unmappedCodes.length,
         skippedCodes: unmappedCodes,
+        previousVersionsDeactivated: existingUploads.length,
       },
     })
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return NextResponse.json({ success: false, error: 'Upload conflict — a concurrent upload was in progress. Please retry.' }, { status: 409 })
+    }
     console.error('[POST /api/brokerage/upload]', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }

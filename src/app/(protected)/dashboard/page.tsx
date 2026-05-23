@@ -57,13 +57,18 @@ export default function AdminDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const today = new Date()
-  const currentDay = today.getDate()
-  const daysInMonth = getDaysInMonth(today.getFullYear(), today.getMonth() + 1)
+  const [dashMonth, setDashMonth] = useState(String(today.getMonth() + 1))
+  const [dashYear, setDashYear]   = useState(String(today.getFullYear()))
+  const isViewingCurrentMonth =
+    parseInt(dashMonth) === today.getMonth() + 1 &&
+    parseInt(dashYear) === today.getFullYear()
+  const daysInMonth = getDaysInMonth(parseInt(dashYear), parseInt(dashMonth))
+  const currentDay = isViewingCurrentMonth ? today.getDate() : daysInMonth
   const { activeRole } = useActiveRoleStore()
 
   // Client-wise brokerage state
   const [equityEmployees, setEquityEmployees] = useState<EquityEmployee[]>([])
-  const [cwEmployee, setCwEmployee] = useState('')
+  const [cwEmployee, setCwEmployee] = useState('all')
   const [cwMonth, setCwMonth] = useState(String(today.getMonth() + 1))
   const [cwYear, setCwYear] = useState(String(today.getFullYear()))
   const [cwDay, setCwDay] = useState('monthly')
@@ -82,11 +87,15 @@ export default function AdminDashboardPage() {
   }, [activeRole])
 
   useEffect(() => {
-    fetch('/api/dashboard/admin')
+    const controller = new AbortController()
+    setLoading(true)
+    fetch(`/api/dashboard/admin?month=${dashMonth}&year=${dashYear}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
+      .catch((e) => { if (e.name !== 'AbortError') console.error(e) })
       .finally(() => setLoading(false))
-  }, [])
+    return () => controller.abort()
+  }, [dashMonth, dashYear])
 
   // Fetch equity employees for dropdown
   useEffect(() => {
@@ -96,16 +105,15 @@ export default function AdminDashboardPage() {
         if (d.success) {
           const employees: EquityEmployee[] = d.data.map((e: { id: string; name: string }) => ({ id: e.id, name: e.name }))
           setEquityEmployees(employees)
-          if (employees.length > 0) setCwEmployee(employees[0].id)
         }
       })
   }, [])
 
   // Fetch client-wise brokerage when employee/month/year/day changes
   useEffect(() => {
-    if (!cwEmployee) return
     setCwLoading(true)
-    const params = new URLSearchParams({ operatorId: cwEmployee, month: cwMonth, year: cwYear })
+    const params = new URLSearchParams({ month: cwMonth, year: cwYear })
+    if (cwEmployee !== 'all') params.set('operatorId', cwEmployee)
     if (cwDay !== 'monthly') params.set('day', cwDay)
     fetch(`/api/brokerage/client-wise?${params}`)
       .then((r) => r.json())
@@ -129,13 +137,25 @@ export default function AdminDashboardPage() {
     ? { value: `${Math.abs(((data.monthlyBrokerage - data.lastMonthBrokerage) / data.lastMonthBrokerage) * 100).toFixed(1)}% from last month`, positive: data.monthlyBrokerage >= data.lastMonthBrokerage }
     : undefined
 
+  const selectedMonthLabel = `${MONTHS.find((m) => m.value === dashMonth)?.label ?? ''} ${dashYear}`
+
   return (
     <div className="page-container space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="page-title">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-0.5">{formatDateLong(today)}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={dashMonth} onValueChange={setDashMonth}>
+            <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{MONTHS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={dashYear} onValueChange={setDashYear}>
+            <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -163,7 +183,7 @@ export default function AdminDashboardPage() {
           <KpiCard
             title="Monthly Brokerage"
             value={formatCurrency(data.monthlyBrokerage)}
-            subtitle="Current month"
+            subtitle={selectedMonthLabel}
             icon={IndianRupee}
             accent="green"
             trend={brokerageTrend}
@@ -192,14 +212,14 @@ export default function AdminDashboardPage() {
           <KpiCard
             title="MF Total Sales"
             value={formatCurrency(data.mfTotalSales)}
-            subtitle="Current month"
+            subtitle={selectedMonthLabel}
             icon={TrendingUp}
             accent="emerald"
           />
           <KpiCard
             title="MF Total Commission"
             value={formatCurrency(data.mfTotalCommission)}
-            subtitle="Current month"
+            subtitle={selectedMonthLabel}
             icon={IndianRupee}
             accent="indigo"
           />
@@ -254,6 +274,7 @@ export default function AdminDashboardPage() {
               <Select value={cwEmployee} onValueChange={setCwEmployee}>
                 <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="Select employee" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All Employees</SelectItem>
                   {equityEmployees.map((e) => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -308,14 +329,12 @@ export default function AdminDashboardPage() {
             {cwDay === 'monthly'
               ? `${MONTHS.find((m) => m.value === cwMonth)?.label} ${cwYear}`
               : `${cwDay} ${MONTHS.find((m) => m.value === cwMonth)?.label} ${cwYear}`}
-            {cwEmployee && equityEmployees.length > 0 && ` — ${equityEmployees.find((e) => e.id === cwEmployee)?.name}`}
+            {` — ${cwEmployee === 'all' ? 'All Employees' : (equityEmployees.find((e) => e.id === cwEmployee)?.name ?? '')}`}
           </p>
 
           {/* Client Table */}
           {cwLoading ? (
             <Skeleton className="h-32 rounded-lg" />
-          ) : !cwEmployee ? (
-            <p className="text-sm text-gray-400 py-6 text-center">Select an employee to view client brokerage</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">

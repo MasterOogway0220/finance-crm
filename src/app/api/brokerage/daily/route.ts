@@ -1,4 +1,4 @@
-import { auth, getEffectiveRole } from '@/lib/auth'
+import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Role } from '@prisma/client'
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
     const operatorIdParam = searchParams.get('operatorId')
 
-    const userRole = getEffectiveRole(session.user)
+    const userRole = (await getActiveRole(session.user))
 
     // Determine which operatorId to use
     const isEquityDealer =
@@ -37,25 +37,32 @@ export async function GET(request: NextRequest) {
     const monthStart = new Date(year, month - 1, 1)
     const monthEnd = new Date(year, month, 0, 23, 59, 59, 999)
 
-    const uploads = await prisma.brokerageUpload.findMany({
+    // Attribution by CURRENT client owner — transferred clients' history follows
+    // the client through transfers. BrokerageDetail.operatorId snapshot is preserved.
+    const details = await prisma.brokerageDetail.findMany({
       where: {
-        uploadDate: { gte: monthStart, lte: monthEnd },
+        clientId: { not: null },
+        client: { operatorId },
+        brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
       },
-      include: {
-        details: {
-          where: { operatorId },
-          select: { amount: true },
-        },
+      select: {
+        amount: true,
+        brokerage: { select: { uploadDate: true } },
       },
-      orderBy: { uploadDate: 'asc' },
     })
 
-    const daily = uploads
-      .filter((u) => u.details.length > 0)
-      .map((u) => ({
-        date: u.uploadDate.toISOString().split('T')[0],
-        day: new Date(u.uploadDate).getDate(),
-        amount: u.details.reduce((sum, d) => sum + d.amount, 0),
+    // Group by date
+    const dailyMap = new Map<string, number>()
+    for (const d of details) {
+      const key = d.brokerage.uploadDate.toISOString().split('T')[0]
+      dailyMap.set(key, (dailyMap.get(key) ?? 0) + d.amount)
+    }
+    const daily = [...dailyMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, amount]) => ({
+        date,
+        day: new Date(date).getDate(),
+        amount,
       }))
 
     return NextResponse.json({

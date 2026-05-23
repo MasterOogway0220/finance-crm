@@ -1,5 +1,6 @@
 'use client'
 
+import logoImg from '../../../../public/logo.png'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
@@ -79,10 +80,9 @@ function RolePicker({ pending, onPick }: { pending: PendingSession; onPick: (rol
       <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 mb-3">
-            <TrendingUp className="h-6 w-6 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-white" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>FinanceCRM</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoImg.src} alt="Kesar Securities" className="h-14 w-auto object-contain mb-3 brightness-0 invert" />
+          <span className="text-2xl font-bold text-white" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>Kesar Securities CRM</span>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
@@ -225,10 +225,9 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl shadow-2xl p-8 sm:p-10">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 mb-4">
-              <TrendingUp className="h-6 w-6 text-white" />
-            </div>
-            <h1 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>FinanceCRM</h1>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Kesar Securities" className="h-14 w-auto object-contain mb-4" />
+            <h1 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'var(--font-lexend), sans-serif' }}>Kesar Securities CRM</h1>
             <p className="mt-1 text-sm text-gray-500">Sign in to your account</p>
           </div>
 

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { createNotification } from '@/lib/notifications'
+import { createNotification, tasksLinkForDepartment } from '@/lib/notifications'
 
 export async function runTaskExpiry() {
   const now = new Date()
@@ -8,8 +8,8 @@ export async function runTaskExpiry() {
   const expiredTasks = await prisma.task.findMany({
     where: { status: 'PENDING', deadline: { lt: now } },
     include: {
-      assignedTo: { select: { id: true, name: true } },
-      assignedBy: { select: { id: true, name: true } },
+      assignedTo: { select: { id: true, name: true, department: true } },
+      assignedBy: { select: { id: true, name: true, department: true } },
     },
   })
 
@@ -28,7 +28,7 @@ export async function runTaskExpiry() {
         type: 'task_expired',
         title: 'Task Expired',
         message: `Your task "${task.title}" has expired and is now marked as expired.`,
-        link: '/tasks',
+        link: tasksLinkForDepartment(task.assignedTo.department),
       }),
       task.assignedBy.id !== task.assignedTo.id
         ? createNotification({
@@ -36,7 +36,7 @@ export async function runTaskExpiry() {
             type: 'task_expired',
             title: 'Task Expired',
             message: `Task "${task.title}" assigned to ${task.assignedTo.name} has expired.`,
-            link: '/tasks',
+            link: tasksLinkForDepartment(task.assignedBy.department),
           })
         : Promise.resolve(),
     ])
