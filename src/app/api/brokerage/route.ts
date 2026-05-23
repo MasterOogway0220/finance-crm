@@ -165,7 +165,8 @@ export async function GET(request: NextRequest) {
       historyMap.set(d.operatorId, opHist)
     }
     for (const d of allDetails) {
-      // allDetails already has the correct attributed operatorId (from Step 3).
+      // allDetails was built above with attribution already applied
+      // (current-owner if isCurrentRequested, else snapshot) — use d.operatorId directly.
       const label = new Date(year, month - 1, d.day).toLocaleString('default', { month: 'short', year: '2-digit' })
       const opHist = historyMap.get(d.operatorId) ?? {}
       opHist[label] = (opHist[label] ?? 0) + d.amount
