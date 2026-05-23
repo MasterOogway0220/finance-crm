@@ -1,6 +1,7 @@
 import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { isCurrentMonth } from '@/lib/utils'
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,58 +47,88 @@ export async function GET(request: NextRequest) {
 
     const operatorIds = operators.map((o) => o.id)
 
-    // ── Batch all data in one parallel round-trip ──────────────────────────
-    // Attribution is by CURRENT Client.operatorId (not the BrokerageDetail snapshot),
-    // so transferred clients' history follows the client to its new owner. The snapshot
-    // BrokerageDetail.operatorId is preserved untouched for historical analysis.
+    // Hybrid attribution requires two queries:
+    //   - history (covers all 7 months including current): snapshot for past, current-owner
+    //     for the current month. Split into two queries and union.
+    //   - current month details: same logic.
+    // We fetch current-month rows once and reuse them for both the month summary and the
+    // current-month bucket of the history chart, to avoid a third round-trip.
+    const isCurrentRequested = isCurrentMonth(month, year)
+
+    // Past-month range = historyStart..(monthStart - 1ms) when current month is in the window,
+    // or historyStart..historyEnd if no overlap. Computed via `lt: monthStart` to keep ranges disjoint.
+    const pastHistoryEnd = isCurrentRequested ? new Date(monthStart.getTime() - 1) : historyEnd
+
     const [
-      monthDetails,
+      curMonthDetails,           // current-month rows under current-owner attribution
+      pastHistoryDetails,        // past-month rows under snapshot attribution (within the 7-month window)
       allClientCounts, dnaCounts,
-      historyDetails,
     ] = await Promise.all([
-      // Current month details, attributed via current client owner
-      prisma.brokerageDetail.findMany({
-        where: {
-          clientId: { not: null },
-          client: { operatorId: { in: operatorIds } },
-          brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
-        },
-        select: {
-          amount: true,
-          clientId: true,
-          client: { select: { operatorId: true } },
-          brokerage: { select: { uploadDate: true } },
-        },
-      }),
-      // Total clients per operator (current assignment — used as denominator)
+      // Current-month details (only fetched if the requested month is the current calendar month;
+      // otherwise this returns []) — used for both this-month KPIs and the current-month bar in history chart.
+      isCurrentRequested
+        ? prisma.brokerageDetail.findMany({
+            where: {
+              clientId: { not: null },
+              client: { operatorId: { in: operatorIds } },
+              brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
+            },
+            select: {
+              amount: true,
+              clientId: true,
+              client: { select: { operatorId: true } },
+              brokerage: { select: { uploadDate: true } },
+            },
+          })
+        : prisma.brokerageDetail.findMany({
+            // Requested month is a closed month → snapshot attribution.
+            where: {
+              clientId: { not: null },
+              operatorId: { in: operatorIds },
+              brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
+            },
+            select: {
+              amount: true,
+              clientId: true,
+              operatorId: true,
+              brokerage: { select: { uploadDate: true } },
+            },
+          }),
+
+      // Past-month history within the 7-month window, snapshot attribution.
+      pastHistoryEnd >= historyStart
+        ? prisma.brokerageDetail.findMany({
+            where: {
+              clientId: { not: null },
+              operatorId: { in: operatorIds },
+              brokerage: { isActive: true, uploadDate: { gte: historyStart, lte: pastHistoryEnd } },
+            },
+            select: {
+              amount: true,
+              operatorId: true,
+              brokerage: { select: { uploadDate: true } },
+            },
+          })
+        : Promise.resolve([] as Array<{ amount: number; operatorId: string; brokerage: { uploadDate: Date } }>),
+
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds } }, _count: { id: true } }),
-      // DID_NOT_ANSWER per operator (live call-status, separate from traded)
       prisma.client.groupBy({ by: ['operatorId'], where: { operatorId: { in: operatorIds }, remark: 'DID_NOT_ANSWER' }, _count: { id: true } }),
-      // Full 7-month history attributed via current client owner
-      prisma.brokerageDetail.findMany({
-        where: {
-          clientId: { not: null },
-          client: { operatorId: { in: operatorIds } },
-          brokerage: { isActive: true, uploadDate: { gte: historyStart, lte: historyEnd } },
-        },
-        select: {
-          amount: true,
-          client: { select: { operatorId: true } },
-          brokerage: { select: { uploadDate: true } },
-        },
-      }),
     ])
 
     // Build O(1) lookup maps for client counts
     const totalMap = new Map(allClientCounts.map((r) => [r.operatorId, r._count.id]))
     const dnaMap   = new Map(dnaCounts.map((r) => [r.operatorId, r._count.id]))
 
-    // Flatten current-month details with day numbers + current-owner attribution
+    // Flatten current-month details, taking operator from the right field based on which
+    // attribution applies to the requested month.
     type DetailEntry = { operatorId: string; clientId: string | null; amount: number; day: number }
     const allDetails: DetailEntry[] = []
-    for (const d of monthDetails) {
+    for (const d of curMonthDetails) {
       const day = new Date(d.brokerage.uploadDate).getDate()
-      allDetails.push({ operatorId: d.client!.operatorId, clientId: d.clientId, amount: d.amount, day })
+      const ownerId = isCurrentRequested
+        ? (d as { client: { operatorId: string } }).client.operatorId
+        : (d as { operatorId: string }).operatorId
+      allDetails.push({ operatorId: ownerId, clientId: d.clientId, amount: d.amount, day })
     }
     const totalMonthlyBrokerage = allDetails.reduce((sum, d) => sum + d.amount, 0)
 
@@ -122,14 +153,23 @@ export async function GET(request: NextRequest) {
       dailyMap.set(d.operatorId, daily)
     }
 
-    // Group 7-month history per current-owner + month label
+    // Group 7-month history per operator + month label. Past months come from
+    // pastHistoryDetails (snapshot attribution); the current month bucket comes from
+    // curMonthDetails (current-owner attribution if the requested month is current,
+    // otherwise the request is for a past month and curMonthDetails uses snapshot).
     const historyMap = new Map<string, Record<string, number>>()
-    for (const d of historyDetails) {
-      const ownerId = d.client!.operatorId
+    for (const d of pastHistoryDetails) {
       const label = new Date(d.brokerage.uploadDate).toLocaleString('default', { month: 'short', year: '2-digit' })
-      const opHist = historyMap.get(ownerId) ?? {}
+      const opHist = historyMap.get(d.operatorId) ?? {}
       opHist[label] = (opHist[label] ?? 0) + d.amount
-      historyMap.set(ownerId, opHist)
+      historyMap.set(d.operatorId, opHist)
+    }
+    for (const d of allDetails) {
+      // allDetails already has the correct attributed operatorId (from Step 3).
+      const label = new Date(year, month - 1, d.day).toLocaleString('default', { month: 'short', year: '2-digit' })
+      const opHist = historyMap.get(d.operatorId) ?? {}
+      opHist[label] = (opHist[label] ?? 0) + d.amount
+      historyMap.set(d.operatorId, opHist)
     }
 
     // Assemble per-operator performance from maps
