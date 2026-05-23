@@ -74,38 +74,72 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Query brokerage details for the year
+    // Hybrid attribution: split the year into past months (snapshot) and the current month
+    // (current-owner). Issue two queries and merge into the matrix.
     const yearStart = new Date(year, 0, 1)
     const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999)
-
-    // Attribution by CURRENT client owner — transferred clients' history follows
-    // the client to its new owner. BrokerageDetail.operatorId snapshot is preserved
-    // but not used for these counted totals.
-    const details = await prisma.brokerageDetail.findMany({
-      where: {
-        clientId: { not: null },
-        client: { operatorId: { in: equityDealers.map((e) => e.id) } },
-        brokerage: { uploadDate: { gte: yearStart, lte: yearEnd } },
-      },
-      select: {
-        amount: true,
-        client: { select: { operatorId: true } },
-        brokerage: { select: { uploadDate: true } },
-      },
-    })
-
-    // Fill matrix
+    const operatorIds = equityDealers.map((e) => e.id)
     const opIdToName = new Map(equityDealers.map((e) => [e.id, e.name]))
     const activeMonthSet = new Set(activeMonthIndices)
-    for (const detail of details) {
-      const opName = opIdToName.get(detail.client!.operatorId)
+
+    const isThisYear = year === now.getFullYear()
+    const curMonthIdx = now.getMonth() // 0-based, only meaningful if isThisYear
+    const curMonthInRange = isThisYear && activeMonthSet.has(curMonthIdx)
+
+    // Past-month window inside the requested year.
+    // If this year: yearStart .. (end of previous month). If past year: full year.
+    const pastEndDate = isThisYear
+      ? new Date(year, curMonthIdx, 0, 23, 59, 59, 999) // last day of (curMonthIdx - 1)
+      : yearEnd
+    const pastInRange = pastEndDate >= yearStart
+
+    const [pastDetails, curDetails] = await Promise.all([
+      pastInRange
+        ? prisma.brokerageDetail.findMany({
+            where: {
+              clientId: { not: null },
+              operatorId: { in: operatorIds },
+              brokerage: { uploadDate: { gte: yearStart, lte: pastEndDate } },
+            },
+            select: { amount: true, operatorId: true, brokerage: { select: { uploadDate: true } } },
+          })
+        : Promise.resolve([] as Array<{ amount: number; operatorId: string; brokerage: { uploadDate: Date } }>),
+      curMonthInRange
+        ? prisma.brokerageDetail.findMany({
+            where: {
+              clientId: { not: null },
+              client: { operatorId: { in: operatorIds } },
+              brokerage: {
+                uploadDate: {
+                  gte: new Date(year, curMonthIdx, 1),
+                  lte: new Date(year, curMonthIdx + 1, 0, 23, 59, 59, 999),
+                },
+              },
+            },
+            select: { amount: true, client: { select: { operatorId: true } }, brokerage: { select: { uploadDate: true } } },
+          })
+        : Promise.resolve([] as Array<{ amount: number; client: { operatorId: string }; brokerage: { uploadDate: Date } }>),
+    ])
+
+    // Fill matrix from both buckets.
+    for (const d of pastDetails) {
+      const opName = opIdToName.get(d.operatorId)
       if (!opName) continue
-      const uploadDate = new Date(detail.brokerage.uploadDate)
-      const monthIdx = uploadDate.getMonth()
+      const monthIdx = new Date(d.brokerage.uploadDate).getMonth()
       if (!activeMonthSet.has(monthIdx)) continue
       const monthLabel = months.find((m) => m.idx === monthIdx)?.label
       if (monthLabel && matrix[opName]) {
-        matrix[opName][monthLabel] = (matrix[opName][monthLabel] ?? 0) + detail.amount
+        matrix[opName][monthLabel] = (matrix[opName][monthLabel] ?? 0) + d.amount
+      }
+    }
+    for (const d of curDetails) {
+      const opName = opIdToName.get(d.client!.operatorId)
+      if (!opName) continue
+      const monthIdx = new Date(d.brokerage.uploadDate).getMonth()
+      if (!activeMonthSet.has(monthIdx)) continue
+      const monthLabel = months.find((m) => m.idx === monthIdx)?.label
+      if (monthLabel && matrix[opName]) {
+        matrix[opName][monthLabel] = (matrix[opName][monthLabel] ?? 0) + d.amount
       }
     }
 
