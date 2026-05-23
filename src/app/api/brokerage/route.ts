@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
     // current-month bucket of the history chart, to avoid a third round-trip.
     const isCurrentRequested = isCurrentMonth(month, year)
 
+    // See src/lib/brokerage-attribution.ts for the hybrid rule (snapshot vs current owner).
     // Past-month range always ends just before the requested month. The current month's
     // bucket is filled separately from curMonthDetails (which the queries below handle
     // for both the current-attribution and snapshot-attribution cases).

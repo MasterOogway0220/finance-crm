@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
       : yearEnd
     const pastInRange = pastEndDate >= yearStart
 
+    // See src/lib/brokerage-attribution.ts for the hybrid rule.
     const [pastDetails, curDetails] = await Promise.all([
       pastInRange
         ? prisma.brokerageDetail.findMany({

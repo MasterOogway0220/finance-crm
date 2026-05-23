@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
 
     const clientIds = clients.map((c) => c.id)
 
+    // See src/lib/brokerage-attribution.ts for the canonical hybrid rule.
     // Hybrid attribution: this report is about a client's trading activity per FY.
     // For past months we want the snapshot operator to determine whether the brokerage
     // counts toward this client's *current* operator's column — but the per-CLIENT
