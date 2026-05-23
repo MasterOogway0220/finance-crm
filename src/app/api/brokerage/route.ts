@@ -55,9 +55,10 @@ export async function GET(request: NextRequest) {
     // current-month bucket of the history chart, to avoid a third round-trip.
     const isCurrentRequested = isCurrentMonth(month, year)
 
-    // Past-month range = historyStart..(monthStart - 1ms) when current month is in the window,
-    // or historyStart..historyEnd if no overlap. Computed via `lt: monthStart` to keep ranges disjoint.
-    const pastHistoryEnd = isCurrentRequested ? new Date(monthStart.getTime() - 1) : historyEnd
+    // Past-month range always ends just before the requested month. The current month's
+    // bucket is filled separately from curMonthDetails (which the queries below handle
+    // for both the current-attribution and snapshot-attribution cases).
+    const pastHistoryEnd = new Date(monthStart.getTime() - 1)
 
     const [
       curMonthDetails,           // current-month rows under current-owner attribution
