@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getMonthRange } from '@/lib/utils'
+import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,14 +34,12 @@ export async function GET(request: NextRequest) {
 
     const totalClients = await prisma.client.count({ where: { operatorId } })
 
-    // Derive traded count + MTD brokerage from BrokerageDetail.
-    // Attribution by CURRENT client owner: brokerage for transferred-in clients
-    // (including pre-transfer history) shows up under the current operator.
-    // The BrokerageDetail.operatorId snapshot is preserved untouched but not used here.
+    // Hybrid attribution: current month → live ownership; past months → snapshot.
+    // See src/lib/brokerage-attribution.ts.
     const details = await prisma.brokerageDetail.findMany({
       where: {
         clientId: { not: null },
-        client: { operatorId },
+        ...brokerageOperatorFilter(operatorId, month, year),
         brokerage: { isActive: true, uploadDate: { gte: start, lte: end } },
       },
       select: { clientId: true, amount: true },
