@@ -15,7 +15,10 @@ import { isCurrentMonth } from '@/lib/utils'
  *
  * Scope semantics:
  *   - string         → single operator
- *   - string[]       → multiple operators (admin view across dealers)
+ *   - string[]       → multiple operators (admin view across dealers).
+ *                      An empty array is intentionally NOT short-circuited — it produces
+ *                      a `{ in: [] }` clause that matches zero rows. Callers who want
+ *                      "no operator restriction" must pass null/undefined.
  *   - null/undefined → no operator restriction (admin "all")
  */
 export function brokerageOperatorFilter(
@@ -33,26 +36,4 @@ export function brokerageOperatorFilter(
   return isCurrent
     ? { client: { operatorId: scope } }
     : { operatorId: scope }
-}
-
-/**
- * Like brokerageOperatorFilter but for a SINGLE day of brokerage rows.
- * Day → month/year is derived from the date itself, so this function decides
- * current vs snapshot based on the date being viewed, not "today".
- *
- * Returns both the operator filter AND a flag indicating which attribution was used,
- * so callers building merged results know which clientId they should read
- * (`client.operatorId` for current, `operatorId` for snapshot).
- */
-export function brokerageOperatorFilterForDate(
-  scope: string | string[] | null | undefined,
-  date: Date,
-): { where: Prisma.BrokerageDetailWhereInput; attribution: 'current' | 'snapshot' } {
-  const month = date.getMonth() + 1
-  const year = date.getFullYear()
-  const isCurrent = isCurrentMonth(month, year)
-  return {
-    where: brokerageOperatorFilter(scope, month, year),
-    attribution: isCurrent ? 'current' : 'snapshot',
-  }
 }
