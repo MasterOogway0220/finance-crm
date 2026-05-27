@@ -12,6 +12,7 @@ import { format } from 'date-fns'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
+import { canViewAdmin, isManager } from '@/lib/roles'
 
 interface ArchiveRow {
   operatorId: string
@@ -54,7 +55,8 @@ const TD = 'px-3 py-2.5 text-center text-sm'
 export default function BrokeragePage() {
   const now = new Date()
   const { data: session } = useSession()
-  const isAdmin = session?.user?.role === 'SUPER_ADMIN' || session?.user?.role === 'ADMIN'
+  const canViewArchive = canViewAdmin(session?.user?.role)
+  const canUploadBrokerage = isManager(session?.user?.role)
 
   const [tab, setTab] = useState<'live' | 'archive'>('live')
   const [month, setMonth] = useState(String(now.getMonth() + 1))
@@ -108,7 +110,7 @@ export default function BrokeragePage() {
   }
 
   useEffect(() => { fetchData(); fetchLog() }, [month, year])
-  useEffect(() => { if (tab === 'archive' && isAdmin) fetchArchive() }, [tab, archiveMonth, archiveYear])
+  useEffect(() => { if (tab === 'archive' && canViewArchive) fetchArchive() }, [tab, archiveMonth, archiveYear])
 
   const handleReverse = async () => {
     if (!reverseTarget) return
@@ -208,11 +210,13 @@ export default function BrokeragePage() {
                 <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
               </Select>
-              <Link href="/brokerage/upload">
-                <Button className="gap-2 h-9">
-                  <Upload className="h-4 w-4" />Upload Brokerage
-                </Button>
-              </Link>
+              {canUploadBrokerage && (
+                <Link href="/brokerage/upload">
+                  <Button className="gap-2 h-9">
+                    <Upload className="h-4 w-4" />Upload Brokerage
+                  </Button>
+                </Link>
+              )}
             </>
           ) : (
             <>
@@ -226,7 +230,7 @@ export default function BrokeragePage() {
               </Select>
             </>
           )}
-          {isAdmin && (
+          {canViewArchive && (
             <div className="flex rounded-lg border border-gray-200 overflow-hidden">
               <button onClick={() => setTab('live')} className={cn('px-3 h-9 text-sm font-medium transition-colors', tab === 'live' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}>Live</button>
               <button onClick={() => setTab('archive')} className={cn('px-3 h-9 text-sm font-medium flex items-center gap-1.5 transition-colors', tab === 'archive' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50')}>
@@ -238,7 +242,7 @@ export default function BrokeragePage() {
       </div>
 
       {/* ── Archive Tab (admin only) ── */}
-      {tab === 'archive' && isAdmin && (
+      {tab === 'archive' && canViewArchive && (
         <div>
           {archiveLoading ? (
             <div className="space-y-3"><Skeleton className="h-10 rounded-lg" /><Skeleton className="h-48 rounded-lg" /></div>

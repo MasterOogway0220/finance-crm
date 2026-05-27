@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { useActiveRoleStore } from '@/stores/active-role-store'
 import { cn } from '@/lib/utils'
+import { canViewAdmin, isManager } from '@/lib/roles'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,7 +119,7 @@ interface ApplyLeaveDialogProps {
   onClose: () => void
   onSuccess: () => void
   allHolidays: string[]
-  isAdmin: boolean
+  canApprove: boolean
   defaultEmployeeId: string
   defaultDepartment: string
 }
@@ -127,7 +128,7 @@ function ApplyLeaveDialog({
   onClose,
   onSuccess,
   allHolidays,
-  isAdmin,
+  canApprove,
   defaultEmployeeId,
   defaultDepartment,
 }: ApplyLeaveDialogProps) {
@@ -203,7 +204,7 @@ function ApplyLeaveDialog({
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
               value={department}
               onChange={(e) => { setDepartment(e.target.value); setEmployeeId('') }}
-              disabled={!isAdmin}
+              disabled={!canApprove}
             >
               <option value="">Select department</option>
               {DEPARTMENTS.map((d) => (
@@ -219,7 +220,7 @@ function ApplyLeaveDialog({
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
-              disabled={!isAdmin || !department}
+              disabled={!canApprove || !department}
             >
               <option value="">Select employee</option>
               {employees.map((emp) => (
@@ -490,7 +491,8 @@ export default function CalendarPage() {
   // a dual-role user (e.g. ADMIN+BACK_OFFICE) sees the admin view in any tab
   // where activeRole hasn't been picked yet.
   const effectiveRole = activeRole
-  const isAdmin = effectiveRole === 'SUPER_ADMIN' || effectiveRole === 'ADMIN'
+  const canViewAllLeaves = canViewAdmin(effectiveRole)
+  const canApproveLeaves = isManager(effectiveRole)
 
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
   const year = currentMonth.getFullYear()
@@ -563,20 +565,20 @@ export default function CalendarPage() {
   }
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canViewAllLeaves) {
       fetch('/api/leaves/balance')
         .then((r) => r.json())
         .then((d) => { if (d.success) setLeaveBalance(d.data) })
     }
-  }, [isAdmin, applications]) // refetch when applications change
+  }, [canViewAllLeaves, applications]) // refetch when applications change
 
   useEffect(() => {
-    if (isAdmin) {
+    if (canViewAllLeaves) {
       fetch('/api/leaves/today')
         .then((r) => r.json())
         .then((d) => { if (d.success) setTodayLeaves(d.data) })
     }
-  }, [isAdmin, applications])
+  }, [canViewAllLeaves, applications])
 
   // Prepare calendar data
   const marketHolidayDates: Date[] = holidays
@@ -615,7 +617,7 @@ export default function CalendarPage() {
         toast.success(
           action === 'APPROVED' ? 'Leave approved.' :
           action === 'REJECTED' ? 'Leave rejected.' :
-          isAdmin ? 'Leave pulled back. Balance restored.' :
+          canApproveLeaves ? 'Leave pulled back. Balance restored.' :
           'Leave cancelled.'
         )
         fetchApplications()
@@ -661,16 +663,16 @@ export default function CalendarPage() {
         <div>
           <h1 className="page-title">Calendar &amp; Leave</h1>
           <p className="mt-0.5 text-sm text-gray-500">
-            {isAdmin ? 'Manage leave applications and view team availability.' : 'View holidays and manage your leave.'}
+            {canViewAllLeaves ? 'Manage leave applications and view team availability.' : 'View holidays and manage your leave.'}
           </p>
         </div>
-        {!isAdmin && (
+        {!canViewAllLeaves && (
           <Button onClick={() => setShowApplyDialog(true)} className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
             Apply for Leave
           </Button>
         )}
-        {isAdmin && (
+        {canViewAllLeaves && (
           <div className="flex items-center gap-2">
             {/* Year selector for viewing past/future year applications */}
             <select
@@ -682,29 +684,33 @@ export default function CalendarPage() {
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
-            <Button
-              variant="outline"
-              onClick={handleYearReset}
-              disabled={resettingYear}
-              className="flex items-center gap-2"
-              title="Initialise leave balances for all employees for the current year (sets to 0 if not already set)"
-            >
-              <RotateCcw className="h-4 w-4" />
-              {resettingYear ? 'Resetting...' : 'Reset Year'}
-            </Button>
-            <Button
-              onClick={() => setShowMarkDialog(true)}
-              className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700"
-            >
-              <ClipboardList className="h-4 w-4" />
-              Mark Leave
-            </Button>
+            {canApproveLeaves && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleYearReset}
+                  disabled={resettingYear}
+                  className="flex items-center gap-2"
+                  title="Initialise leave balances for all employees for the current year (sets to 0 if not already set)"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  {resettingYear ? 'Resetting...' : 'Reset Year'}
+                </Button>
+                <Button
+                  onClick={() => setShowMarkDialog(true)}
+                  className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700"
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  Mark Leave
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
 
       {/* --- Employee stats cards --- */}
-      {!isAdmin && leaveBalance && (
+      {!canViewAllLeaves && leaveBalance && (
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
@@ -748,7 +754,7 @@ export default function CalendarPage() {
       )}
 
       {/* --- Admin: Who's on leave today (resets after 5:30 PM IST) --- */}
-      {isAdmin && (() => {
+      {canViewAllLeaves && (() => {
         // Check if current IST time is past 5:30 PM (office hours ended)
         const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
         const isPastOfficeHours = nowIST.getHours() > 17 || (nowIST.getHours() === 17 && nowIST.getMinutes() >= 30)
@@ -932,7 +938,7 @@ export default function CalendarPage() {
       </div>
 
       {/* --- Admin: All Leave Applications --- */}
-      {isAdmin && (
+      {canViewAllLeaves && (
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b px-6 py-4">
             <h2 className="font-semibold text-gray-900">Leave Applications</h2>
@@ -967,7 +973,7 @@ export default function CalendarPage() {
                       </td>
                       <td className="px-6 py-4">{statusBadge(app.status)}</td>
                       <td className="px-6 py-4">
-                        {app.status === 'PENDING' && (
+                        {canApproveLeaves && app.status === 'PENDING' && (
                           <div className="flex gap-2">
                             <Button
                               size="sm"
@@ -990,24 +996,26 @@ export default function CalendarPage() {
                         )}
                         {app.status === 'APPROVED' && (
                           <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-amber-300 text-amber-700 hover:bg-amber-50 h-7 px-3 text-xs"
-                              disabled={actionLoading === app.id + 'CANCELLED'}
-                              onClick={() =>
-                                setPullbackTarget({
-                                  id: app.id,
-                                  note: '',
-                                  employeeName: app.employee.name,
-                                  fromDate: app.fromDate,
-                                  toDate: app.toDate,
-                                  days: app.days,
-                                })
-                              }
-                            >
-                              Pullback
-                            </Button>
+                            {canApproveLeaves && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-amber-300 text-amber-700 hover:bg-amber-50 h-7 px-3 text-xs"
+                                disabled={actionLoading === app.id + 'CANCELLED'}
+                                onClick={() =>
+                                  setPullbackTarget({
+                                    id: app.id,
+                                    note: '',
+                                    employeeName: app.employee.name,
+                                    fromDate: app.fromDate,
+                                    toDate: app.toDate,
+                                    days: app.days,
+                                  })
+                                }
+                              >
+                                Pullback
+                              </Button>
+                            )}
                             {app.reviewedBy && (
                               <span className="text-xs text-gray-400">by {app.reviewedBy.name}</span>
                             )}
@@ -1027,7 +1035,7 @@ export default function CalendarPage() {
       )}
 
       {/* --- Employee: My Leave Applications --- */}
-      {!isAdmin && (
+      {!canViewAllLeaves && (
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b px-6 py-4">
             <h2 className="font-semibold text-gray-900">My Leave Applications</h2>
@@ -1150,7 +1158,7 @@ export default function CalendarPage() {
           onClose={() => setShowApplyDialog(false)}
           onSuccess={fetchApplications}
           allHolidays={allHolidayStrings}
-          isAdmin={isAdmin}
+          canApprove={canApproveLeaves}
           defaultEmployeeId={session.user.id}
           defaultDepartment={session.user.department ?? ''}
         />

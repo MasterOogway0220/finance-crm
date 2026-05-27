@@ -19,6 +19,7 @@ import {
 import { Search, Users, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, getInitials, cn } from '@/lib/utils'
+import { isManager } from '@/lib/roles'
 import { ClientWithOperator } from '@/types'
 import Link from 'next/link'
 
@@ -35,7 +36,7 @@ export default function AllClientsPage() {
   const [confirmAction, setConfirmAction] = useState<null | 'traded' | 'not_traded'>(null)
   const limit = 25
 
-  const isAdmin = session?.user?.role === 'SUPER_ADMIN' || session?.user?.role === 'ADMIN'
+  const canManageClients = isManager(session?.user?.role)
 
   const fetchClients = useCallback(() => {
     setLoading(true)
@@ -144,7 +145,7 @@ export default function AllClientsPage() {
             </SelectContent>
           </Select>
 
-          {isAdmin && selected.size > 0 && (
+          {canManageClients && selected.size > 0 && (
             <div className="flex gap-2 ml-auto">
               <Button
                 size="sm"
@@ -171,7 +172,7 @@ export default function AllClientsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {isAdmin && (
+              {canManageClients && (
                 <th className="px-4 py-3 text-left w-10">
                   <Checkbox
                     checked={allSelected}
@@ -187,10 +188,10 @@ export default function AllClientsPage() {
           <tbody>
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => (
-                <tr key={i}><td colSpan={isAdmin ? 10 : 9} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
+                <tr key={i}><td colSpan={canManageClients ? 10 : 9} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
               ))
             ) : clients.length === 0 ? (
-              <tr><td colSpan={isAdmin ? 10 : 9} className="px-4 py-12 text-center text-gray-400">
+              <tr><td colSpan={canManageClients ? 10 : 9} className="px-4 py-12 text-center text-gray-400">
                 <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">No clients found</p>
               </td></tr>
@@ -199,7 +200,7 @@ export default function AllClientsPage() {
                 'border-b border-gray-100 hover:bg-gray-50',
                 selected.has(c.id) ? 'bg-blue-50' : c.tradedThisMonth ? 'bg-green-50' : 'bg-white'
               )}>
-                {isAdmin && (
+                {canManageClients && (
                   <td className="px-4 py-3">
                     <Checkbox
                       checked={selected.has(c.id)}
