@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/utils'
 import { Download, ArrowLeft, AlertTriangle, Check, X, Search } from 'lucide-react'
 import { useActiveRoleStore } from '@/stores/active-role-store'
+import { canViewAdmin } from '@/lib/roles'
 import Link from 'next/link'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -49,7 +50,7 @@ export default function BrokerageReportPage() {
   const { activeRole } = useActiveRoleStore()
   const role = activeRole || undefined
   const isEquityDealer = role === 'EQUITY_DEALER'
-  const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN'
+  const isAdmin = canViewAdmin(role)
 
   const [year, setYear] = useState(String(new Date().getFullYear()))
   const [range, setRange] = useState('FULL')

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentMonthRange } from '@/lib/utils'
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, addDays } from 'date-fns'
+import { canViewAdmin } from '@/lib/roles'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     // Check both primary and secondary role — dual-role users must be able to
     // access the dashboard they selected even if their other role has higher priority.
     const userRoles = [session.user.role, session.user.secondaryRole].filter(Boolean) as string[]
-    if (!userRoles.some(r => r === 'BACK_OFFICE' || r === 'SUPER_ADMIN' || r === 'ADMIN')) {
+    if (!userRoles.some(r => r === 'BACK_OFFICE' || canViewAdmin(r))) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 

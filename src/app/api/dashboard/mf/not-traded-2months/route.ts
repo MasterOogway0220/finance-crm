@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { canViewAdmin } from '@/lib/roles'
 
 export async function GET() {
   try {
@@ -10,7 +11,7 @@ export async function GET() {
     }
 
     const userRoles = [session.user.role, session.user.secondaryRole].filter(Boolean) as string[]
-    if (!userRoles.some((r) => r === 'MF_DEALER' || r === 'SUPER_ADMIN' || r === 'ADMIN')) {
+    if (!userRoles.some((r) => r === 'MF_DEALER' || canViewAdmin(r))) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 

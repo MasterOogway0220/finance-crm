@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getMonthRange, isCurrentMonth } from '@/lib/utils'
 import { getCached, setCache } from '@/lib/cache'
 import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
+import { canViewAdmin } from '@/lib/roles'
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userRole = (await getActiveRole(session.user))
-    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+    if (!canViewAdmin(userRole)) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 

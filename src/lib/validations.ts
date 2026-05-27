@@ -40,7 +40,7 @@ export const employeeSchema = z.object({
   phone: z.string().length(10, 'Phone must be 10 digits').regex(/^\d{10}$/, 'Phone must be 10 digits'),
   department: z.enum(['EQUITY', 'MUTUAL_FUND', 'BACK_OFFICE', 'ADMIN']),
   designation: z.string().min(1, 'Designation is required'),
-  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE', 'CHARTERED_ACCOUNTANT']),
   password: z.string().min(8, 'Password must be at least 8 characters').optional(),
   isActive: z.boolean().default(true),
 })

@@ -117,6 +117,7 @@ function getNavItems(role: string): NavItem[] {
   switch (role) {
     case 'SUPER_ADMIN':
     case 'ADMIN':
+    case 'CHARTERED_ACCOUNTANT':
       return ADMIN_NAV
     case 'EQUITY_DEALER':
       return EQUITY_DEALER_NAV

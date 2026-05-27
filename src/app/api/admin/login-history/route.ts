@@ -1,6 +1,7 @@
 import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { canViewAdmin } from '@/lib/roles'
 
 // GET /api/admin/login-history — paginated login/logout history
 // ?page=1&limit=50&employeeId=&date=YYYY-MM-DD
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     const role = (await getActiveRole(session.user))
-    const allowed = role === 'SUPER_ADMIN' || role === 'ADMIN' || session.user.email === 'pradipmahadik1982@gmail.com'
+    const allowed = canViewAdmin(role) || session.user.email === 'pradipmahadik1982@gmail.com'
     if (!allowed) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }

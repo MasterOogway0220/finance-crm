@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentMonthRange } from '@/lib/utils'
 import { Role } from '@prisma/client'
 import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
+import { canViewAdmin } from '@/lib/roles'
 import * as XLSX from 'xlsx'
 
 export async function POST(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userRole = (await getActiveRole(session.user))
-    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+    if (!canViewAdmin(userRole)) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 

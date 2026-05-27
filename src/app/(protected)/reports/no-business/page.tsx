@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { cn, getInitials } from '@/lib/utils'
 import { useActiveRoleStore } from '@/stores/active-role-store'
 import { useDebounce } from '@/hooks/use-debounce'
+import { canViewAdmin } from '@/lib/roles'
 import Link from 'next/link'
 
 interface Operator { id: string; name: string }
@@ -41,7 +42,7 @@ export default function NoBusinessPage() {
   // Redirect non-admins (wait for the active-role store to hydrate first)
   useEffect(() => {
     if (!hasHydrated || !session) return
-    if (role !== 'SUPER_ADMIN' && role !== 'ADMIN') {
+    if (!canViewAdmin(role)) {
       router.replace('/reports')
     }
   }, [hasHydrated, session, role, router])
@@ -113,7 +114,7 @@ export default function NoBusinessPage() {
 
   const totalPages = Math.ceil(total / limit)
 
-  if (session && role !== 'SUPER_ADMIN' && role !== 'ADMIN') return null
+  if (session && !canViewAdmin(role)) return null
 
   return (
     <div className="page-container space-y-4">

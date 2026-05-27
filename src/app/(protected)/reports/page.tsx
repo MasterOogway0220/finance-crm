@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { IndianRupee, CheckSquare, Users, ArrowRight, CalendarDays, TrendingUp, Ban } from 'lucide-react'
 import { useActiveRoleStore } from '@/stores/active-role-store'
+import { canViewAdmin } from '@/lib/roles'
 
 const ADMIN_REPORTS = [
   { title: 'Equity Brokerage Report', desc: 'Monthly brokerage analysis per operator', icon: IndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-50 ring-1 ring-emerald-200/50', href: '/reports/brokerage' },
@@ -30,7 +31,7 @@ export default function ReportsPage() {
   const { activeRole } = useActiveRoleStore()
   const role = activeRole || undefined
 
-  const reports = role === 'SUPER_ADMIN' || role === 'ADMIN' ? ADMIN_REPORTS
+  const reports = canViewAdmin(role) ? ADMIN_REPORTS
     : role === 'EQUITY_DEALER' ? EQUITY_REPORTS
     : role === 'MF_DEALER' ? MF_REPORTS
     : BO_REPORTS

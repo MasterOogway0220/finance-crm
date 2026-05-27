@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification } from '@/lib/notifications'
 import { ANNUAL_LEAVE_DAYS } from '@/lib/year-leave-reset'
+import { canViewAdmin } from '@/lib/roles'
 
 // GET /api/leaves — list leave applications
 // Admin: all applications; Employee: only their own
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     const role = (await getActiveRole(session.user))
-    const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN'
+    const isAdmin = canViewAdmin(role)
 
     const { searchParams } = request.nextUrl
     const status = searchParams.get('status') // optional filter

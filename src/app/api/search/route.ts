@@ -2,6 +2,7 @@ import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Role } from '@prisma/client'
+import { canViewAdmin } from '@/lib/roles'
 
 export async function GET(request: NextRequest) {
   try {
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
         take: 5,
         orderBy: { createdAt: 'desc' },
       }),
-      userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
+      canViewAdmin(userRole)
         ? prisma.employee.findMany({
             where: {
               OR: [

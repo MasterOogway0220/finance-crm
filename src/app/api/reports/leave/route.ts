@@ -1,6 +1,7 @@
 import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { canViewAdmin } from '@/lib/roles'
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userRole = (await getActiveRole(session.user))
-    if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+    if (!canViewAdmin(userRole)) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 

@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { canViewAdmin, shouldBlockMutation } from '@/lib/roles'
 
 export default auth((req) => {
   const { nextUrl, auth: session } = req
@@ -9,6 +10,13 @@ export default auth((req) => {
   const isAuthRoute = nextUrl.pathname === '/login' || nextUrl.pathname.startsWith('/login/')
   const isApiRoute = nextUrl.pathname.startsWith('/api')
   const isPublicRoute = isAuthRoute || isApiRoute
+
+  // Read-only (Chartered Accountant) write boundary — runs for API *and* page
+  // routes, before the API short-circuit below. Any state-changing method is
+  // rejected; /api/auth/* is exempt so the CA can still log out.
+  if (isLoggedIn && shouldBlockMutation(session?.user?.role, req.method, nextUrl.pathname)) {
+    return NextResponse.json({ success: false, error: 'Read-only access' }, { status: 403 })
+  }
 
   if (isPublicRoute) {
     if (isAuthRoute && isLoggedIn) {
@@ -38,7 +46,7 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(getDashboardPath(role), nextUrl))
   }
   if ((path.startsWith('/dashboard') || path.startsWith('/brokerage') || path.startsWith('/masters')) &&
-    role !== 'SUPER_ADMIN' && role !== 'ADMIN' && secondaryRole !== 'SUPER_ADMIN' && secondaryRole !== 'ADMIN') {
+    !canViewAdmin(role) && !canViewAdmin(secondaryRole)) {
     return NextResponse.redirect(new URL(getDashboardPath(role), nextUrl))
   }
 
@@ -49,6 +57,7 @@ function getDashboardPath(role?: string): string {
   switch (role) {
     case 'SUPER_ADMIN':
     case 'ADMIN':
+    case 'CHARTERED_ACCOUNTANT':
       return '/dashboard'
     case 'EQUITY_DEALER':
       return '/equity/dashboard'

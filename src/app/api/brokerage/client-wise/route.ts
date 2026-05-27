@@ -2,6 +2,7 @@ import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
+import { canViewAdmin } from '@/lib/roles'
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     const day   = searchParams.get('day')
 
     const userRole     = (await getActiveRole(session.user))
-    const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
+    const isAdmin = canViewAdmin(userRole)
     const isEquityDealer = session.user.role === 'EQUITY_DEALER' || session.user.secondaryRole === 'EQUITY_DEALER'
     const operatorIdParam = searchParams.get('operatorId')
 

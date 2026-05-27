@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getActiveRole } from '@/lib/auth'
 import { isCurrentMonth } from '@/lib/utils'
+import { canViewAdmin } from '@/lib/roles'
 
 // Indian fiscal year (Apr-Mar). Returns "YY-YY" e.g. "25-26" for FY starting Apr 2025.
 function fyLabelOf(d: Date): string {
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
     }
 
     const role = (await getActiveRole(session.user))
-    const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN'
+    const isAdmin = canViewAdmin(role)
     const isEquityDealer = role === 'EQUITY_DEALER'
     if (!isAdmin && !isEquityDealer) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })

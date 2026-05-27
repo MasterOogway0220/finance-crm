@@ -11,7 +11,7 @@ const updateEmployeeSchema = z.object({
   phone: z.string().length(10, 'Phone must be 10 digits').regex(/^\d{10}$/).optional(),
   department: z.enum(['EQUITY', 'MUTUAL_FUND', 'BACK_OFFICE', 'ADMIN']).optional(),
   designation: z.string().min(1, 'Designation is required').optional(),
-  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']).optional(),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE', 'CHARTERED_ACCOUNTANT']).optional(),
   secondaryRole: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']).nullable().optional(),
   isActive: z.boolean().optional(),
   password: z.string().min(8, 'Password must be at least 8 characters').optional(),

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getMonthRange } from '@/lib/utils'
 import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
+import { canViewAdmin } from '@/lib/roles'
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userRole = (await getActiveRole(session.user))
-    const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
+    const isAdmin = canViewAdmin(userRole)
     const isEquityDealer = userRole === 'EQUITY_DEALER'
     if (!isAdmin && !isEquityDealer) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })

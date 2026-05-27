@@ -1,6 +1,7 @@
 import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { canViewAdmin } from '@/lib/roles'
 
 // GET /api/leaves/balance — get leave balance for an employee
 // ?employeeId= optional (admin only); defaults to current user
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     const role = (await getActiveRole(session.user))
-    const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN'
+    const isAdmin = canViewAdmin(role)
 
     const { searchParams } = request.nextUrl
     const targetId = isAdmin && searchParams.get('employeeId')

@@ -32,7 +32,7 @@ const schema = z.object({
   phone: z.string().length(10).regex(/^\d{10}$/),
   department: z.enum(['EQUITY', 'MUTUAL_FUND', 'BACK_OFFICE', 'ADMIN']),
   designation: z.string().min(1),
-  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE', 'CHARTERED_ACCOUNTANT']),
   secondaryRole: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']).nullable().optional(),
   password: z.string().min(8).optional().or(z.literal('')),
   isActive: z.boolean(),
@@ -425,6 +425,7 @@ export default function EmployeeMasterPage() {
                   {ROLE_OPTIONS.map((r) => (
                     <SelectItem key={r} value={r}>{r.replace(/_/g, ' ')}</SelectItem>
                   ))}
+                  <SelectItem value="CHARTERED_ACCOUNTANT">Chartered Accountant (View Only)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

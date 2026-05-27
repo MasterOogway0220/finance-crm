@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getMonthRange } from '@/lib/utils'
+import { canViewAdmin } from '@/lib/roles'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userRoles = [session.user.role, session.user.secondaryRole].filter(Boolean) as string[]
-    if (!userRoles.some(r => r === 'MF_DEALER' || r === 'SUPER_ADMIN' || r === 'ADMIN')) {
+    if (!userRoles.some(r => r === 'MF_DEALER' || canViewAdmin(r))) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 

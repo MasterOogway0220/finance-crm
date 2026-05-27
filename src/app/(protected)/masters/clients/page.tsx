@@ -56,7 +56,7 @@ export default function ClientMasterPage() {
     if (session?.user) {
       const role = session.user.role
       const secondaryRole = session.user.secondaryRole
-      const allowed = ['ADMIN', 'SUPER_ADMIN']
+      const allowed = ['ADMIN', 'SUPER_ADMIN', 'CHARTERED_ACCOUNTANT']
       if (!allowed.includes(role) && (!secondaryRole || !allowed.includes(secondaryRole))) {
         router.replace('/dashboard')
       }

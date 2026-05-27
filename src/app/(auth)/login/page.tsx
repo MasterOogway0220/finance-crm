@@ -49,6 +49,7 @@ const ROLE_ICONS: Record<string, React.ElementType> = {
   EQUITY_DEALER: TrendingUp,
   MF_DEALER: LineChart,
   BACK_OFFICE: Briefcase,
+  CHARTERED_ACCOUNTANT: ShieldCheck,
 }
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
@@ -57,6 +58,7 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
   EQUITY_DEALER: 'Equity clients & brokerage',
   MF_DEALER: 'Mutual fund clients',
   BACK_OFFICE: 'Tasks & operational work',
+  CHARTERED_ACCOUNTANT: 'Read-only access to all admin views',
 }
 
 const ROLE_COLORS: Record<string, { bg: string; border: string; icon: string; badge: string }> = {
@@ -65,6 +67,7 @@ const ROLE_COLORS: Record<string, { bg: string; border: string; icon: string; ba
   EQUITY_DEALER: { bg: 'bg-emerald-50', border: 'border-emerald-300', icon: 'text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
   MF_DEALER:   { bg: 'bg-orange-50', border: 'border-orange-300', icon: 'text-orange-600', badge: 'bg-orange-100 text-orange-700' },
   BACK_OFFICE: { bg: 'bg-slate-50',  border: 'border-slate-300',  icon: 'text-slate-600',  badge: 'bg-slate-100 text-slate-700'  },
+  CHARTERED_ACCOUNTANT: { bg: 'bg-indigo-50', border: 'border-indigo-200', icon: 'text-indigo-600', badge: 'bg-indigo-100 text-indigo-700' },
 }
 
 // ---------------------------------------------------------------------------

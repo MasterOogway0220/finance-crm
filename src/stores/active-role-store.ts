@@ -103,6 +103,7 @@ export function getDashboardForRole(role: string): string {
   switch (role) {
     case 'SUPER_ADMIN':
     case 'ADMIN':
+    case 'CHARTERED_ACCOUNTANT':
       return '/dashboard'
     case 'EQUITY_DEALER':
       return '/equity/dashboard'
@@ -121,4 +122,5 @@ export const ROLE_LABELS: Record<string, string> = {
   EQUITY_DEALER: 'Equity Dealer',
   MF_DEALER: 'MF Dealer',
   BACK_OFFICE: 'Back Office',
+  CHARTERED_ACCOUNTANT: 'Chartered Accountant (View Only)',
 }
