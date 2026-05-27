@@ -37,8 +37,8 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 /**
  * Authoritative write boundary for the read-only role. Returns true when a
  * request must be rejected: a read-only user using a state-changing HTTP
- * method against anything other than the NextAuth endpoints (which are needed
- * for logout).
+ * method against anything other than the exempt endpoints (NextAuth, needed
+ * for logout; and report export, a read-only POST).
  */
 export function shouldBlockMutation(
   role: string | null | undefined,
@@ -47,6 +47,10 @@ export function shouldBlockMutation(
 ): boolean {
   if (!isReadOnly(role)) return false
   if (SAFE_METHODS.has(method.toUpperCase())) return false
+  // Exempt non-GET endpoints that are safe for a read-only user: NextAuth
+  // (login/logout) and the report export endpoint, which is POST only because
+  // its body carries filters/columns — it reads data to build a file, never writes.
   if (pathname.startsWith('/api/auth')) return false
+  if (pathname.startsWith('/api/reports/export')) return false
   return true
 }

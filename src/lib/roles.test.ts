@@ -48,6 +48,9 @@ describe('shouldBlockMutation', () => {
     expect(shouldBlockMutation('CHARTERED_ACCOUNTANT', 'POST', '/api/auth/signout')).toBe(false)
     expect(shouldBlockMutation('CHARTERED_ACCOUNTANT', 'POST', '/api/auth/session')).toBe(false)
   })
+  it('allows the report export endpoint (read-only POST) for the CA', () => {
+    expect(shouldBlockMutation('CHARTERED_ACCOUNTANT', 'POST', '/api/reports/export')).toBe(false)
+  })
   it('never blocks non-CA roles', () => {
     expect(shouldBlockMutation('ADMIN', 'POST', '/api/clients')).toBe(false)
     expect(shouldBlockMutation('EQUITY_DEALER', 'DELETE', '/api/clients/1')).toBe(false)
