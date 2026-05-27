@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal'
 import { TaskWithRelations } from '@/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -10,6 +11,7 @@ import { Search, X, ClipboardList } from 'lucide-react'
 import { formatDate, getDaysRemaining, getInitials } from '@/lib/utils'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { isReadOnly } from '@/lib/roles'
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: new Date(0, i).toLocaleString('default', { month: 'long' }) }))
 const YEARS  = ['2024', '2025', '2026', '2027'].map((y) => ({ value: y, label: y }))
@@ -43,6 +45,8 @@ function DeadlineInfo({ deadline, status }: { deadline: Date; status: string }) 
 }
 
 export default function AdminTasksPage() {
+  const { data: session } = useSession()
+  const readOnly = isReadOnly(session?.user?.role)
   const [tasks, setTasks] = useState<TaskWithRelations[]>([])
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('all')
@@ -86,11 +90,13 @@ export default function AdminTasksPage() {
           <h1 className="page-title">All Tasks</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage and monitor all tasks across departments</p>
         </div>
-        <Link href="/tasks/assign">
-          <Button className="gap-2">
-            <ClipboardList className="h-4 w-4" />Assign Task
-          </Button>
-        </Link>
+        {!readOnly && (
+          <Link href="/tasks/assign">
+            <Button className="gap-2">
+              <ClipboardList className="h-4 w-4" />Assign Task
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Filters */}
@@ -220,8 +226,8 @@ export default function AdminTasksPage() {
         onTaskUpdated={(updated) => { setSelectedTask(updated); fetchTasks() }}
         onTaskDeleted={() => { setSelectedTask(null); fetchTasks() }}
         canComplete={false}
-        canEdit={true}
-        canDelete={true}
+        canEdit={!readOnly}
+        canDelete={!readOnly}
       />
     </div>
   )

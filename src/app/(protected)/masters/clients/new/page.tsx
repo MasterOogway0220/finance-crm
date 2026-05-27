@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ClientCodeInput } from '@/components/clients/client-code-input'
 import { clientSchema } from '@/lib/validations'
 import { validateClientCode } from '@/lib/client-code-validator'
+import { isReadOnly } from '@/lib/roles'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { z } from 'zod'
@@ -22,6 +24,8 @@ interface Employee { id: string; name: string }
 
 export default function AddClientPage() {
   const router = useRouter()
+  const { data: session } = useSession()
+  const readOnly = isReadOnly(session?.user?.role)
   const [clientCode, setClientCode] = useState('')
   const [clientCodeError, setClientCodeError] = useState('')
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -72,6 +76,11 @@ export default function AddClientPage() {
         <h1 className="page-title">Add New Client</h1>
         <p className="text-sm text-gray-500">Add a client to the master database</p>
       </div>
+      {readOnly && (
+        <div className="mb-4 max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          You have read-only access. Creating clients is disabled for your role.
+        </div>
+      )}
       <Card className="max-w-2xl">
         <CardHeader><CardTitle className="text-base">Client Information</CardTitle></CardHeader>
         <CardContent>
@@ -156,10 +165,12 @@ export default function AddClientPage() {
 
             <div className="flex gap-3 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => router.push('/masters/clients')}>Cancel</Button>
-              <Button type="submit" className="flex-1" disabled={submitting}>
-                {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {department === 'BOTH' ? 'Add to Both Masters' : 'Add Client'}
-              </Button>
+              {!readOnly && (
+                <Button type="submit" className="flex-1" disabled={submitting}>
+                  {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {department === 'BOTH' ? 'Add to Both Masters' : 'Add Client'}
+                </Button>
+              )}
             </div>
           </form>
         </CardContent>

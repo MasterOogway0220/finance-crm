@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import { cn, getInitials } from '@/lib/utils'
 import { useActiveRoleStore } from '@/stores/active-role-store'
 import { useDebounce } from '@/hooks/use-debounce'
-import { canViewAdmin } from '@/lib/roles'
+import { canViewAdmin, isReadOnly } from '@/lib/roles'
 import Link from 'next/link'
 
 interface Operator { id: string; name: string }
@@ -38,6 +38,7 @@ export default function NoBusinessPage() {
   const router = useRouter()
   const { activeRole, hasHydrated } = useActiveRoleStore()
   const role = activeRole || undefined
+  const readOnly = isReadOnly(role)
 
   // Redirect non-admins (wait for the active-role store to hydrate first)
   useEffect(() => {
@@ -199,7 +200,7 @@ export default function NoBusinessPage() {
               </tr>
             ) : (
               clients.map((client) => (
-                <ClientRow key={client.id} client={client} onDismiss={handleDismiss} />
+                <ClientRow key={client.id} client={client} onDismiss={handleDismiss} readOnly={readOnly} />
               ))
             )}
           </tbody>
@@ -224,7 +225,7 @@ export default function NoBusinessPage() {
   )
 }
 
-function ClientRow({ client, onDismiss }: { client: DormantClient; onDismiss: (id: string) => void }) {
+function ClientRow({ client, onDismiss, readOnly }: { client: DormantClient; onDismiss: (id: string) => void; readOnly: boolean }) {
   const [open, setOpen] = useState(false)
   const [dismissing, setDismissing] = useState(false)
   const fullName = [client.firstName, client.middleName, client.lastName].filter(Boolean).join(' ')
@@ -269,32 +270,34 @@ function ClientRow({ client, onDismiss }: { client: DormantClient; onDismiss: (i
         </span>
       </td>
       <td className="px-4 py-3">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button size="sm" variant="outline" className="h-7 text-xs">
-              Dismiss
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-64 p-3" align="end">
-            <p className="text-sm font-medium text-gray-800 mb-1">Dismiss this client?</p>
-            <p className="text-xs text-gray-500 mb-3">
-              They will be removed from this list. They will re-appear automatically if new business is recorded for them.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setOpen(false)}>
-                Cancel
+        {!readOnly && (
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline" className="h-7 text-xs">
+                Dismiss
               </Button>
-              <Button
-                size="sm"
-                className="h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={handleConfirmDismiss}
-                disabled={dismissing}
-              >
-                {dismissing ? 'Dismissing…' : 'Confirm'}
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3" align="end">
+              <p className="text-sm font-medium text-gray-800 mb-1">Dismiss this client?</p>
+              <p className="text-xs text-gray-500 mb-3">
+                They will be removed from this list. They will re-appear automatically if new business is recorded for them.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={handleConfirmDismiss}
+                  disabled={dismissing}
+                >
+                  {dismissing ? 'Dismissing…' : 'Confirm'}
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
       </td>
     </tr>
   )

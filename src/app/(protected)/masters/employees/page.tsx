@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -14,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { UserPlus, Pencil, Search, X, Trash2, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
+import { isReadOnly } from '@/lib/roles'
 
 interface Employee {
   id: string; name: string; email: string; phone: string
@@ -41,6 +43,8 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function EmployeeMasterPage() {
+  const { data: session } = useSession()
+  const readOnly = isReadOnly(session?.user?.role)
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -190,10 +194,12 @@ export default function EmployeeMasterPage() {
           <h1 className="page-title">Employee Master</h1>
           <p className="text-sm text-gray-500">Manage all employees and their access</p>
         </div>
-        <Button onClick={openAdd} className="gap-2">
-          <UserPlus className="h-4 w-4" />
-          Add Employee
-        </Button>
+        {!readOnly && (
+          <Button onClick={openAdd} className="gap-2">
+            <UserPlus className="h-4 w-4" />
+            Add Employee
+          </Button>
+        )}
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-3">
@@ -293,17 +299,21 @@ export default function EmployeeMasterPage() {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <Switch checked={emp.isActive} onCheckedChange={() => toggleActive(emp)} />
+                  {!readOnly && (
+                    <Switch checked={emp.isActive} onCheckedChange={() => toggleActive(emp)} />
+                  )}
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <Button size="sm" variant="outline" onClick={() => openEdit(emp)} className="gap-1 h-7 text-xs">
-                      <Pencil className="h-3 w-3" />Edit
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => openDelete(emp)} className="gap-1 h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50">
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  {!readOnly && (
+                    <div className="flex items-center gap-1.5">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(emp)} className="gap-1 h-7 text-xs">
+                        <Pencil className="h-3 w-3" />Edit
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => openDelete(emp)} className="gap-1 h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-50">
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

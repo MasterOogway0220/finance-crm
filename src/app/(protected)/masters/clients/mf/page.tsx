@@ -12,6 +12,7 @@ import { Search, X, Pencil, Trash2, Upload, FileSpreadsheet, ArrowRightLeft } fr
 import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
+import { isReadOnly } from '@/lib/roles'
 import { ClientWithOperator } from '@/types'
 
 interface Employee { id: string; name: string; department: string }
@@ -36,6 +37,7 @@ export default function MFClientMasterPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const isMFDealer = session?.user?.role === 'MF_DEALER'
+  const readOnly = isReadOnly(session?.user?.role)
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
   const [searchInput, setSearchInput] = useState('')
@@ -250,7 +252,7 @@ export default function MFClientMasterPage() {
           <h1 className="page-title">Mutual Fund Client Master</h1>
           <p className="text-sm text-gray-500">{total > 0 ? `${total} MF clients` : 'Manage mutual fund department clients'}</p>
         </div>
-        {!isMFDealer && (
+        {!isMFDealer && !readOnly && (
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2"><Upload className="h-4 w-4" />Bulk Import</Button>
           </div>
@@ -258,7 +260,7 @@ export default function MFClientMasterPage() {
       </div>
 
       {/* Selection bar */}
-      {!isMFDealer && selected.size > 0 && (
+      {!isMFDealer && !readOnly && selected.size > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm font-medium text-green-800">{selected.size} client{selected.size > 1 ? 's' : ''} selected</span>
           <div className="flex gap-2">
@@ -310,12 +312,12 @@ export default function MFClientMasterPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {!isMFDealer && (
+              {!isMFDealer && !readOnly && (
                 <th className="px-3 py-3 w-10">
                   <input type="checkbox" checked={allCurrentPageSelected} onChange={toggleAll} disabled={selectingAll} title="Select all matching clients" className="rounded border-gray-300 cursor-pointer" />
                 </th>
               )}
-              {['Code', 'Name', 'Phone', 'Operator', 'MF Status', 'Added', ...(isMFDealer ? [] : ['Actions'])].map(h => (
+              {['Code', 'Name', 'Phone', 'Operator', 'MF Status', 'Added', ...(isMFDealer || readOnly ? [] : ['Actions'])].map(h => (
                 <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -327,7 +329,7 @@ export default function MFClientMasterPage() {
               ? <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">No clients found{hasActiveFilters ? ' for the selected filters' : ''}</td></tr>
               : clients.map(c => (
                   <tr key={c.id} className={`border-b border-gray-100 hover:bg-gray-50 ${selected.has(c.id) ? 'bg-green-50/50' : ''}`}>
-                    {!isMFDealer && (
+                    {!isMFDealer && !readOnly && (
                       <td className="px-3 py-3"><input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} className="rounded border-gray-300" /></td>
                     )}
                     <td className="px-4 py-3 font-mono text-xs font-medium text-gray-700">{c.clientCode}</td>
@@ -343,7 +345,7 @@ export default function MFClientMasterPage() {
                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${c.mfStatus === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{c.mfStatus}</span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(c.createdAt)}</td>
-                    {!isMFDealer && (
+                    {!isMFDealer && !readOnly && (
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <Button size="sm" variant="outline" onClick={() => openEdit(c)} className="h-7 text-xs gap-1"><Pencil className="h-3 w-3" />Edit</Button>

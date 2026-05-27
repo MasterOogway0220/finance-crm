@@ -12,7 +12,7 @@ import { format } from 'date-fns'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
-import { canViewAdmin, isManager } from '@/lib/roles'
+import { canViewAdmin, isManager, isReadOnly } from '@/lib/roles'
 
 interface ArchiveRow {
   operatorId: string
@@ -57,6 +57,7 @@ export default function BrokeragePage() {
   const { data: session } = useSession()
   const canViewArchive = canViewAdmin(session?.user?.role)
   const canUploadBrokerage = isManager(session?.user?.role)
+  const readOnly = isReadOnly(session?.user?.role)
 
   const [tab, setTab] = useState<'live' | 'archive'>('live')
   const [month, setMonth] = useState(String(now.getMonth() + 1))
@@ -385,7 +386,7 @@ export default function BrokeragePage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Brokerage Upload Log</h2>
-                {selectedUploads.size > 0 && (
+                {!readOnly && selectedUploads.size > 0 && (
                   <Button size="sm" variant="destructive" className="h-8 text-xs gap-1.5" onClick={() => setBulkReverseOpen(true)}>
                     Reverse Selected ({selectedUploads.size})
                   </Button>
@@ -437,7 +438,7 @@ export default function BrokeragePage() {
                         <td className="px-3 py-2.5 text-xs text-gray-500">{format(new Date(log.createdAt), 'd MMM yyyy, h:mm a')}</td>
                         <td className="px-3 py-2.5 text-center">
                           <div className="flex items-center justify-center gap-1">
-                            {!log.isActive && (
+                            {!readOnly && !log.isActive && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -448,9 +449,11 @@ export default function BrokeragePage() {
                                 {activating === log.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Set Active'}
                               </Button>
                             )}
-                            <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setReverseTarget(log.id)}>
-                              Delete
-                            </Button>
+                            {!readOnly && (
+                              <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setReverseTarget(log.id)}>
+                                Delete
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>

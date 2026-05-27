@@ -16,6 +16,7 @@ import { UserPlus, Search, ArrowRightLeft, X, Pencil, Trash2, Upload, FileSpread
 import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
+import { isReadOnly } from '@/lib/roles'
 import { ClientWithOperator } from '@/types'
 
 interface Employee { id: string; name: string; department: string }
@@ -40,6 +41,7 @@ export default function ClientMasterPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const isMFDealer = session?.user?.role === 'MF_DEALER'
+  const readOnly = isReadOnly(session?.user?.role)
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
   const [searchInput, setSearchInput] = useState('')
@@ -314,7 +316,7 @@ export default function ClientMasterPage() {
           <h1 className="page-title">Equity Client Master</h1>
           <p className="text-sm text-gray-500">{total > 0 ? `${total} equity clients` : 'Manage equity department clients'}</p>
         </div>
-        {!isMFDealer && (
+        {!isMFDealer && !readOnly && (
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2">
               <Upload className="h-4 w-4" />Bulk Import
@@ -327,7 +329,7 @@ export default function ClientMasterPage() {
       </div>
 
       {/* Selection bar */}
-      {!isMFDealer && selected.size > 0 && (
+      {!isMFDealer && !readOnly && selected.size > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm font-medium text-blue-800">{selected.size} client{selected.size > 1 ? 's' : ''} selected</span>
           <div className="flex gap-2 flex-wrap">
@@ -384,7 +386,7 @@ export default function ClientMasterPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {!isMFDealer && (
+              {!isMFDealer && !readOnly && (
                 <th className="px-3 py-3 w-10">
                   <input
                     type="checkbox"
@@ -396,7 +398,7 @@ export default function ClientMasterPage() {
                   />
                 </th>
               )}
-              {['Code', 'Name', 'Phone', 'Operator', 'Status', 'Added', ...(isMFDealer ? [] : ['Actions'])].map(h => (
+              {['Code', 'Name', 'Phone', 'Operator', 'Status', 'Added', ...(isMFDealer || readOnly ? [] : ['Actions'])].map(h => (
                 <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -410,7 +412,7 @@ export default function ClientMasterPage() {
               ? <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">No clients found{hasActiveFilters ? ' for the selected filters' : ''}</td></tr>
               : clients.map(c => (
                   <tr key={c.id} className={`border-b border-gray-100 hover:bg-gray-50 ${selected.has(c.id) ? 'bg-blue-50/50' : ''}`}>
-                    {!isMFDealer && (
+                    {!isMFDealer && !readOnly && (
                       <td className="px-3 py-3">
                         <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)} className="rounded border-gray-300" />
                       </td>
@@ -432,7 +434,7 @@ export default function ClientMasterPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(c.createdAt)}</td>
-                    {!isMFDealer && (
+                    {!isMFDealer && !readOnly && (
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <Button size="sm" variant="outline" onClick={() => openEdit(c)} className="h-7 text-xs gap-1"><Pencil className="h-3 w-3" />Edit</Button>

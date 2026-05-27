@@ -19,7 +19,7 @@ import {
 import { Search, Users, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, getInitials, cn } from '@/lib/utils'
-import { isManager } from '@/lib/roles'
+import { isManager, isReadOnly } from '@/lib/roles'
 import { ClientWithOperator } from '@/types'
 import Link from 'next/link'
 
@@ -37,6 +37,7 @@ export default function AllClientsPage() {
   const limit = 25
 
   const canManageClients = isManager(session?.user?.role)
+  const readOnly = isReadOnly(session?.user?.role)
 
   const fetchClients = useCallback(() => {
     setLoading(true)
@@ -115,11 +116,13 @@ export default function AllClientsPage() {
           <h1 className="page-title">All Clients</h1>
           <p className="text-sm text-gray-500">All clients across all operators</p>
         </div>
-        <Link href="/masters/clients/new">
-          <Button className="gap-2">
-            <UserPlus className="h-4 w-4" />New Client
-          </Button>
-        </Link>
+        {!readOnly && (
+          <Link href="/masters/clients/new">
+            <Button className="gap-2">
+              <UserPlus className="h-4 w-4" />New Client
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-3">

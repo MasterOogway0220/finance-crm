@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import {
   Folder, FolderOpen, FileText, FileSpreadsheet, File, Image,
   Upload, FolderPlus, Download, Trash2, Loader2, X, ChevronRight,
@@ -10,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { cn, formatTimeAgo, getInitials } from '@/lib/utils'
+import { isReadOnly } from '@/lib/roles'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,6 +78,8 @@ const DEPT_COLOR: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export default function DocumentPoolPage() {
+  const { data: session } = useSession()
+  const readOnly = isReadOnly(session?.user?.role)
   const [folders, setFolders] = useState<FolderSummary[]>([])
   const [looseFiles, setLooseFiles] = useState<DocumentFile[]>([])
   const [foldersLoading, setFoldersLoading] = useState(true)
@@ -429,7 +433,7 @@ export default function DocumentPoolPage() {
 
       {/* Actions */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {renamingFileId !== doc.id && (
+        {!readOnly && renamingFileId !== doc.id && (
           <button
             type="button"
             onClick={() => { setRenamingFileId(doc.id); setRenamingFolderId(null); setRenameValue(doc.name) }}
@@ -453,7 +457,7 @@ export default function DocumentPoolPage() {
         )}
         {deletingFileId === doc.id ? (
           <Loader2 className="h-4 w-4 text-gray-400 animate-spin mx-1.5" />
-        ) : (
+        ) : !readOnly ? (
           <button
             type="button"
             onClick={() => handleDeleteFile(doc)}
@@ -462,7 +466,7 @@ export default function DocumentPoolPage() {
           >
             <Trash2 className="h-4 w-4" />
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   )
@@ -480,7 +484,7 @@ export default function DocumentPoolPage() {
         </div>
 
         {/* New folder input */}
-        {showNewFolder && (
+        {!readOnly && showNewFolder && (
           <div className="px-3 py-2 border-b border-gray-200 bg-white">
             <Input
               ref={newFolderInputRef}
@@ -589,7 +593,7 @@ export default function DocumentPoolPage() {
                       </>
                     )}
                   </div>
-                  {renamingFolderId !== folder.id && (
+                  {!readOnly && renamingFolderId !== folder.id && (
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button
                         type="button"
@@ -620,18 +624,20 @@ export default function DocumentPoolPage() {
         </div>
 
         {/* New folder button */}
-        <div className="p-3 border-t border-gray-200 bg-white">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full gap-2 text-xs h-8"
-            onClick={() => setShowNewFolder(true)}
-            disabled={showNewFolder}
-          >
-            <FolderPlus className="h-3.5 w-3.5" />
-            New Folder
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="p-3 border-t border-gray-200 bg-white">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2 text-xs h-8"
+              onClick={() => setShowNewFolder(true)}
+              disabled={showNewFolder}
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+              New Folder
+            </Button>
+          </div>
+        )}
       </aside>
 
       {/* ── Right panel: file list ── */}
@@ -649,26 +655,28 @@ export default function DocumentPoolPage() {
                   </p>
                 </div>
               </div>
-              <div>
-                <input
-                  ref={looseFileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => handleUpload(e)}
-                />
-                <Button
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => looseFileInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  {uploading
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <Upload className="h-4 w-4" />
-                  }
-                  {uploading ? 'Uploading…' : 'Upload File'}
-                </Button>
-              </div>
+              {!readOnly && (
+                <div>
+                  <input
+                    ref={looseFileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => handleUpload(e)}
+                  />
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => looseFileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    {uploading
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Upload className="h-4 w-4" />
+                    }
+                    {uploading ? 'Uploading…' : 'Upload File'}
+                  </Button>
+                </div>
+              )}
             </div>
 
             <div className="px-6 py-2 flex items-center gap-1 text-xs text-gray-400 border-b border-gray-100 bg-gray-50 shrink-0">
@@ -723,26 +731,28 @@ export default function DocumentPoolPage() {
               </div>
 
               {/* Upload button */}
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => handleUpload(e, selectedFolder.id)}
-                />
-                <Button
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  {uploading
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <Upload className="h-4 w-4" />
-                  }
-                  {uploading ? 'Uploading…' : 'Upload File'}
-                </Button>
-              </div>
+              {!readOnly && (
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => handleUpload(e, selectedFolder.id)}
+                  />
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    {uploading
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Upload className="h-4 w-4" />
+                    }
+                    {uploading ? 'Uploading…' : 'Upload File'}
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Breadcrumb */}
