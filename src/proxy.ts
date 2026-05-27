@@ -71,5 +71,9 @@ function getDashboardPath(role?: string): string {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Exclude Next internals and static public assets (images, fonts) so requests
+  // for files like /logo.png aren't run through auth and redirected to /login.
+  // Page and /api routes have no file extension, so they are still matched and
+  // the read-only mutation block stays in force.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|bmp|avif|woff2?|ttf)$).*)'],
 }
