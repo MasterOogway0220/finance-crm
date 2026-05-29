@@ -12,7 +12,7 @@ import { format } from 'date-fns'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
-import { isManager, isReadOnly } from '@/lib/roles'
+import { isReadOnly } from '@/lib/roles'
 
 interface BrokerageData {
   operatorPerformance: Array<{
@@ -39,7 +39,6 @@ const TD = 'px-3 py-2.5 text-center text-sm'
 export default function BrokeragePage() {
   const now = new Date()
   const { data: session } = useSession()
-  const canUploadBrokerage = isManager(session?.user?.role)
   const readOnly = isReadOnly(session?.user?.role)
 
   const [month, setMonth] = useState(String(now.getMonth() + 1))
@@ -176,7 +175,7 @@ export default function BrokeragePage() {
             <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
           </Select>
-          {canUploadBrokerage && (
+          {!readOnly && (
             <Link href="/brokerage/upload">
               <Button className="gap-2 h-9">
                 <Upload className="h-4 w-4" />Upload Brokerage
