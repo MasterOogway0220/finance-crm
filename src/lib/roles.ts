@@ -32,6 +32,19 @@ export function isReadOnly(role?: string | null): boolean {
   return role === 'CHARTERED_ACCOUNTANT'
 }
 
+/**
+ * Back-office staff who, despite not being admins, are granted read-only access
+ * to specific HR modules (Login/Logoff History and the Employee Leave Report).
+ * Keyed by email so the carve-out lives in exactly one place — add an address
+ * here to grant another HR person the same view-only access.
+ */
+const HR_VIEWER_EMAILS = new Set<string>(['pradipmahadik1982@gmail.com'])
+
+/** True for a designated HR viewer (read-only access to the HR modules). */
+export function isHrViewer(email?: string | null): boolean {
+  return !!email && HR_VIEWER_EMAILS.has(email)
+}
+
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /**

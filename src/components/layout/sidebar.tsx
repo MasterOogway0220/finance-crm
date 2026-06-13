@@ -21,6 +21,7 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
+import { isHrViewer } from '@/lib/roles'
 import { useActiveRoleStore, ROLE_LABELS } from '@/stores/active-role-store'
 import { useNotificationStore } from '@/stores/notification-store'
 
@@ -271,10 +272,19 @@ export default function Sidebar({ onClose }: SidebarProps) {
   }, [pathname, markTaskAssignedRead])
 
   const effectiveRole = activeRole || session?.user?.role || ''
-  const isPradip = session?.user?.email === 'pradipmahadik1982@gmail.com'
   const baseNav = getNavItems(effectiveRole)
-  const navItems = isPradip && !baseNav.some(i => i.href === '/login-history')
-    ? [...baseNav, { label: 'Login/Logoff History', href: '/login-history', icon: ClipboardList } as NavItem]
+  // HR viewers (back-office staff granted read-only access — see isHrViewer) get
+  // direct links to the two HR modules their role's nav doesn't already include.
+  const navItems = isHrViewer(session?.user?.email)
+    ? [
+        ...baseNav,
+        ...(baseNav.some((i) => i.href === '/login-history')
+          ? []
+          : [{ label: 'Login/Logoff History', href: '/login-history', icon: ClipboardList } as NavItem]),
+        ...(baseNav.some((i) => i.href === '/reports/leave')
+          ? []
+          : [{ label: 'Employee Leave Report', href: '/reports/leave', icon: CalendarDays } as NavItem]),
+      ]
     : baseNav
 
   const userName = session?.user?.name ?? 'User'

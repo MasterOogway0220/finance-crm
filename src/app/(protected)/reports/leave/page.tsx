@@ -3,7 +3,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
-import { CalendarDays, Users } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Users, Download } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface LeaveRow {
   employeeId: string
@@ -27,6 +29,7 @@ export default function LeaveReportPage() {
   const [data, setData] = useState<LeaveRow[]>([])
   const [loading, setLoading] = useState(true)
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [exporting, setExporting] = useState(false)
 
   // Load employees for filter
   useEffect(() => {
@@ -54,6 +57,37 @@ export default function LeaveReportPage() {
   const totalLeaves = data.reduce((s, r) => s + r.totalLeaves, 0)
   const totalTaken = data.reduce((s, r) => s + r.leavesTaken, 0)
   const totalRemaining = data.reduce((s, r) => s + r.leavesRemaining, 0)
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch('/api/reports/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'leave',
+          year: Number(year),
+          ...(department !== 'all' ? { department } : {}),
+          ...(employeeId !== 'all' ? { employeeId } : {}),
+        }),
+      })
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `leave-report-${year}.xlsx`
+        a.click()
+        URL.revokeObjectURL(url)
+      } else {
+        toast.error('Export failed')
+      }
+    } catch {
+      toast.error('Export failed')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div className="page-container space-y-5">
@@ -86,6 +120,16 @@ export default function LeaveReportPage() {
               {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-9 text-sm ml-auto"
+            disabled={exporting || data.length === 0}
+            onClick={handleExport}
+          >
+            <Download className="h-3.5 w-3.5" />
+            {exporting ? 'Exporting…' : 'Download Excel'}
+          </Button>
         </div>
       </div>
 

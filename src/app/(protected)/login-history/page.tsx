@@ -5,6 +5,7 @@ import { Clock, LogIn, LogOut, Download, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface Session {
   id: string
@@ -111,6 +112,37 @@ function downloadCSV(rows: string[][], filename: string) {
   URL.revokeObjectURL(url)
 }
 
+// Builds the same data as exportCSV but as a real .xlsx file. xlsx is lazily
+// imported so it stays out of the page bundle until the user actually exports.
+async function exportXLSX(data: AttendanceEntry[], detailed: boolean) {
+  const XLSX = await import('xlsx')
+  const rows = detailed
+    ? data.flatMap((entry) =>
+        entry.sessions.map((s, idx) => ({
+          Employee: entry.employeeName,
+          Department: DEPT_LABELS[entry.department] ?? entry.department,
+          Date: entry.date,
+          'Session #': idx + 1,
+          'Login Time': formatTime(s.loginAt),
+          'Logout Time': formatTime(s.logoutAt),
+          Duration: sessionDuration(s.loginAt, s.logoutAt),
+        })),
+      )
+    : data.map((entry) => ({
+        Employee: entry.employeeName,
+        Department: DEPT_LABELS[entry.department] ?? entry.department,
+        Date: entry.date,
+        'First Login': formatTime(entry.firstLogin),
+        'Last Logout': formatTime(entry.lastLogout),
+        'Total Work Time': durationStr(entry.totalDurationMs),
+      }))
+
+  const workbook = XLSX.utils.book_new()
+  const sheet = XLSX.utils.json_to_sheet(rows)
+  XLSX.utils.book_append_sheet(workbook, sheet, detailed ? 'Login History Detailed' : 'Login History')
+  XLSX.writeFile(workbook, `login-history-${detailed ? 'detailed' : 'summary'}.xlsx`)
+}
+
 export default function LoginHistoryPage() {
   const today = new Date()
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -127,6 +159,7 @@ export default function LoginHistoryPage() {
   // View toggles
   const [detailed, setDetailed] = useState(false)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [exporting, setExporting] = useState(false)
 
   const fetchData = useCallback(() => {
     setLoading(true)
@@ -278,6 +311,24 @@ export default function LoginHistoryPage() {
           >
             <Download className="h-3.5 w-3.5" />
             Export CSV
+          </Button>
+          <Button
+            size="sm"
+            className="gap-1.5 h-9 text-sm"
+            disabled={exporting || data.length === 0}
+            onClick={async () => {
+              setExporting(true)
+              try {
+                await exportXLSX(data, detailed)
+              } catch {
+                toast.error('Export failed')
+              } finally {
+                setExporting(false)
+              }
+            }}
+          >
+            <Download className="h-3.5 w-3.5" />
+            {exporting ? 'Exporting…' : 'Download Excel'}
           </Button>
         </div>
 

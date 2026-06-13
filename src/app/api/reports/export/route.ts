@@ -1,10 +1,9 @@
 import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCurrentMonthRange } from '@/lib/utils'
-import { Role } from '@prisma/client'
 import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
-import { canViewAdmin } from '@/lib/roles'
+import { canViewAdmin, isHrViewer } from '@/lib/roles'
+import { getLeaveReport } from '@/lib/leave-report'
 import * as XLSX from 'xlsx'
 
 export async function POST(request: NextRequest) {
@@ -15,22 +14,28 @@ export async function POST(request: NextRequest) {
     }
 
     const userRole = (await getActiveRole(session.user))
-    if (!canViewAdmin(userRole)) {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
-    }
 
     const body = await request.json()
-    const { type, month, year, operatorId, employeeId, range } = body as {
-      type: 'brokerage' | 'tasks' | 'mf-business-log'
+    const { type, month, year, operatorId, employeeId, range, department } = body as {
+      type: 'brokerage' | 'tasks' | 'mf-business-log' | 'leave'
       month?: number
       year?: number
       operatorId?: string
       employeeId?: string
       range?: string
+      department?: string
     }
 
-    if (!type || !['brokerage', 'tasks', 'mf-business-log'].includes(type)) {
+    if (!type || !['brokerage', 'tasks', 'mf-business-log', 'leave'].includes(type)) {
       return NextResponse.json({ success: false, error: 'Invalid report type' }, { status: 400 })
+    }
+
+    // Authorization: admins and the read-only CA may export any report; a
+    // designated HR viewer may export ONLY the leave report, keeping them
+    // scoped to their two HR modules.
+    const canExport = canViewAdmin(userRole) || (isHrViewer(session.user.email) && type === 'leave')
+    if (!canExport) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
     const now = new Date()
@@ -112,6 +117,57 @@ export async function POST(request: NextRequest) {
 
       const sheet = XLSX.utils.json_to_sheet(rows)
       XLSX.utils.book_append_sheet(workbook, sheet, 'MF Business Log')
+    } else if (type === 'leave') {
+      // Sheet 1 — per-employee summary (matches the on-screen leave report)
+      const summary = await getLeaveReport({ year: reportYear, department, employeeId })
+      const summaryRows = summary.map((r) => ({
+        Employee: r.employeeName,
+        Department: r.department.replace('_', ' '),
+        Designation: r.designation,
+        'Total Leaves': r.totalLeaves,
+        'Leaves Taken': r.leavesTaken,
+        'Leaves Remaining': r.leavesRemaining,
+      }))
+      const summarySheet = XLSX.utils.json_to_sheet(summaryRows)
+      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Leave Summary')
+
+      // Sheet 2 — individual approved leave records for the year
+      const leaveWhere: Record<string, unknown> = {
+        status: 'APPROVED',
+        fromDate: {
+          gte: new Date(reportYear, 0, 1),
+          lte: new Date(reportYear, 11, 31, 23, 59, 59, 999),
+        },
+      }
+      if (employeeId) leaveWhere.employeeId = employeeId
+      if (department) leaveWhere.employee = { department }
+
+      const applications = await prisma.leaveApplication.findMany({
+        where: leaveWhere,
+        include: {
+          employee: { select: { name: true, department: true } },
+          reviewedBy: { select: { name: true } },
+        },
+        orderBy: [{ employee: { name: 'asc' } }, { fromDate: 'asc' }],
+      })
+
+      const detailRows = applications.map((a) => ({
+        Employee: a.employee.name,
+        Department: a.employee.department.replace('_', ' '),
+        From: a.fromDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        To: a.toDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        Days: a.days,
+        Reason: a.reason,
+        'Reviewed By': a.reviewedBy?.name ?? '',
+      }))
+
+      // json_to_sheet needs at least one row to emit headers
+      const detailSheet = XLSX.utils.json_to_sheet(
+        detailRows.length > 0
+          ? detailRows
+          : [{ Employee: '', Department: '', From: '', To: '', Days: '', Reason: '', 'Reviewed By': '' }],
+      )
+      XLSX.utils.book_append_sheet(workbook, detailSheet, 'Leave Details')
     } else {
       // Tasks report
       const yearStart = new Date(reportYear, 0, 1)

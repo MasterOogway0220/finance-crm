@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isManager, canViewAdmin, isReadOnly, shouldBlockMutation } from './roles'
+import { isManager, canViewAdmin, isReadOnly, shouldBlockMutation, isHrViewer } from './roles'
 
 describe('isManager (write capability)', () => {
   it('is true for admins', () => {
@@ -31,6 +31,18 @@ describe('isReadOnly', () => {
   it('is true only for the CA', () => {
     expect(isReadOnly('CHARTERED_ACCOUNTANT')).toBe(true)
     expect(isReadOnly('ADMIN')).toBe(false)
+  })
+})
+
+describe('isHrViewer', () => {
+  it('is true for a designated HR viewer email', () => {
+    expect(isHrViewer('pradipmahadik1982@gmail.com')).toBe(true)
+  })
+  it('is false for any other email or a missing email', () => {
+    expect(isHrViewer('someone.else@gmail.com')).toBe(false)
+    expect(isHrViewer('')).toBe(false)
+    expect(isHrViewer(null)).toBe(false)
+    expect(isHrViewer(undefined)).toBe(false)
   })
 })
 
