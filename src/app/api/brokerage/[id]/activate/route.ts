@@ -2,6 +2,7 @@ import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { invalidateCache } from '@/lib/cache'
+import { resyncEquityClientStatus } from '@/lib/brokerage-status'
 import { Prisma } from '@prisma/client'
 
 export async function PATCH(
@@ -27,16 +28,33 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: 'Upload not found' }, { status: 404 })
     }
 
-    await prisma.$transaction([
-      prisma.brokerageUpload.updateMany({
+    await prisma.$transaction(async (tx) => {
+      // Every client appearing in any version of this (date, branch) group may have
+      // their traded status changed by the active-version switch — collect them first.
+      const groupUploads = await tx.brokerageUpload.findMany({
+        where: { uploadDate: target.uploadDate, branch: target.branch },
+        select: { id: true },
+      })
+      const affected = await tx.brokerageDetail.findMany({
+        where: { brokerageId: { in: groupUploads.map((u) => u.id) }, clientId: { not: null } },
+        select: { clientId: true },
+        distinct: ['clientId'],
+      })
+
+      await tx.brokerageUpload.updateMany({
         where: { uploadDate: target.uploadDate, branch: target.branch },
         data: { isActive: false },
-      }),
-      prisma.brokerageUpload.update({
+      })
+      await tx.brokerageUpload.update({
         where: { id },
         data: { isActive: true },
-      }),
-    ])
+      })
+
+      // Re-derive Client.status from the now-active brokerage data so the flag
+      // can't drift when versions are toggled (the original bug). status always
+      // reflects the *current* month, so resync against now (default ref).
+      await resyncEquityClientStatus(tx, affected.map((a) => a.clientId))
+    })
 
     invalidateCache('dashboard:')
 

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { invalidateCache } from '@/lib/cache'
+import { resyncEquityClientStatus } from '@/lib/brokerage-status'
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -40,28 +41,14 @@ export async function DELETE(request: NextRequest) {
       ...new Set(uploads.flatMap(u => u.details.map(d => d.clientId).filter(Boolean) as string[]))
     ]
 
-    // Cascade delete removes all BrokerageDetail records automatically
-    await prisma.brokerageUpload.deleteMany({ where: { id: { in: uploads.map(u => u.id) } } })
-
-    // Reset client.status for reversed clients who no longer have any active brokerage detail this month
-    if (reversedClientIds.length > 0) {
-      const now = new Date()
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
-      const stillTradedIds = await prisma.brokerageDetail.findMany({
-        where: { clientId: { in: reversedClientIds }, brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } } },
-        select: { clientId: true },
-        distinct: ['clientId'],
-      })
-      const stillTradedSet = new Set(stillTradedIds.map(r => r.clientId!))
-      const toResetIds = reversedClientIds.filter(id => !stillTradedSet.has(id))
-      if (toResetIds.length > 0) {
-        await prisma.client.updateMany({
-          where: { id: { in: toResetIds }, department: 'EQUITY' },
-          data: { status: 'NOT_TRADED' },
-        })
-      }
-    }
+    // Cascade delete removes all BrokerageDetail records automatically, then re-derive
+    // Client.status for every affected client from the remaining active brokerage data.
+    // (A single source of truth — restores TRADED as well as resetting, so the flag
+    // can't get stuck NOT_TRADED after a delete + re-activate sequence.)
+    await prisma.$transaction(async (tx) => {
+      await tx.brokerageUpload.deleteMany({ where: { id: { in: uploads.map(u => u.id) } } })
+      await resyncEquityClientStatus(tx, reversedClientIds)
+    })
 
     const totalAmount = uploads.reduce((s, u) => s + u.totalAmount, 0)
     await logActivity({
