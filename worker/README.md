@@ -21,6 +21,22 @@ from the app's TypeScript build (`tsconfig.json` → `exclude: ["worker"]`). Nev
    open WhatsApp → Linked Devices → Link a device → scan it. This is a **one-time**
    scan; the session is saved on disk under the `kesar-outreach` session id.
 
+## Connecting from the app (Phase 2)
+
+The worker now publishes its connection state to the shared DB (`WhatsappSession` row),
+so the **WhatsApp page → "WhatsApp connection" card** shows it live:
+
+- Start the worker → it emits a **QR** which appears on that card → scan it
+  (WhatsApp → Linked devices → Link a device). The card flips to **Connected**.
+- Or, on the card, type the number under **"Link with phone number instead" → Request code**.
+  That records the request; **restart the worker** and it boots in link-code mode
+  (`create({ linkCode })`). The pairing code prints in this worker window (and, when
+  captured, on the card) — enter it in WhatsApp → Linked devices → Link with phone number.
+- Once connected, the worker also publishes the number's **groups** so the page can
+  target them.
+
+QR is the reliable path; phone-pairing is best-effort (open-wa prints the code here).
+
 ## Daily use
 
 Turn the PC on during office hours → `npm start` (or a Windows Task Scheduler task

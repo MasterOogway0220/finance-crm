@@ -1,5 +1,5 @@
 require('dotenv').config()
-const { create } = require('@open-wa/wa-automate')
+const { create, ev } = require('@open-wa/wa-automate')
 const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
@@ -9,6 +9,7 @@ const GAP_MS = parseInt(process.env.GAP_MS || '300000', 10)
 const JITTER_MS = parseInt(process.env.JITTER_MS || '60000', 10)
 const START_HOUR = parseInt(process.env.WINDOW_START_HOUR || '10', 10)
 const END_HOUR = parseInt(process.env.WINDOW_END_HOUR || '16', 10)
+const SESSION_ID = 'default'
 
 /** Mirror of src/lib/whatsapp-outreach.ts normalizeWhatsappPhone (worker is standalone CommonJS). */
 function normalizeWhatsappPhone(raw) {
@@ -23,17 +24,41 @@ function normalizeWhatsappPhone(raw) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 function startOfToday() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()) }
 
-/** True only when open-wa reports a live, connected session. */
-async function isConnected(client) {
+/** Publish live bridge state to the shared DB row the web Connect panel reads. */
+async function setSession(data) {
   try {
-    const state = await client.getConnectionState()
-    return state === 'CONNECTED'
-  } catch {
-    return false
+    await prisma.whatsappSession.upsert({ where: { id: SESSION_ID }, update: data, create: { id: SESSION_ID, ...data } })
+  } catch (e) {
+    console.error('[worker] setSession failed', e)
   }
 }
 
+// open-wa emits the QR as a base64 PNG data URL before the session is authed — push it to the DB.
+ev.on('qr.**', async (qrcode) => { await setSession({ state: 'QR', qr: qrcode }) })
+
+async function refreshGroups(client) {
+  try {
+    const groups = await client.getAllGroups()
+    const mapped = (groups || []).map((g) => ({
+      id: g.id,
+      title: g.formattedTitle || g.name || g.id,
+      canSend: g.canSend !== false,
+    }))
+    await setSession({ groupsJson: JSON.stringify(mapped) })
+    console.log(`[worker] Published ${mapped.length} groups.`)
+  } catch (e) {
+    console.error('[worker] getAllGroups failed', e)
+  }
+}
+
+async function isConnected(client) {
+  try { return (await client.getConnectionState()) === 'CONNECTED' } catch { return false }
+}
+
 async function drainQueue(client) {
+  await setSession({ state: 'CONNECTED', qr: null, linkCode: null, requestedPhone: null })
+  await refreshGroups(client)
+
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const hour = new Date().getHours() // office PC local time == IST
@@ -42,8 +67,6 @@ async function drainQueue(client) {
       return
     }
     if (hour < START_HOUR) {
-      // Started before the window (e.g. auto-start at login): wait for it to open
-      // instead of exiting, so the day's quota is not silently skipped.
       const now = new Date()
       const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), START_HOUR, 0, 0, 0)
       const ms = Math.max(1000, target.getTime() - now.getTime())
@@ -52,10 +75,9 @@ async function drainQueue(client) {
       continue
     }
 
-    // Never send on a dead/disconnected session — aborting leaves rows PENDING for
-    // a later run rather than marking real clients FAILED (which is terminal).
     if (!(await isConnected(client))) {
       console.error('[worker] WhatsApp session not connected; aborting run (queue left intact).')
+      await setSession({ state: 'DISCONNECTED' })
       return
     }
 
@@ -67,22 +89,25 @@ async function drainQueue(client) {
     const msg = await prisma.whatsappMessage.findFirst({ where: { status: 'PENDING' }, orderBy: { createdAt: 'asc' } })
     if (!msg) { console.log('[worker] Queue empty. Exiting.'); return }
 
-    const normalised = normalizeWhatsappPhone(msg.phone)
-    if (!normalised) {
-      await prisma.whatsappMessage.update({ where: { id: msg.id }, data: { status: 'SKIPPED', error: 'Invalid phone' } })
-      console.log(`[worker] SKIPPED ${msg.clientCode} (invalid phone "${msg.phone}")`)
+    // Contacts resolve their chat id from the phone; groups use the stored targetId (…@g.us).
+    const target = msg.targetType === 'GROUP'
+      ? (msg.targetId || null)
+      : (() => { const n = normalizeWhatsappPhone(msg.phone); return n ? `${n}@c.us` : null })()
+
+    if (!target) {
+      await prisma.whatsappMessage.update({ where: { id: msg.id }, data: { status: 'SKIPPED', error: 'Invalid target' } })
+      console.log(`[worker] SKIPPED ${msg.clientCode} (invalid target "${msg.phone || msg.targetId}")`)
       continue
     }
 
     try {
-      await client.sendText(`${normalised}@c.us`, msg.body)
+      await client.sendText(target, msg.body)
       await prisma.whatsappMessage.update({ where: { id: msg.id }, data: { status: 'SENT', sentAt: new Date() } })
-      console.log(`[worker] SENT ${msg.clientCode} -> ${normalised}  (${sentToday + 1}/${DAILY_LIMIT} today)`)
+      console.log(`[worker] SENT ${msg.clientCode} -> ${target}  (${sentToday + 1}/${DAILY_LIMIT} today)`)
     } catch (err) {
-      // Distinguish a genuine per-recipient failure (mark FAILED) from the session
-      // dropping mid-run (abort so we don't shred the whole queue into FAILED).
       if (!(await isConnected(client))) {
         console.error(`[worker] Send errored and session is now disconnected; leaving ${msg.clientCode} PENDING and aborting run.`, err)
+        await setSession({ state: 'DISCONNECTED' })
         return
       }
       await prisma.whatsappMessage.update({ where: { id: msg.id }, data: { status: 'FAILED', error: String(err) } })
@@ -103,6 +128,7 @@ async function start(client) {
     await drainQueue(client)
   } catch (e) {
     console.error('[worker] Fatal error draining queue:', e)
+    await setSession({ state: 'DISCONNECTED' })
   } finally {
     running = false
     await prisma.$disconnect()
@@ -111,16 +137,35 @@ async function start(client) {
   }
 }
 
-// NOTE: no `restartOnCrash` — on a browser crash we prefer to end the run cleanly
-// (single loop, no double-sends) and let the operator / Task Scheduler relaunch.
-create({
-  sessionId: 'kesar-outreach',
-  headless: true,
-  qrTimeout: 0,
-  authTimeout: 0,
-  useChrome: false,
-  throwErrorOnTosBlock: false,
-  disableSpins: true,
-})
-  .then((client) => start(client))
-  .catch((err) => { console.error('[worker] Failed to start open-wa:', err); process.exit(1) })
+async function boot() {
+  await setSession({ state: 'CONNECTING' })
+
+  // If the web app requested phone-linking, boot in link-code mode; otherwise QR mode.
+  let linkCode
+  try {
+    const row = await prisma.whatsappSession.findUnique({ where: { id: SESSION_ID } })
+    linkCode = row?.requestedPhone || undefined
+  } catch { /* ignore — default to QR */ }
+  if (linkCode) { await setSession({ state: 'PAIRING' }) }
+
+  const opts = {
+    sessionId: 'kesar-outreach',
+    headless: true,
+    qrTimeout: 0,
+    authTimeout: 0,
+    useChrome: false,
+    throwErrorOnTosBlock: false,
+    disableSpins: true,
+  }
+
+  // NOTE: no `restartOnCrash` — a single loop avoids overlapping senders / double-sends.
+  create(linkCode ? { ...opts, linkCode } : opts)
+    .then((client) => start(client))
+    .catch(async (err) => {
+      console.error('[worker] Failed to start open-wa:', err)
+      await setSession({ state: 'DISCONNECTED' })
+      process.exit(1)
+    })
+}
+
+boot()
