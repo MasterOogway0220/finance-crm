@@ -15,8 +15,9 @@ const manualRecipientSchema = z.object({
 const campaignSchema = z.object({
   clientIds: z.array(z.string()).optional().default([]),
   manualRecipients: z.array(manualRecipientSchema).optional().default([]),
+  groupIds: z.array(z.string()).optional().default([]),
   message: z.string().min(1, 'Message cannot be empty'),
-}).refine((d) => d.clientIds.length + d.manualRecipients.length > 0, {
+}).refine((d) => d.clientIds.length + d.manualRecipients.length + d.groupIds.length > 0, {
   message: 'Select at least one recipient',
 })
 
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Validation failed' }, { status: 400 })
     }
-    const { clientIds, manualRecipients, message } = parsed.data
+    const { clientIds, manualRecipients, groupIds, message } = parsed.data
     const uniqueClientIds = [...new Set(clientIds)]
 
     const clients = uniqueClientIds.length
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
     const rows: Array<{
       campaignId: string; clientId: string | null; clientCode: string; clientName: string
       phone: string; body: string; createdById: string
+      targetType: 'CONTACT' | 'GROUP'; targetId: string | null
     }> = []
 
     for (const t of targets) {
@@ -90,6 +92,35 @@ export async function POST(request: NextRequest) {
         phone: t.phone,
         body: personalizeMessage(message, t.personalizeName),
         createdById: session.user.id,
+        targetType: 'CONTACT',
+        targetId: null,
+      })
+    }
+
+    // Groups: resolve titles from the session cache; addressed by group id (@g.us), deduped by id.
+    let groupTitles: Record<string, string> = {}
+    if (groupIds.length) {
+      const sess = await prisma.whatsappSession.findUnique({ where: { id: 'default' }, select: { groupsJson: true } })
+      if (sess?.groupsJson) {
+        try {
+          for (const g of JSON.parse(sess.groupsJson) as { id: string; title: string }[]) groupTitles[g.id] = g.title
+        } catch { groupTitles = {} }
+      }
+    }
+    const seenGroups = new Set<string>()
+    for (const gid of groupIds) {
+      if (seenGroups.has(gid)) { skippedDuplicate++; continue }
+      seenGroups.add(gid)
+      rows.push({
+        campaignId,
+        clientId: null,
+        clientCode: 'GROUP',
+        clientName: groupTitles[gid] ?? gid,
+        phone: '',
+        body: personalizeMessage(message, 'there'),
+        createdById: session.user.id,
+        targetType: 'GROUP',
+        targetId: gid,
       })
     }
 
