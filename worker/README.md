@@ -28,6 +28,15 @@ at login / 10:00). It sends the day's quota with ~5-minute gaps (± jitter) and 
 exits. Turn the PC off at night; it resumes from the DB next morning. The daily cap
 is enforced by counting today's `SENT` rows, so restarts never exceed it.
 
+Robustness:
+- **Started before 10:00** (e.g. auto-start at login): it waits until the window opens
+  rather than exiting, so an early login never skips the day.
+- **Session drops mid-run** (phone offline / device unlinked): it stops and leaves the
+  remaining rows `PENDING` instead of marking real clients `FAILED`; just relaunch once
+  the phone is back online. `FAILED` is reserved for genuine per-number send errors.
+- A run processes the queue in a single loop (no `restartOnCrash`), so there are no
+  overlapping senders / double-sends; if the browser crashes, the run ends and you relaunch.
+
 ## Configuration (`.env`)
 
 | Var | Default | Meaning |

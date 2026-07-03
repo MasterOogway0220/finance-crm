@@ -51,9 +51,12 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, parseInt(searchParams.get('limit') ?? '25'))
 
     const where = segmentWhere(segment, search)
+    // Stable ordering so dedupe tie-breaks and cross-request pagination are deterministic
+    // (mirrors src/app/api/clients/route.ts).
+    const orderBy = { updatedAt: 'desc' } as const
     const [equityRecs, mfRecs] = await Promise.all([
-      where.equity ? prisma.client.findMany({ where: where.equity, select: AUDIENCE_SELECT }) : Promise.resolve([]),
-      where.mf ? prisma.client.findMany({ where: where.mf, select: AUDIENCE_SELECT }) : Promise.resolve([]),
+      where.equity ? prisma.client.findMany({ where: where.equity, select: AUDIENCE_SELECT, orderBy }) : Promise.resolve([]),
+      where.mf ? prisma.client.findMany({ where: where.mf, select: AUDIENCE_SELECT, orderBy }) : Promise.resolve([]),
     ])
 
     const deduped = dedupeAudienceByPhone([...equityRecs, ...mfRecs])

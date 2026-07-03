@@ -30,6 +30,9 @@ export async function POST(request: NextRequest) {
       select: { id: true, clientCode: true, firstName: true, middleName: true, lastName: true, phone: true },
     })
 
+    // clientIds the admin selected that no longer resolve to a Client row (e.g. deleted
+    // between select-all and queue) — surfaced so the reported counts reconcile with the selection.
+    const skippedMissing = clientIds.length - clients.length
     const campaignId = randomUUID()
     const seen = new Set<string>()
     let skippedInvalid = 0
@@ -65,10 +68,10 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       action: 'QUEUE',
       module: 'WHATSAPP',
-      details: `Queued ${rows.length} WhatsApp messages (campaign ${campaignId}). Skipped ${skippedInvalid} invalid, ${skippedDuplicate} duplicate.`,
+      details: `Queued ${rows.length} WhatsApp messages (campaign ${campaignId}). Skipped ${skippedInvalid} invalid, ${skippedDuplicate} duplicate, ${skippedMissing} missing.`,
     })
 
-    return NextResponse.json({ success: true, data: { campaignId, queued: rows.length, skippedInvalid, skippedDuplicate } })
+    return NextResponse.json({ success: true, data: { campaignId, queued: rows.length, skippedInvalid, skippedDuplicate, skippedMissing } })
   } catch (error) {
     console.error('[POST /api/whatsapp/campaigns]', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })

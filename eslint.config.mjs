@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Standalone office-PC worker — CommonJS, its own toolchain (mirrors tsconfig `exclude`).
+    "worker/**",
   ]),
 ]);
 

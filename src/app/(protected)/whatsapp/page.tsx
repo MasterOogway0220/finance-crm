@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { useActiveRoleStore } from '@/stores/active-role-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -38,17 +39,18 @@ const LIMIT = 25
 export default function WhatsAppOutreachPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const activeRole = useActiveRoleStore((s) => s.activeRole)
 
+  // Gate on the ACTIVE role (what the API enforces via getActiveRole + the sidebar
+  // uses), not the raw max-privilege role — so an ADMIN acting as CA is redirected
+  // instead of landing on a page whose fetches all 403.
   useEffect(() => {
-    if (session?.user) {
-      const role = session.user.role
-      const secondaryRole = session.user.secondaryRole
-      const allowed = ['ADMIN', 'SUPER_ADMIN']
-      if (!allowed.includes(role) && (!secondaryRole || !allowed.includes(secondaryRole))) {
-        router.replace('/dashboard')
-      }
+    if (!session?.user) return
+    const effectiveRole = activeRole || session.user.role
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(effectiveRole)) {
+      router.replace('/dashboard')
     }
-  }, [session, router])
+  }, [session, activeRole, router])
 
   const [status, setStatus] = useState<{ sentToday: number; pendingTotal: number; campaigns: CampaignSummary[] } | null>(null)
   const refreshStatus = useCallback(() => {
@@ -68,19 +70,28 @@ export default function WhatsAppOutreachPage() {
   const [selectingAll, setSelectingAll] = useState(false)
 
   useEffect(() => { setPage(1) }, [segment, search])
+  // Selection is scoped to a segment (equity/mf id-sets are disjoint); clearing it on
+  // segment change prevents queuing recipients that are no longer visible under the filter.
+  useEffect(() => { setSelected(new Set()) }, [segment])
 
+  const reqIdRef = useRef(0)
   useEffect(() => {
+    const reqId = ++reqIdRef.current
     setLoading(true)
     const params = new URLSearchParams({ segment, page: String(page), limit: String(LIMIT) })
     if (search) params.set('search', search)
     fetch(`/api/whatsapp/audience?${params}`)
       .then((r) => r.json())
       .then((d) => {
+        if (reqId !== reqIdRef.current) return // a newer request superseded this one
         if (d.success) { setClients(d.data.clients); setTotal(d.data.total) }
-        else toast.error(d.error || 'Failed to load audience')
+        else { setClients([]); setTotal(0); toast.error(d.error || 'Failed to load audience') }
       })
-      .catch(() => toast.error('Failed to load audience'))
-      .finally(() => setLoading(false))
+      .catch(() => {
+        if (reqId !== reqIdRef.current) return
+        setClients([]); setTotal(0); toast.error('Failed to load audience')
+      })
+      .finally(() => { if (reqId === reqIdRef.current) setLoading(false) })
   }, [segment, search, page])
 
   const toggleOne = (id: string) => setSelected((prev) => {
@@ -124,7 +135,8 @@ export default function WhatsAppOutreachPage() {
         body: JSON.stringify({ clientIds: [...selected], message }),
       })).json()
       if (d.success) {
-        toast.success(`Queued ${d.data.queued} (skipped ${d.data.skippedInvalid} invalid, ${d.data.skippedDuplicate} duplicate)`)
+        const missing = d.data.skippedMissing ? `, ${d.data.skippedMissing} missing` : ''
+        toast.success(`Queued ${d.data.queued} (skipped ${d.data.skippedInvalid} invalid, ${d.data.skippedDuplicate} duplicate${missing})`)
         clearSelection(); refreshStatus()
       } else toast.error(d.error || 'Failed to queue campaign')
     } catch { toast.error('Failed to queue campaign') } finally { setQueueing(false); setConfirmOpen(false) }
