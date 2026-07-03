@@ -41,17 +41,19 @@ export default function WhatsAppOutreachPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const activeRole = useActiveRoleStore((s) => s.activeRole)
+  const hasHydrated = useActiveRoleStore((s) => s.hasHydrated)
 
   // Gate on the ACTIVE role (what the API enforces via getActiveRole + the sidebar
   // uses), not the raw max-privilege role — so an ADMIN acting as CA is redirected
-  // instead of landing on a page whose fetches all 403.
+  // instead of landing on a page whose fetches all 403. Wait for the role store to
+  // hydrate first, else activeRole='' falls back to the primary role and mis-gates.
   useEffect(() => {
-    if (!session?.user) return
+    if (!hasHydrated || !session?.user) return
     const effectiveRole = activeRole || session.user.role
     if (!['ADMIN', 'SUPER_ADMIN', 'MARKETING'].includes(effectiveRole)) {
       router.replace('/dashboard')
     }
-  }, [session, activeRole, router])
+  }, [hasHydrated, session, activeRole, router])
 
   const [status, setStatus] = useState<{ sentToday: number; pendingTotal: number; campaigns: CampaignSummary[] } | null>(null)
   const refreshStatus = useCallback(() => {
@@ -78,6 +80,7 @@ export default function WhatsAppOutreachPage() {
 
   const reqIdRef = useRef(0)
   useEffect(() => {
+    if (!hasHydrated) return
     const reqId = ++reqIdRef.current
     setLoading(true)
     const params = new URLSearchParams({ segment, scope, page: String(page), limit: String(LIMIT) })
@@ -94,7 +97,7 @@ export default function WhatsAppOutreachPage() {
         setClients([]); setTotal(0); toast.error('Failed to load audience')
       })
       .finally(() => { if (reqId === reqIdRef.current) setLoading(false) })
-  }, [segment, search, page, scope])
+  }, [segment, search, page, scope, hasHydrated])
 
   const toggleOne = (id: string) => setSelected((prev) => {
     const next = new Set(prev)
@@ -112,10 +115,12 @@ export default function WhatsAppOutreachPage() {
 
   const selectAllMatching = async () => {
     setSelectingAll(true)
+    const reqAtStart = reqIdRef.current
     try {
       const params = new URLSearchParams({ segment, scope, idsOnly: 'true' })
       if (search) params.set('search', search)
       const d = await (await fetch(`/api/whatsapp/audience?${params}`)).json()
+      if (reqIdRef.current !== reqAtStart) return // filter changed mid-flight — ignore stale ids
       if (d.success) { setSelected(new Set<string>(d.data.ids)); toast.success(`Selected ${d.data.ids.length} matching clients`) }
       else toast.error(d.error || 'Failed to select all')
     } catch { toast.error('Failed to select all') } finally { setSelectingAll(false) }

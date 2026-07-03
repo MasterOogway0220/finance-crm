@@ -31,6 +31,10 @@ export async function PATCH(request: NextRequest) {
     const { clientIds, status, remark, mfStatus, mfRemark, operatorId } = parsed.data
     const userRole = (await getActiveRole(session.user))
 
+    if (userRole === 'MARKETING') {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
     // For EQUITY_DEALER: verify all clientIds belong to their operator account
     if (userRole === 'EQUITY_DEALER') {
       const clientsCount = await prisma.client.count({

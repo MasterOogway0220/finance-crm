@@ -146,6 +146,9 @@ export async function PATCH(
     }
 
     const userRole = (await getActiveRole(session.user))
+    if (userRole === 'MARKETING') {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
     if (userRole === 'EQUITY_DEALER' && existing.operatorId !== session.user.id) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }

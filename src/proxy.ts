@@ -45,8 +45,13 @@ export default auth((req) => {
   if (path.startsWith('/backoffice') && role !== 'BACK_OFFICE' && secondaryRole !== 'BACK_OFFICE') {
     return NextResponse.redirect(new URL(getDashboardPath(role), nextUrl))
   }
+  // Admins/CA can view all of /dashboard, /brokerage, /masters. Marketing is a
+  // read-only viewer of the clients master only (its nav links /masters/clients).
+  const isMarketing = role === 'MARKETING' || secondaryRole === 'MARKETING'
+  const canBrowseClients = canViewAdmin(role) || canViewAdmin(secondaryRole) ||
+    (isMarketing && path.startsWith('/masters/clients'))
   if ((path.startsWith('/dashboard') || path.startsWith('/brokerage') || path.startsWith('/masters')) &&
-    !canViewAdmin(role) && !canViewAdmin(secondaryRole)) {
+    !canBrowseClients) {
     return NextResponse.redirect(new URL(getDashboardPath(role), nextUrl))
   }
 
@@ -65,6 +70,8 @@ function getDashboardPath(role?: string): string {
       return '/mf/dashboard'
     case 'BACK_OFFICE':
       return '/backoffice/dashboard'
+    case 'MARKETING':
+      return '/whatsapp'
     default:
       return '/login'
   }

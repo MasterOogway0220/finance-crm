@@ -3,7 +3,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { canSendWhatsapp } from '@/lib/roles'
 import { logActivity } from '@/lib/activity-log'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
+
+function notFoundOr500(tag: string, error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+    return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 })
+  }
+  console.error(tag, error)
+  return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+}
 
 const patchSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -30,8 +39,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     await logActivity({ userId: session.user.id, action: 'UPDATE', module: 'WHATSAPP', details: `Updated WhatsApp template "${template.name}"` })
     return NextResponse.json({ success: true, data: template })
   } catch (error) {
-    console.error('[PATCH /api/whatsapp/templates/[id]]', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    return notFoundOr500('[PATCH /api/whatsapp/templates/[id]]', error)
   }
 }
 
@@ -47,7 +55,6 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     await logActivity({ userId: session.user.id, action: 'DELETE', module: 'WHATSAPP', details: `Deleted WhatsApp template ${id}` })
     return NextResponse.json({ success: true, data: { id } })
   } catch (error) {
-    console.error('[DELETE /api/whatsapp/templates/[id]]', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    return notFoundOr500('[DELETE /api/whatsapp/templates/[id]]', error)
   }
 }

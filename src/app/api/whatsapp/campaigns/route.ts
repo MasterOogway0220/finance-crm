@@ -32,16 +32,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Validation failed' }, { status: 400 })
     }
     const { clientIds, manualRecipients, message } = parsed.data
+    const uniqueClientIds = [...new Set(clientIds)]
 
-    const clients = clientIds.length
+    const clients = uniqueClientIds.length
       ? await prisma.client.findMany({
-          where: { id: { in: clientIds } },
+          where: { id: { in: uniqueClientIds } },
           select: { id: true, clientCode: true, firstName: true, middleName: true, lastName: true, phone: true },
         })
       : []
     // clientIds selected that no longer resolve to a Client row (e.g. deleted between
     // select-all and queue) — surfaced so the reported counts reconcile with the selection.
-    const skippedMissing = clientIds.length - clients.length
+    const skippedMissing = uniqueClientIds.length - clients.length
 
     // Unify client + manual recipients into one target list (clients first → win dedupe ties).
     type Target = { clientId: string | null; clientCode: string; clientName: string; phone: string; personalizeName: string }
@@ -62,7 +63,8 @@ export async function POST(request: NextRequest) {
         clientCode: 'MANUAL',
         clientName: name || m.phone,
         phone: m.phone,
-        personalizeName: name,
+        // Fall back to a neutral greeting so a {{name}} template doesn't render "Hi ,".
+        personalizeName: name || 'there',
       })
     }
 
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (rows.length === 0) {
-      return NextResponse.json({ success: false, error: 'No valid recipients (all skipped as invalid or duplicate).' }, { status: 400 })
+      return NextResponse.json({ success: false, error: `No valid recipients (skipped ${skippedInvalid} invalid, ${skippedDuplicate} duplicate, ${skippedMissing} missing).` }, { status: 400 })
     }
 
     await prisma.whatsappMessage.createMany({ data: rows })
