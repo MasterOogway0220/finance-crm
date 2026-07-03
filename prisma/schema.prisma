@@ -446,3 +446,30 @@ model NoBusinessDismissal {
   dismissedBy   Employee @relation("DismissalAdmin", fields: [dismissedById], references: [id])
   dismissedAt   DateTime @default(now())
 }
+
+enum WhatsappStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model WhatsappMessage {
+  id          String         @id @default(cuid())
+  campaignId  String
+  clientId    String?
+  clientCode  String
+  clientName  String
+  phone       String
+  body        String         @db.Text
+  status      WhatsappStatus @default(PENDING)
+  error       String?        @db.Text
+  sentAt      DateTime?
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status])
+  @@index([campaignId])
+  @@index([sentAt])
+}
