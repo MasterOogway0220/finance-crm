@@ -1,0 +1,41 @@
+// Minimal, self-contained schema for the office-PC worker.
+// Contains ONLY the WhatsappMessage table (mapped to the same DB table the app
+// creates via prisma/schema.prisma). Keeping the worker's Prisma client generated
+// into its own node_modules avoids cross-package client-resolution issues.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum WhatsappStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model WhatsappMessage {
+  id          String         @id @default(cuid())
+  campaignId  String
+  clientId    String?
+  clientCode  String
+  clientName  String
+  phone       String
+  body        String         @db.Text
+  status      WhatsappStatus @default(PENDING)
+  error       String?        @db.Text
+  sentAt      DateTime?
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status])
+  @@index([campaignId])
+  @@index([sentAt])
+  @@map("WhatsappMessage")
+}
