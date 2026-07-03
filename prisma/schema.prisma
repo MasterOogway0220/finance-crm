@@ -455,6 +455,17 @@ enum WhatsappStatus {
   SKIPPED
 }
 
+model WhatsappTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  body        String   @db.Text
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdById])
+}
+
 model WhatsappMessage {
   id          String         @id @default(cuid())
   campaignId  String
