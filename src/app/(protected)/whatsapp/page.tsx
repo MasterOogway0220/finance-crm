@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useActiveRoleStore } from '@/stores/active-role-store'
@@ -19,6 +19,7 @@ import {
 import { MessageCircle, Search, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDebounce } from '@/hooks/use-debounce'
+import { parseManualRecipients } from '@/lib/whatsapp-recipients'
 
 const SEGMENTS = [
   { value: 'all', label: 'All inactive' },
@@ -59,6 +60,7 @@ export default function WhatsAppOutreachPage() {
   useEffect(() => { refreshStatus() }, [refreshStatus])
 
   const [segment, setSegment] = useState('all')
+  const [scope, setScope] = useState<'all' | 'inactive'>('all')
   const [searchInput, setSearchInput] = useState('')
   const search = useDebounce(searchInput, 400)
   const [clients, setClients] = useState<AudienceClient[]>([])
@@ -69,16 +71,16 @@ export default function WhatsAppOutreachPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectingAll, setSelectingAll] = useState(false)
 
-  useEffect(() => { setPage(1) }, [segment, search])
-  // Selection is scoped to a segment (equity/mf id-sets are disjoint); clearing it on
-  // segment change prevents queuing recipients that are no longer visible under the filter.
-  useEffect(() => { setSelected(new Set()) }, [segment])
+  useEffect(() => { setPage(1) }, [segment, search, scope])
+  // Selection is scoped to the current filter (client id-sets differ per scope/segment);
+  // clearing it on scope/segment change prevents queuing recipients no longer visible.
+  useEffect(() => { setSelected(new Set()) }, [segment, scope])
 
   const reqIdRef = useRef(0)
   useEffect(() => {
     const reqId = ++reqIdRef.current
     setLoading(true)
-    const params = new URLSearchParams({ segment, page: String(page), limit: String(LIMIT) })
+    const params = new URLSearchParams({ segment, scope, page: String(page), limit: String(LIMIT) })
     if (search) params.set('search', search)
     fetch(`/api/whatsapp/audience?${params}`)
       .then((r) => r.json())
@@ -92,7 +94,7 @@ export default function WhatsAppOutreachPage() {
         setClients([]); setTotal(0); toast.error('Failed to load audience')
       })
       .finally(() => { if (reqId === reqIdRef.current) setLoading(false) })
-  }, [segment, search, page])
+  }, [segment, search, page, scope])
 
   const toggleOne = (id: string) => setSelected((prev) => {
     const next = new Set(prev)
@@ -111,7 +113,7 @@ export default function WhatsAppOutreachPage() {
   const selectAllMatching = async () => {
     setSelectingAll(true)
     try {
-      const params = new URLSearchParams({ segment, idsOnly: 'true' })
+      const params = new URLSearchParams({ segment, scope, idsOnly: 'true' })
       if (search) params.set('search', search)
       const d = await (await fetch(`/api/whatsapp/audience?${params}`)).json()
       if (d.success) { setSelected(new Set<string>(d.data.ids)); toast.success(`Selected ${d.data.ids.length} matching clients`) }
@@ -124,6 +126,16 @@ export default function WhatsAppOutreachPage() {
   const [message, setMessage] = useState(DEFAULT_TEMPLATE)
   const preview = message.replaceAll('{{name}}', 'Rahul')
 
+  const [manualText, setManualText] = useState('')
+  const manual = useMemo(() => parseManualRecipients(manualText), [manualText])
+  const recipientCount = selected.size + manual.valid.length
+
+  const [templates, setTemplates] = useState<{ id: string; name: string; body: string }[]>([])
+  const loadTemplates = useCallback(() => {
+    fetch('/api/whatsapp/templates').then((r) => r.json()).then((d) => { if (d.success) setTemplates(d.data.templates) }).catch(() => {})
+  }, [])
+  useEffect(() => { loadTemplates() }, [loadTemplates])
+
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [queueing, setQueueing] = useState(false)
   const submit = async () => {
@@ -132,12 +144,12 @@ export default function WhatsAppOutreachPage() {
       const d = await (await fetch('/api/whatsapp/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientIds: [...selected], message }),
+        body: JSON.stringify({ clientIds: [...selected], manualRecipients: manual.valid, message }),
       })).json()
       if (d.success) {
         const missing = d.data.skippedMissing ? `, ${d.data.skippedMissing} missing` : ''
         toast.success(`Queued ${d.data.queued} (skipped ${d.data.skippedInvalid} invalid, ${d.data.skippedDuplicate} duplicate${missing})`)
-        clearSelection(); refreshStatus()
+        clearSelection(); setManualText(''); refreshStatus()
       } else toast.error(d.error || 'Failed to queue campaign')
     } catch { toast.error('Failed to queue campaign') } finally { setQueueing(false); setConfirmOpen(false) }
   }
@@ -182,12 +194,21 @@ export default function WhatsAppOutreachPage() {
         <CardHeader><CardTitle className="text-base">Audience</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={segment} onValueChange={setSegment}>
-              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+            <Select value={scope} onValueChange={(v) => setScope(v as 'all' | 'inactive')}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {SEGMENTS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                <SelectItem value="all">All clients</SelectItem>
+                <SelectItem value="inactive">Inactive segments</SelectItem>
               </SelectContent>
             </Select>
+            {scope === 'inactive' && (
+              <Select value={segment} onValueChange={setSegment}>
+                <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SEGMENTS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
             <div className="relative flex-1 min-w-48">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input className="pl-8" placeholder="Search code, name, phone…" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
@@ -242,8 +263,49 @@ export default function WhatsAppOutreachPage() {
       </Card>
 
       <Card>
+        <CardHeader><CardTitle className="text-base">Add numbers manually</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <Textarea
+            value={manualText}
+            onChange={(e) => setManualText(e.target.value)}
+            rows={4}
+            placeholder={'One per line: 9876543210  or  9876543210, Rahul'}
+          />
+          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+            <span>{manual.valid.length} valid number{manual.valid.length === 1 ? '' : 's'}</span>
+            {manual.invalidLines.length > 0 && (
+              <span className="text-red-600">{manual.invalidLines.length} invalid: {manual.invalidLines.slice(0, 3).join('; ')}{manual.invalidLines.length > 3 ? '…' : ''}</span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle className="text-base">Compose message</CardTitle></CardHeader>
         <CardContent className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value="" onValueChange={(id) => { const t = templates.find((x) => x.id === id); if (t) setMessage(t.body) }}>
+              <SelectTrigger className="w-56"><SelectValue placeholder="Load a template…" /></SelectTrigger>
+              <SelectContent>
+                {templates.length === 0
+                  ? <SelectItem value="none" disabled>No templates yet</SelectItem>
+                  : templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button" variant="outline" size="sm"
+              disabled={message.trim().length === 0}
+              onClick={async () => {
+                const name = window.prompt('Template name?')?.trim()
+                if (!name) return
+                const d = await (await fetch('/api/whatsapp/templates', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name, body: message }),
+                })).json()
+                if (d.success) { toast.success('Template saved'); loadTemplates() } else toast.error(d.error || 'Failed to save template')
+              }}
+            >Save as template</Button>
+          </div>
           <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={6} placeholder="Type your message… use {{name}} for the client's first name" />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>Use <code>{'{{name}}'}</code> to insert the client&apos;s first name.</span>
@@ -256,8 +318,9 @@ export default function WhatsAppOutreachPage() {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
-        <Button onClick={() => setConfirmOpen(true)} disabled={selected.size === 0 || message.trim().length === 0}>
+      <div className="flex items-center justify-end gap-3">
+        <span className="text-sm text-muted-foreground">{recipientCount} recipient{recipientCount === 1 ? '' : 's'}</span>
+        <Button onClick={() => setConfirmOpen(true)} disabled={recipientCount === 0 || message.trim().length === 0}>
           <Send className="h-4 w-4 mr-2" /> Queue Campaign
         </Button>
       </div>
@@ -265,7 +328,7 @@ export default function WhatsAppOutreachPage() {
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Queue {selected.size} messages?</AlertDialogTitle>
+            <AlertDialogTitle>Queue {recipientCount} messages?</AlertDialogTitle>
             <AlertDialogDescription>
               They&apos;ll be sent by the office-PC worker at ~30/day during office hours (10:00–16:00). Invalid or duplicate numbers are skipped automatically.
             </AlertDialogDescription>
