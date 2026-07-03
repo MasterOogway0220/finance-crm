@@ -1,15 +1,23 @@
 import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { isManager } from '@/lib/roles'
+import { canSendWhatsapp } from '@/lib/roles'
 import { logActivity } from '@/lib/activity-log'
 import { normalizeWhatsappPhone, personalizeMessage } from '@/lib/whatsapp-outreach'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 
+const manualRecipientSchema = z.object({
+  phone: z.string().min(1),
+  name: z.string().optional(),
+})
+
 const campaignSchema = z.object({
-  clientIds: z.array(z.string()).min(1, 'Select at least one client'),
+  clientIds: z.array(z.string()).optional().default([]),
+  manualRecipients: z.array(manualRecipientSchema).optional().default([]),
   message: z.string().min(1, 'Message cannot be empty'),
+}).refine((d) => d.clientIds.length + d.manualRecipients.length > 0, {
+  message: 'Select at least one recipient',
 })
 
 export async function POST(request: NextRequest) {
@@ -17,44 +25,68 @@ export async function POST(request: NextRequest) {
     const session = await auth()
     if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     const role = await getActiveRole(session.user)
-    if (!isManager(role)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    if (!canSendWhatsapp(role)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 
     const parsed = campaignSchema.safeParse(await request.json())
     if (!parsed.success) {
       return NextResponse.json({ success: false, error: parsed.error.issues[0]?.message ?? 'Validation failed' }, { status: 400 })
     }
-    const { clientIds, message } = parsed.data
+    const { clientIds, manualRecipients, message } = parsed.data
 
-    const clients = await prisma.client.findMany({
-      where: { id: { in: clientIds } },
-      select: { id: true, clientCode: true, firstName: true, middleName: true, lastName: true, phone: true },
-    })
-
-    // clientIds the admin selected that no longer resolve to a Client row (e.g. deleted
-    // between select-all and queue) — surfaced so the reported counts reconcile with the selection.
+    const clients = clientIds.length
+      ? await prisma.client.findMany({
+          where: { id: { in: clientIds } },
+          select: { id: true, clientCode: true, firstName: true, middleName: true, lastName: true, phone: true },
+        })
+      : []
+    // clientIds selected that no longer resolve to a Client row (e.g. deleted between
+    // select-all and queue) — surfaced so the reported counts reconcile with the selection.
     const skippedMissing = clientIds.length - clients.length
+
+    // Unify client + manual recipients into one target list (clients first → win dedupe ties).
+    type Target = { clientId: string | null; clientCode: string; clientName: string; phone: string; personalizeName: string }
+    const targets: Target[] = []
+    for (const c of clients) {
+      targets.push({
+        clientId: c.id,
+        clientCode: c.clientCode,
+        clientName: [c.firstName, c.middleName, c.lastName].filter(Boolean).join(' '),
+        phone: c.phone,
+        personalizeName: c.firstName,
+      })
+    }
+    for (const m of manualRecipients) {
+      const name = m.name?.trim() || ''
+      targets.push({
+        clientId: null,
+        clientCode: 'MANUAL',
+        clientName: name || m.phone,
+        phone: m.phone,
+        personalizeName: name,
+      })
+    }
+
     const campaignId = randomUUID()
     const seen = new Set<string>()
     let skippedInvalid = 0
     let skippedDuplicate = 0
     const rows: Array<{
-      campaignId: string; clientId: string; clientCode: string; clientName: string
+      campaignId: string; clientId: string | null; clientCode: string; clientName: string
       phone: string; body: string; createdById: string
     }> = []
 
-    for (const c of clients) {
-      const normalised = normalizeWhatsappPhone(c.phone)
+    for (const t of targets) {
+      const normalised = normalizeWhatsappPhone(t.phone)
       if (!normalised) { skippedInvalid++; continue }
       if (seen.has(normalised)) { skippedDuplicate++; continue }
       seen.add(normalised)
-      const name = [c.firstName, c.middleName, c.lastName].filter(Boolean).join(' ')
       rows.push({
         campaignId,
-        clientId: c.id,
-        clientCode: c.clientCode,
-        clientName: name,
-        phone: c.phone,
-        body: personalizeMessage(message, c.firstName),
+        clientId: t.clientId,
+        clientCode: t.clientCode,
+        clientName: t.clientName,
+        phone: t.phone,
+        body: personalizeMessage(message, t.personalizeName),
         createdById: session.user.id,
       })
     }
@@ -83,7 +115,7 @@ export async function GET() {
     const session = await auth()
     if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     const role = await getActiveRole(session.user)
-    if (!isManager(role)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    if (!canSendWhatsapp(role)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())

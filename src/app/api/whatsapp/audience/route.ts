@@ -1,7 +1,7 @@
 import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { isManager } from '@/lib/roles'
+import { canSendWhatsapp } from '@/lib/roles'
 import { dedupeAudienceByPhone, normalizeWhatsappPhone, type Segment } from '@/lib/whatsapp-outreach'
 import { Prisma } from '@prisma/client'
 
@@ -9,10 +9,8 @@ const AUDIENCE_SELECT = {
   id: true, clientCode: true, firstName: true, middleName: true, lastName: true, phone: true, department: true,
 } satisfies Prisma.ClientSelect
 
-function segmentWhere(segment: Segment, search: string | null): { equity?: Prisma.ClientWhereInput; mf?: Prisma.ClientWhereInput } {
-  const now = new Date()
-  const cutoff = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const searchOR: Prisma.ClientWhereInput = search
+function buildSearchOR(search: string | null): Prisma.ClientWhereInput {
+  return search
     ? { OR: [
         { clientCode: { contains: search } },
         { firstName: { contains: search } },
@@ -20,6 +18,21 @@ function segmentWhere(segment: Segment, search: string | null): { equity?: Prism
         { phone: { contains: search } },
       ] }
     : {}
+}
+
+/** All clients (both departments), search-filtered — for the "All clients" recipient scope. */
+function allClientsWhere(search: string | null): { equity: Prisma.ClientWhereInput; mf: Prisma.ClientWhereInput } {
+  const searchOR = buildSearchOR(search)
+  return {
+    equity: { department: 'EQUITY', ...searchOR },
+    mf: { department: 'MUTUAL_FUND', ...searchOR },
+  }
+}
+
+function segmentWhere(segment: Segment, search: string | null): { equity?: Prisma.ClientWhereInput; mf?: Prisma.ClientWhereInput } {
+  const now = new Date()
+  const cutoff = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const searchOR = buildSearchOR(search)
   const equityInactive: Prisma.ClientWhereInput = { department: 'EQUITY', status: 'NOT_TRADED', ...searchOR }
   const mfInactive: Prisma.ClientWhereInput = { department: 'MUTUAL_FUND', mfStatus: 'INACTIVE', ...searchOR }
   const dormant: Prisma.ClientWhereInput = {
@@ -41,16 +54,17 @@ export async function GET(request: NextRequest) {
     const session = await auth()
     if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     const role = await getActiveRole(session.user)
-    if (!isManager(role)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    if (!canSendWhatsapp(role)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
 
     const { searchParams } = new URL(request.url)
     const segment = (searchParams.get('segment') ?? 'all') as Segment
+    const scope = searchParams.get('scope') === 'all' ? 'all' : 'inactive'
     const search = searchParams.get('search')
     const idsOnly = searchParams.get('idsOnly') === 'true'
     const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
     const limit = Math.min(100, parseInt(searchParams.get('limit') ?? '25'))
 
-    const where = segmentWhere(segment, search)
+    const where = scope === 'all' ? allClientsWhere(search) : segmentWhere(segment, search)
     // Stable ordering so dedupe tie-breaks and cross-request pagination are deterministic
     // (mirrors src/app/api/clients/route.ts).
     const orderBy = { updatedAt: 'desc' } as const
