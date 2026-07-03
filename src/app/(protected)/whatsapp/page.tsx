@@ -21,6 +21,7 @@ import { toast } from 'sonner'
 import { useDebounce } from '@/hooks/use-debounce'
 import { parseManualRecipients } from '@/lib/whatsapp-recipients'
 import { TemplatesManager } from '@/components/whatsapp/templates-manager'
+import { ConnectPanel, type SessionGroup } from '@/components/whatsapp/connect-panel'
 
 const SEGMENTS = [
   { value: 'all', label: 'All inactive' },
@@ -134,7 +135,12 @@ export default function WhatsAppOutreachPage() {
 
   const [manualText, setManualText] = useState('')
   const manual = useMemo(() => parseManualRecipients(manualText), [manualText])
-  const recipientCount = selected.size + manual.valid.length
+
+  const [sessionState, setSessionState] = useState('DISCONNECTED')
+  const [groups, setGroups] = useState<SessionGroup[]>([])
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
+
+  const recipientCount = selected.size + manual.valid.length + selectedGroups.size
 
   const [templates, setTemplates] = useState<{ id: string; name: string; body: string }[]>([])
   const [templatesOpen, setTemplatesOpen] = useState(false)
@@ -151,12 +157,12 @@ export default function WhatsAppOutreachPage() {
       const d = await (await fetch('/api/whatsapp/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientIds: [...selected], manualRecipients: manual.valid, message }),
+        body: JSON.stringify({ clientIds: [...selected], manualRecipients: manual.valid, groupIds: [...selectedGroups], message }),
       })).json()
       if (d.success) {
         const missing = d.data.skippedMissing ? `, ${d.data.skippedMissing} missing` : ''
         toast.success(`Queued ${d.data.queued} (skipped ${d.data.skippedInvalid} invalid, ${d.data.skippedDuplicate} duplicate${missing})`)
-        clearSelection(); setManualText(''); refreshStatus()
+        clearSelection(); setManualText(''); setSelectedGroups(new Set()); refreshStatus()
       } else toast.error(d.error || 'Failed to queue campaign')
     } catch { toast.error('Failed to queue campaign') } finally { setQueueing(false); setConfirmOpen(false) }
   }
@@ -169,6 +175,13 @@ export default function WhatsAppOutreachPage() {
         <MessageCircle className="h-6 w-6 text-green-600" />
         <h1 className="text-2xl font-bold">WhatsApp Outreach</h1>
       </div>
+
+      <ConnectPanel onSession={(d) => { setSessionState(d.state); setGroups(d.groups) }} />
+      {sessionState !== 'CONNECTED' && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+          WhatsApp isn&apos;t connected yet — you can still queue; messages send once the office-PC worker is linked and running.
+        </div>
+      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Queue status</CardTitle></CardHeader>
@@ -286,6 +299,32 @@ export default function WhatsAppOutreachPage() {
           </div>
         </CardContent>
       </Card>
+
+      {groups.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">WhatsApp groups</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs text-muted-foreground">Send to whole groups the connected number is in — everyone in the group receives the message.</p>
+            <div className="max-h-56 space-y-1 overflow-y-auto">
+              {groups.map((g) => (
+                <label key={g.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={selectedGroups.has(g.id)}
+                    disabled={!g.canSend}
+                    onCheckedChange={() => setSelectedGroups((prev) => {
+                      const n = new Set(prev)
+                      if (n.has(g.id)) n.delete(g.id)
+                      else n.add(g.id)
+                      return n
+                    })}
+                  />
+                  <span>{g.title}{!g.canSend && <span className="text-muted-foreground"> (can&apos;t send)</span>}</span>
+                </label>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Compose message</CardTitle></CardHeader>
