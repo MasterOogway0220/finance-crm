@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isManager, canViewAdmin, isReadOnly, shouldBlockMutation, isHrViewer } from './roles'
+import { isManager, canViewAdmin, isReadOnly, shouldBlockMutation, isHrViewer, canSendWhatsapp } from './roles'
 
 describe('isManager (write capability)', () => {
   it('is true for admins', () => {
@@ -67,5 +67,17 @@ describe('shouldBlockMutation', () => {
     expect(shouldBlockMutation('ADMIN', 'POST', '/api/clients')).toBe(false)
     expect(shouldBlockMutation('EQUITY_DEALER', 'DELETE', '/api/clients/1')).toBe(false)
     expect(shouldBlockMutation(undefined, 'POST', '/api/clients')).toBe(false)
+  })
+})
+
+describe('canSendWhatsapp', () => {
+  it('allows admins and marketing; rejects CA, dealers, null', () => {
+    expect(canSendWhatsapp('SUPER_ADMIN')).toBe(true)
+    expect(canSendWhatsapp('ADMIN')).toBe(true)
+    expect(canSendWhatsapp('MARKETING')).toBe(true)
+    expect(canSendWhatsapp('CHARTERED_ACCOUNTANT')).toBe(false)
+    expect(canSendWhatsapp('EQUITY_DEALER')).toBe(false)
+    expect(canSendWhatsapp(null)).toBe(false)
+    expect(canSendWhatsapp(undefined)).toBe(false)
   })
 })

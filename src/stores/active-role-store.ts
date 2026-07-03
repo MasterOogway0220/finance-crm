@@ -111,6 +111,8 @@ export function getDashboardForRole(role: string): string {
       return '/mf/dashboard'
     case 'BACK_OFFICE':
       return '/backoffice/dashboard'
+    case 'MARKETING':
+      return '/whatsapp'
     default:
       return '/dashboard'
   }
@@ -123,4 +125,5 @@ export const ROLE_LABELS: Record<string, string> = {
   MF_DEALER: 'MF Dealer',
   BACK_OFFICE: 'Back Office',
   CHARTERED_ACCOUNTANT: 'Chartered Accountant (View Only)',
+  MARKETING: 'Marketing',
 }

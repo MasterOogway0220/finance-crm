@@ -41,7 +41,7 @@ export default function ClientMasterPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const isMFDealer = session?.user?.role === 'MF_DEALER'
-  const readOnly = isReadOnly(session?.user?.role)
+  const readOnly = isReadOnly(session?.user?.role) || session?.user?.role === 'MARKETING'
   const [clients, setClients] = useState<ClientWithOperator[]>([])
   const [loading, setLoading] = useState(true)
   const [searchInput, setSearchInput] = useState('')
@@ -58,7 +58,7 @@ export default function ClientMasterPage() {
     if (session?.user) {
       const role = session.user.role
       const secondaryRole = session.user.secondaryRole
-      const allowed = ['ADMIN', 'SUPER_ADMIN', 'CHARTERED_ACCOUNTANT']
+      const allowed = ['ADMIN', 'SUPER_ADMIN', 'CHARTERED_ACCOUNTANT', 'MARKETING']
       if (!allowed.includes(role) && (!secondaryRole || !allowed.includes(secondaryRole))) {
         router.replace('/dashboard')
       }

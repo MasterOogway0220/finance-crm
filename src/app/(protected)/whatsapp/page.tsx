@@ -47,7 +47,7 @@ export default function WhatsAppOutreachPage() {
   useEffect(() => {
     if (!session?.user) return
     const effectiveRole = activeRole || session.user.role
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(effectiveRole)) {
+    if (!['ADMIN', 'SUPER_ADMIN', 'MARKETING'].includes(effectiveRole)) {
       router.replace('/dashboard')
     }
   }, [session, activeRole, router])

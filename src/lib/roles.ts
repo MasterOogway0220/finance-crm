@@ -7,6 +7,7 @@ const ROLE_PRIORITY: Record<string, number> = {
   EQUITY_DEALER: 3,
   MF_DEALER: 3,
   BACK_OFFICE: 2,
+  MARKETING: 2,
 }
 
 /** Returns the highest-privilege role between primary and secondary. */
@@ -20,6 +21,11 @@ export function getEffectiveRole(user: { role: Role; secondaryRole?: Role | null
 /** WRITE capability: only real admins can mutate. The CA is excluded. */
 export function isManager(role?: string | null): boolean {
   return role === 'SUPER_ADMIN' || role === 'ADMIN'
+}
+
+/** Can operate the WhatsApp sender: real admins plus the Marketing role (CA excluded). */
+export function canSendWhatsapp(role?: string | null): boolean {
+  return isManager(role) || role === 'MARKETING'
 }
 
 /** READ capability: admins plus the read-only Chartered Accountant. */

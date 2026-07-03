@@ -64,6 +64,14 @@ const USERS: Array<{
     designation: 'Back Office',
     role: Role.BACK_OFFICE,
   },
+  {
+    name: 'Test Marketing',
+    email: 'marketing@test.local',
+    phone: '0000000006',
+    department: Department.ADMIN,
+    designation: 'Marketing',
+    role: Role.MARKETING,
+  },
 ]
 
 async function main() {

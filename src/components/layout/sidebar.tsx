@@ -116,11 +116,18 @@ const BACK_OFFICE_NAV: NavItem[] = [
   { label: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 
+const MARKETING_NAV: NavItem[] = [
+  { label: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
+  { label: 'Clients', href: '/masters/clients', icon: Database },
+]
+
 function getNavItems(role: string): NavItem[] {
   switch (role) {
     case 'SUPER_ADMIN':
     case 'ADMIN':
       return ADMIN_NAV
+    case 'MARKETING':
+      return MARKETING_NAV
     case 'CHARTERED_ACCOUNTANT':
       return ADMIN_NAV.filter((i) => i.href !== '/whatsapp')
     case 'EQUITY_DEALER':
