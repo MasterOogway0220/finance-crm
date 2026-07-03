@@ -20,6 +20,7 @@ import { MessageCircle, Search, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDebounce } from '@/hooks/use-debounce'
 import { parseManualRecipients } from '@/lib/whatsapp-recipients'
+import { TemplatesManager } from '@/components/whatsapp/templates-manager'
 
 const SEGMENTS = [
   { value: 'all', label: 'All inactive' },
@@ -136,6 +137,7 @@ export default function WhatsAppOutreachPage() {
   const recipientCount = selected.size + manual.valid.length
 
   const [templates, setTemplates] = useState<{ id: string; name: string; body: string }[]>([])
+  const [templatesOpen, setTemplatesOpen] = useState(false)
   const loadTemplates = useCallback(() => {
     fetch('/api/whatsapp/templates').then((r) => r.json()).then((d) => { if (d.success) setTemplates(d.data.templates) }).catch(() => {})
   }, [])
@@ -297,19 +299,7 @@ export default function WhatsAppOutreachPage() {
                   : templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button
-              type="button" variant="outline" size="sm"
-              disabled={message.trim().length === 0}
-              onClick={async () => {
-                const name = window.prompt('Template name?')?.trim()
-                if (!name) return
-                const d = await (await fetch('/api/whatsapp/templates', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ name, body: message }),
-                })).json()
-                if (d.success) { toast.success('Template saved'); loadTemplates() } else toast.error(d.error || 'Failed to save template')
-              }}
-            >Save as template</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setTemplatesOpen(true)}>Manage templates</Button>
           </div>
           <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={6} placeholder="Type your message… use {{name}} for the client's first name" />
           <div className="flex justify-between text-xs text-muted-foreground">
@@ -346,6 +336,15 @@ export default function WhatsAppOutreachPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TemplatesManager
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        templates={templates}
+        reload={loadTemplates}
+        currentMessage={message}
+        onUse={(body) => setMessage(body)}
+      />
     </div>
   )
 }
