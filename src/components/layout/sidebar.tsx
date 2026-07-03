@@ -19,6 +19,7 @@ import {
   LogOut,
   Headset,
   ClipboardList,
+  MessageCircle,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { isHrViewer } from '@/lib/roles'
@@ -42,6 +43,7 @@ const ADMIN_NAV: NavItem[] = [
   { label: 'Document Pool', href: '/documents', icon: FolderOpen },
   { label: 'Calendar & Leave', href: '/calendar', icon: CalendarDays },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
+  { label: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
   { label: 'Login/Logoff History', href: '/login-history', icon: ClipboardList },
   {
     label: 'Masters',
@@ -118,8 +120,9 @@ function getNavItems(role: string): NavItem[] {
   switch (role) {
     case 'SUPER_ADMIN':
     case 'ADMIN':
-    case 'CHARTERED_ACCOUNTANT':
       return ADMIN_NAV
+    case 'CHARTERED_ACCOUNTANT':
+      return ADMIN_NAV.filter((i) => i.href !== '/whatsapp')
     case 'EQUITY_DEALER':
       return EQUITY_DEALER_NAV
     case 'MF_DEALER':
