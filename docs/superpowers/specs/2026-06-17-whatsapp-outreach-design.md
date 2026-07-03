@@ -1,7 +1,21 @@
 # WhatsApp Outreach to Inactive Clients — Design Spec
 
-> Status: **DESIGN ONLY — not built yet.** Captured 2026-06-17. Build deferred.
+> Status: **BUILD STARTED 2026-07-03** (was DESIGN ONLY, captured 2026-06-17).
 > Author context: Kesar Securities finance CRM (Next.js 16 App Router + React 19 + Prisma 6 / MySQL + Tailwind + shadcn/ui + sonner + zustand). App on Vercel; DB on Hostinger; domain points Hostinger → Vercel.
+
+---
+
+## 0. Addendum (2026-07-03) — library switched to open-wa
+
+The build uses **`@open-wa/wa-automate` (open-wa)** as the unofficial sender instead of whatsapp-web.js. **Wherever this doc says "whatsapp-web.js", read "`@open-wa/wa-automate`".** Everything else in the design is unchanged — the library only affects the ~40 lines of send logic in the worker.
+
+Owner was informed of the trade-off: whatsapp-web.js is fully-free MIT with no license key, whereas open-wa has a license-key system (free tier works for plain-text `sendText` but shows startup nags and gates some advanced features). Owner chose open-wa anyway.
+
+Worker specifics that change (override §9):
+- **Deps** (`worker/package.json`): `@open-wa/wa-automate`, `dotenv`, `@prisma/client`, `prisma`. **Drop** `whatsapp-web.js` and `qrcode-terminal` (open-wa renders the QR in the terminal itself).
+- **Boot once:** `const client = await create({ sessionId: 'kesar-outreach', headless: true, qrTimeout: 0, authTimeout: 0, restartOnCrash: start, useChrome: false, throwErrorOnTosBlock: false })`. Session is persisted to disk by open-wa (`sessionId`), so the QR is scanned **once**.
+- **Send:** `await client.sendText(\`${normalised}@c.us\`, msg.body)` (replaces `client.sendMessage(...)`).
+- **Scope guard for free tier:** the worker only ever calls `sendText` to our own clients — no image/story/group features — so the free tier is sufficient.
 
 ---
 
