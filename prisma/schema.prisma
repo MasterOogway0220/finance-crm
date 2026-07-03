@@ -455,6 +455,29 @@ enum WhatsappStatus {
   SKIPPED
 }
 
+enum WhatsappSessionState {
+  DISCONNECTED
+  CONNECTING
+  QR
+  PAIRING
+  CONNECTED
+}
+
+enum WhatsappTargetType {
+  CONTACT
+  GROUP
+}
+
+model WhatsappSession {
+  id             String               @id @default("default")
+  state          WhatsappSessionState @default(DISCONNECTED)
+  qr             String?              @db.Text
+  linkCode       String?
+  requestedPhone String?
+  groupsJson     String?              @db.Text
+  updatedAt      DateTime             @updatedAt
+}
+
 model WhatsappTemplate {
   id          String   @id @default(cuid())
   name        String
@@ -473,6 +496,8 @@ model WhatsappMessage {
   clientCode  String
   clientName  String
   phone       String
+  targetType  WhatsappTargetType @default(CONTACT)
+  targetId    String?
   body        String         @db.Text
   status      WhatsappStatus @default(PENDING)
   error       String?        @db.Text
