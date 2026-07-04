@@ -21,6 +21,14 @@ function normalizeWhatsappPhone(raw) {
   return `91${d}`
 }
 
+// Mirror of src/lib/whatsapp-outreach.ts isOptOutMessage (worker is standalone CommonJS).
+const OPT_OUT_KEYWORDS = ['STOP', 'UNSUBSCRIBE', 'OPT OUT', 'OPTOUT', 'REMOVE', 'CANCEL']
+function isOptOutMessage(body) {
+  const text = String(body || '').trim().toUpperCase()
+  if (!text) return false
+  return OPT_OUT_KEYWORDS.some((kw) => text === kw || text.startsWith(kw + ' ') || text.includes(' ' + kw))
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 function startOfToday() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()) }
 
@@ -93,14 +101,22 @@ async function drainQueue(client) {
     if (!msg) { console.log('[worker] Queue empty. Exiting.'); return }
 
     // Contacts resolve their chat id from the phone; groups use the stored targetId (…@g.us).
-    const target = msg.targetType === 'GROUP'
-      ? (msg.targetId || null)
-      : (() => { const n = normalizeWhatsappPhone(msg.phone); return n ? `${n}@c.us` : null })()
+    const normalised = msg.targetType === 'GROUP' ? null : normalizeWhatsappPhone(msg.phone)
+    const target = msg.targetType === 'GROUP' ? (msg.targetId || null) : (normalised ? `${normalised}@c.us` : null)
 
     if (!target) {
       await prisma.whatsappMessage.update({ where: { id: msg.id }, data: { status: 'SKIPPED', error: 'Invalid target' } })
       console.log(`[worker] SKIPPED ${msg.clientCode} (invalid target "${msg.phone || msg.targetId}")`)
       continue
+    }
+    // Honour the Do-Not-Contact list for contact sends (opt-outs may arrive after queueing).
+    if (normalised) {
+      const optedOut = await prisma.whatsappOptOut.findUnique({ where: { phone: normalised } })
+      if (optedOut) {
+        await prisma.whatsappMessage.update({ where: { id: msg.id }, data: { status: 'SKIPPED', error: 'Opted out' } })
+        console.log(`[worker] SKIPPED ${msg.clientCode} (opted out)`)
+        continue
+      }
     }
 
     try {
@@ -127,6 +143,18 @@ let running = false
 async function start(client) {
   if (running) { console.log('[worker] A drain is already active; ignoring duplicate start.'); return }
   running = true
+  // Auto-add anyone who replies STOP/UNSUBSCRIBE/etc. to the Do-Not-Contact list.
+  client.onMessage(async (message) => {
+    try {
+      if (message.isGroupMsg) return
+      if (!isOptOutMessage(message.body)) return
+      const from = String(message.from || '').replace('@c.us', '')
+      const phone = normalizeWhatsappPhone(from)
+      if (!phone) return
+      await prisma.whatsappOptOut.upsert({ where: { phone }, update: {}, create: { phone, source: 'STOP' } })
+      console.log(`[worker] Auto opt-out (STOP) from ${phone}`)
+    } catch (e) { console.error('[worker] onMessage opt-out failed', e) }
+  })
   try {
     await drainQueue(client)
   } catch (e) {

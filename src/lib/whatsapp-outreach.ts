@@ -40,3 +40,28 @@ export function dedupeAudienceByPhone<T extends { phone: string; department: str
   }
   return out
 }
+
+const OPT_OUT_KEYWORDS = ['STOP', 'UNSUBSCRIBE', 'OPT OUT', 'OPTOUT', 'REMOVE', 'CANCEL']
+
+/** True when an inbound message body signals an opt-out (whole-word / prefix match, case-insensitive). */
+export function isOptOutMessage(body: string): boolean {
+  const text = (body || '').trim().toUpperCase()
+  if (!text) return false
+  return OPT_OUT_KEYWORDS.some((kw) => text === kw || text.startsWith(kw + ' ') || text.includes(' ' + kw))
+}
+
+/** Drop CONTACT rows whose normalized phone is opted out; GROUP rows and unnormalizable phones are always kept. */
+export function filterOptedOut<T extends { phone: string; targetType: 'CONTACT' | 'GROUP' }>(
+  rows: T[], optedOut: Set<string>,
+): { kept: T[]; skippedOptedOut: number } {
+  const kept: T[] = []
+  let skippedOptedOut = 0
+  for (const row of rows) {
+    if (row.targetType === 'CONTACT') {
+      const n = normalizeWhatsappPhone(row.phone)
+      if (n && optedOut.has(n)) { skippedOptedOut++; continue }
+    }
+    kept.push(row)
+  }
+  return { kept, skippedOptedOut }
+}

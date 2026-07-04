@@ -22,6 +22,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { parseManualRecipients } from '@/lib/whatsapp-recipients'
 import { TemplatesManager } from '@/components/whatsapp/templates-manager'
 import { ConnectPanel, type SessionGroup } from '@/components/whatsapp/connect-panel'
+import { OptOutManager } from '@/components/whatsapp/opt-out-manager'
 
 const SEGMENTS = [
   { value: 'all', label: 'All inactive' },
@@ -144,6 +145,7 @@ export default function WhatsAppOutreachPage() {
 
   const [templates, setTemplates] = useState<{ id: string; name: string; body: string }[]>([])
   const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [optOutOpen, setOptOutOpen] = useState(false)
   const loadTemplates = useCallback(() => {
     fetch('/api/whatsapp/templates').then((r) => r.json()).then((d) => { if (d.success) setTemplates(d.data.templates) }).catch(() => {})
   }, [])
@@ -161,7 +163,8 @@ export default function WhatsAppOutreachPage() {
       })).json()
       if (d.success) {
         const missing = d.data.skippedMissing ? `, ${d.data.skippedMissing} missing` : ''
-        toast.success(`Queued ${d.data.queued} (skipped ${d.data.skippedInvalid} invalid, ${d.data.skippedDuplicate} duplicate${missing})`)
+        const optedOut = d.data.skippedOptedOut ? `, ${d.data.skippedOptedOut} opted-out` : ''
+        toast.success(`Queued ${d.data.queued} (skipped ${d.data.skippedInvalid} invalid, ${d.data.skippedDuplicate} duplicate${missing}${optedOut})`)
         clearSelection(); setManualText(''); setSelectedGroups(new Set()); refreshStatus()
       } else toast.error(d.error || 'Failed to queue campaign')
     } catch { toast.error('Failed to queue campaign') } finally { setQueueing(false); setConfirmOpen(false) }
@@ -349,6 +352,7 @@ export default function WhatsAppOutreachPage() {
               </SelectContent>
             </Select>
             <Button type="button" variant="outline" size="sm" onClick={() => setTemplatesOpen(true)}>Manage templates</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setOptOutOpen(true)}>Do-Not-Contact</Button>
           </div>
           <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={6} placeholder="Type your message… use {{name}} for the client's first name" />
           <div className="flex justify-between text-xs text-muted-foreground">
@@ -394,6 +398,7 @@ export default function WhatsAppOutreachPage() {
         currentMessage={message}
         onUse={(body) => setMessage(body)}
       />
+      <OptOutManager open={optOutOpen} onOpenChange={setOptOutOpen} />
     </div>
   )
 }

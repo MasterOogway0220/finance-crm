@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { canSendWhatsapp } from '@/lib/roles'
 import { logActivity } from '@/lib/activity-log'
-import { normalizeWhatsappPhone, personalizeMessage } from '@/lib/whatsapp-outreach'
+import { normalizeWhatsappPhone, personalizeMessage, filterOptedOut } from '@/lib/whatsapp-outreach'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 
@@ -124,19 +124,30 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (rows.length === 0) {
-      return NextResponse.json({ success: false, error: `No valid recipients (skipped ${skippedInvalid} invalid, ${skippedDuplicate} duplicate, ${skippedMissing} missing).` }, { status: 400 })
+    // Drop opted-out contacts (Do-Not-Contact). Groups are never filtered.
+    const contactPhones = rows
+      .filter((r) => r.targetType === 'CONTACT')
+      .map((r) => normalizeWhatsappPhone(r.phone))
+      .filter((p): p is string => !!p)
+    const optedOutRows = contactPhones.length
+      ? await prisma.whatsappOptOut.findMany({ where: { phone: { in: contactPhones } }, select: { phone: true } })
+      : []
+    const optedOutSet = new Set(optedOutRows.map((o) => o.phone))
+    const { kept: finalRows, skippedOptedOut } = filterOptedOut(rows, optedOutSet)
+
+    if (finalRows.length === 0) {
+      return NextResponse.json({ success: false, error: `No valid recipients (skipped ${skippedInvalid} invalid, ${skippedDuplicate} duplicate, ${skippedMissing} missing, ${skippedOptedOut} opted-out).` }, { status: 400 })
     }
 
-    await prisma.whatsappMessage.createMany({ data: rows })
+    await prisma.whatsappMessage.createMany({ data: finalRows })
     await logActivity({
       userId: session.user.id,
       action: 'QUEUE',
       module: 'WHATSAPP',
-      details: `Queued ${rows.length} WhatsApp messages (campaign ${campaignId}). Skipped ${skippedInvalid} invalid, ${skippedDuplicate} duplicate, ${skippedMissing} missing.`,
+      details: `Queued ${finalRows.length} WhatsApp messages (campaign ${campaignId}). Skipped ${skippedInvalid} invalid, ${skippedDuplicate} duplicate, ${skippedMissing} missing, ${skippedOptedOut} opted-out.`,
     })
 
-    return NextResponse.json({ success: true, data: { campaignId, queued: rows.length, skippedInvalid, skippedDuplicate, skippedMissing } })
+    return NextResponse.json({ success: true, data: { campaignId, queued: finalRows.length, skippedInvalid, skippedDuplicate, skippedMissing, skippedOptedOut } })
   } catch (error) {
     console.error('[POST /api/whatsapp/campaigns]', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })

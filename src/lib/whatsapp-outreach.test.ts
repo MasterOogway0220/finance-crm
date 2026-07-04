@@ -52,3 +52,38 @@ describe('dedupeAudienceByPhone', () => {
     expect(out).toHaveLength(2)
   })
 })
+
+import { isOptOutMessage, filterOptedOut } from './whatsapp-outreach'
+
+describe('isOptOutMessage', () => {
+  it('matches opt-out keywords, case/space-insensitive', () => {
+    expect(isOptOutMessage('STOP')).toBe(true)
+    expect(isOptOutMessage('  stop ')).toBe(true)
+    expect(isOptOutMessage('Unsubscribe')).toBe(true)
+    expect(isOptOutMessage('please REMOVE me')).toBe(true)
+    expect(isOptOutMessage('opt out')).toBe(true)
+  })
+  it('does not match normal messages', () => {
+    expect(isOptOutMessage('hello, I want to invest')).toBe(false)
+    expect(isOptOutMessage('')).toBe(false)
+    expect(isOptOutMessage('stopwatch')).toBe(false)
+  })
+})
+
+describe('filterOptedOut', () => {
+  const rows = [
+    { phone: '9876543210', targetType: 'CONTACT' as const },
+    { phone: '9811111111', targetType: 'CONTACT' as const },
+    { phone: '', targetType: 'GROUP' as const },
+  ]
+  it('drops CONTACT rows whose normalized phone is opted out; keeps groups', () => {
+    const r = filterOptedOut(rows, new Set(['919876543210']))
+    expect(r.skippedOptedOut).toBe(1)
+    expect(r.kept.map((x) => x.phone)).toEqual(['9811111111', ''])
+  })
+  it('keeps everything when the set is empty', () => {
+    const r = filterOptedOut(rows, new Set())
+    expect(r.skippedOptedOut).toBe(0)
+    expect(r.kept).toHaveLength(3)
+  })
+})

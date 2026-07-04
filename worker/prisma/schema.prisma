@@ -32,6 +32,23 @@ enum WhatsappTargetType {
   GROUP
 }
 
+enum WhatsappOptOutSource {
+  STOP
+  MANUAL
+}
+
+model WhatsappOptOut {
+  id          String               @id @default(cuid())
+  phone       String               @unique
+  source      WhatsappOptOutSource @default(MANUAL)
+  reason      String?
+  createdById String?
+  createdAt   DateTime             @default(now())
+
+  @@index([createdAt])
+  @@map("WhatsappOptOut")
+}
+
 model WhatsappSession {
   id             String               @id @default("default")
   state          WhatsappSessionState @default(DISCONNECTED)
