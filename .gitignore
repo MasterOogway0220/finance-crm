@@ -33,6 +33,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Claude Code local settings — may contain tokens/secrets, never commit
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
 # vercel
 .vercel
 
