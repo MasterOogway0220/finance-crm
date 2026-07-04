@@ -10,6 +10,55 @@ const JITTER_MS = parseInt(process.env.JITTER_MS || '60000', 10)
 const START_HOUR = parseInt(process.env.WINDOW_START_HOUR || '10', 10)
 const END_HOUR = parseInt(process.env.WINDOW_END_HOUR || '16', 10)
 const SESSION_ID = 'default'
+const LEASE_ID = 'default'
+const LEASE_TTL_MS = 30000
+const LEASE_RENEW_MS = 10000
+// A stable-per-process id so lease ownership survives renewals within one run.
+const HOLDER_ID = `${process.pid}-${Math.floor(process.uptime() * 1000)}`
+const HOLDER_NAME = process.env.WA_MACHINE_NAME || require('os').hostname()
+
+/**
+ * Atomically acquire or renew the single-sender lease. Returns true iff THIS
+ * process now holds it. The WHERE clause is the atomic guarantee — only one row
+ * matches, so only one machine can win. Mirrors src/lib/whatsapp-sender-lease.ts.
+ */
+async function acquireLease() {
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + LEASE_TTL_MS)
+  try {
+    // Ensure the row exists (id is fixed 'default'); ignore races.
+    await prisma.whatsappSenderLease.upsert({
+      where: { id: LEASE_ID },
+      update: {},
+      create: { id: LEASE_ID },
+    })
+    const res = await prisma.whatsappSenderLease.updateMany({
+      where: {
+        id: LEASE_ID,
+        OR: [
+          { holderId: null },
+          { holderId: HOLDER_ID },
+          { expiresAt: null },
+          { expiresAt: { lt: now } },
+        ],
+      },
+      data: { holderId: HOLDER_ID, holderName: HOLDER_NAME, expiresAt },
+    })
+    return res.count === 1
+  } catch (e) {
+    console.error('[worker] acquireLease failed', e)
+    return false
+  }
+}
+
+async function releaseLease() {
+  try {
+    await prisma.whatsappSenderLease.updateMany({
+      where: { id: LEASE_ID, holderId: HOLDER_ID },
+      data: { holderId: null, holderName: null, expiresAt: null },
+    })
+  } catch (e) { console.error('[worker] releaseLease failed', e) }
+}
 
 /** Mirror of src/lib/whatsapp-outreach.ts normalizeWhatsappPhone (worker is standalone CommonJS). */
 function normalizeWhatsappPhone(raw) {
@@ -94,11 +143,30 @@ async function drainQueue(client) {
 
     const sentToday = await prisma.whatsappMessage.count({ where: { status: 'SENT', sentAt: { gte: startOfToday() } } })
     if (sentToday >= DAILY_LIMIT) {
-      console.log(`[worker] Daily limit reached (${sentToday}/${DAILY_LIMIT}). Exiting.`)
-      return
+      console.log(`[worker] Daily limit reached (${sentToday}/${DAILY_LIMIT}); idling.`)
+      await sleep(60000)
+      continue
     }
-    const msg = await prisma.whatsappMessage.findFirst({ where: { status: 'PENDING' }, orderBy: { createdAt: 'asc' } })
-    if (!msg) { console.log('[worker] Queue empty. Exiting.'); return }
+
+    // Renew (or lose) the lease before every send. If we can't hold it, another
+    // machine is the active sender — stop draining so we never double-send.
+    if (!(await acquireLease())) {
+      console.log('[worker] Another machine holds the sender lease; not draining.')
+      await sleep(LEASE_RENEW_MS)
+      continue
+    }
+
+    const candidate = await prisma.whatsappMessage.findFirst({ where: { status: 'PENDING' }, orderBy: { createdAt: 'asc' } })
+    if (!candidate) { console.log('[worker] Queue empty; idling.'); await sleep(30000); continue }
+
+    // Atomic claim: flip PENDING -> SENDING. Only the winner gets count === 1.
+    // A row left in SENDING (crash mid-send) is never auto-retried here.
+    const claim = await prisma.whatsappMessage.updateMany({
+      where: { id: candidate.id, status: 'PENDING' },
+      data: { status: 'SENDING' },
+    })
+    if (claim.count !== 1) { console.log('[worker] Lost race to claim; re-picking.'); continue }
+    const msg = candidate
 
     // Contacts resolve their chat id from the phone; groups use the stored targetId (…@g.us).
     const normalised = msg.targetType === 'GROUP' ? null : normalizeWhatsappPhone(msg.phone)
@@ -125,7 +193,8 @@ async function drainQueue(client) {
       console.log(`[worker] SENT ${msg.clientCode} -> ${target}  (${sentToday + 1}/${DAILY_LIMIT} today)`)
     } catch (err) {
       if (!(await isConnected(client))) {
-        console.error(`[worker] Send errored and session is now disconnected; leaving ${msg.clientCode} PENDING and aborting run.`, err)
+        // Leave it SENDING (untouchable, surfaced for manual review) — never auto-resend.
+        console.error(`[worker] Send errored and session disconnected; leaving ${msg.clientCode} SENDING for review and aborting.`, err)
         await setSession({ state: 'DISCONNECTED' })
         return
       }
@@ -164,6 +233,7 @@ async function start(client) {
     running = false
     // The worker is exiting → it is no longer draining, so stop reporting CONNECTED.
     await setSession({ state: 'DISCONNECTED' })
+    await releaseLease()
     await prisma.$disconnect()
     try { await client.kill() } catch { /* ignore */ }
     process.exit(0)
@@ -181,6 +251,8 @@ async function boot() {
     useChrome: false,
     throwErrorOnTosBlock: false,
     disableSpins: true,
+    ...(process.env.WA_USER_DATA ? { sessionDataPath: process.env.WA_USER_DATA } : {}),
+    ...(process.env.WA_CHROME_PATH ? { executablePath: process.env.WA_CHROME_PATH, useChrome: true } : {}),
   }
 
   // In-app linking is QR-only: open-wa surfaces a phone-pairing code only to THIS
