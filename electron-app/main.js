@@ -1,5 +1,5 @@
 // electron-app/main.js
-const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron')
+const { app, BrowserWindow, ipcMain, globalShortcut, utilityProcess } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const fs = require('fs')
@@ -20,6 +20,49 @@ const CRM_URL = 'https://kesar-crm.kesarsecurities.in'
 
 let mainWindow = null
 let isQuitting = false
+let waWorker = null
+
+// The bundled worker + its Prisma DATABASE_URL. In a packaged app the worker lives
+// under process.resourcesPath (extraResources); in dev it's the repo's worker folder.
+function workerEntry() {
+  const packaged = path.join(process.resourcesPath, 'worker', 'send.js')
+  return fs.existsSync(packaged) ? packaged : path.join(__dirname, '..', 'worker', 'send.js')
+}
+
+// DATABASE_URL is injected at build time into worker-config.js (see packaging task);
+// falls back to the process env for dev runs.
+function workerEnv() {
+  let dbUrl = process.env.DATABASE_URL || ''
+  try {
+    const cfg = require(path.join(process.resourcesPath, 'worker-config.js'))
+    if (cfg && cfg.DATABASE_URL) dbUrl = cfg.DATABASE_URL
+  } catch { /* dev: no bundled config */ }
+  return {
+    DATABASE_URL: dbUrl,
+    WA_USER_DATA: app.getPath('userData'),
+    WA_MACHINE_NAME: require('os').hostname(),
+    DAILY_LIMIT: process.env.DAILY_LIMIT || '30',
+    GAP_MS: process.env.GAP_MS || '300000',
+    JITTER_MS: process.env.JITTER_MS || '60000',
+    WINDOW_START_HOUR: process.env.WINDOW_START_HOUR || '10',
+    WINDOW_END_HOUR: process.env.WINDOW_END_HOUR || '16',
+  }
+}
+
+function startWhatsappWorker() {
+  if (waWorker) return // already running
+  waWorker = utilityProcess.fork(workerEntry(), [], {
+    env: { ...process.env, ...workerEnv() },
+    stdio: 'inherit',
+  })
+  waWorker.on('exit', () => { waWorker = null })
+}
+
+function stopWhatsappWorker() {
+  if (!waWorker) return
+  try { waWorker.kill() } catch { /* ignore */ }
+  waWorker = null
+}
 
 // ─── Auto-updater ──────────────────────────────────────────────────────────
 autoUpdater.autoDownload = true
@@ -125,6 +168,8 @@ ipcMain.on('window-maximize', () => {
 })
 ipcMain.on('window-close',   () => app.quit())
 ipcMain.on('window-refresh', () => mainWindow?.webContents.reload())
+ipcMain.on('whatsapp-start', () => startWhatsappWorker())
+ipcMain.on('whatsapp-stop',  () => stopWhatsappWorker())
 
 // ─── App lifecycle ─────────────────────────────────────────────────────────
 app.whenReady().then(() => {
@@ -173,6 +218,7 @@ app.on('before-quit', (e) => {
     } catch {
       // Proceed regardless
     }
+    stopWhatsappWorker()
     app.quit()
   }
 

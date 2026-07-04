@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximize: () => ipcRenderer.send('window-maximize'),
   close:    () => ipcRenderer.send('window-close'),
   refresh:  () => ipcRenderer.send('window-refresh'),
+  isDesktopApp: true,
+  startWhatsapp: () => ipcRenderer.send('whatsapp-start'),
+  stopWhatsapp:  () => ipcRenderer.send('whatsapp-stop'),
 })
 
 function injectTitleBar() {
