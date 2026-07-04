@@ -20,7 +20,6 @@ export async function GET() {
       data: {
         state: row?.state ?? 'DISCONNECTED',
         qr: row?.state === 'QR' ? row.qr : null,
-        linkCode: row?.state === 'PAIRING' ? row.linkCode : null,
         groups,
       },
     })

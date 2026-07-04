@@ -176,7 +176,17 @@ export default function WhatsAppOutreachPage() {
         <h1 className="text-2xl font-bold">WhatsApp Outreach</h1>
       </div>
 
-      <ConnectPanel onSession={(d) => { setSessionState(d.state); setGroups(d.groups) }} />
+      <ConnectPanel onSession={(d) => {
+        setSessionState(d.state)
+        setGroups(d.groups)
+        // Drop any selected group that is no longer present or is no longer sendable,
+        // so the count/dialog/payload can't include a group the user can't see or uncheck.
+        setSelectedGroups((prev) => {
+          const valid = new Set(d.groups.filter((g) => g.canSend).map((g) => g.id))
+          const next = new Set([...prev].filter((id) => valid.has(id)))
+          return next.size === prev.size ? prev : next
+        })
+      }} />
       {sessionState !== 'CONNECTED' && (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
           WhatsApp isn&apos;t connected yet — you can still queue; messages send once the office-PC worker is linked and running.

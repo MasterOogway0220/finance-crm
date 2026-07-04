@@ -23,19 +23,22 @@ from the app's TypeScript build (`tsconfig.json` → `exclude: ["worker"]`). Nev
 
 ## Connecting from the app (Phase 2)
 
-The worker now publishes its connection state to the shared DB (`WhatsappSession` row),
+The worker publishes its connection state to the shared DB (`WhatsappSession` row),
 so the **WhatsApp page → "WhatsApp connection" card** shows it live:
 
-- Start the worker → it emits a **QR** which appears on that card → scan it
+- Start the worker → it emits a **QR** that appears on that card → scan it
   (WhatsApp → Linked devices → Link a device). The card flips to **Connected**.
-- Or, on the card, type the number under **"Link with phone number instead" → Request code**.
-  That records the request; **restart the worker** and it boots in link-code mode
-  (`create({ linkCode })`). The pairing code prints in this worker window (and, when
-  captured, on the card) — enter it in WhatsApp → Linked devices → Link with phone number.
 - Once connected, the worker also publishes the number's **groups** so the page can
-  target them.
+  target them, and it refreshes that list as it runs.
+- When the worker stops (daily cap / window closed / queue empty / you close it), the
+  card returns to **Disconnected** — that just means nothing is running right now;
+  the WhatsApp login is still saved on disk, so the next `npm start` reconnects with
+  **no re-scan**.
 
-QR is the reliable path; phone-pairing is best-effort (open-wa prints the code here).
+**In-app linking is QR-only.** open-wa surfaces a phone-pairing code only to *this
+worker console*, not to the web app, so there is no reliable in-app "enter the code"
+flow. If you specifically want to link by phone number, add `linkCode: '<number>'` to
+the `create(...)` options in `send.js` and read the 8-char code printed in this window.
 
 ## Daily use
 

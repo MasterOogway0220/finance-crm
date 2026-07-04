@@ -81,6 +81,9 @@ async function drainQueue(client) {
       return
     }
 
+    // Keep the published group list fresh so groups joined mid-run show up in the app.
+    await refreshGroups(client)
+
     const sentToday = await prisma.whatsappMessage.count({ where: { status: 'SENT', sentAt: { gte: startOfToday() } } })
     if (sentToday >= DAILY_LIMIT) {
       console.log(`[worker] Daily limit reached (${sentToday}/${DAILY_LIMIT}). Exiting.`)
@@ -131,6 +134,8 @@ async function start(client) {
     await setSession({ state: 'DISCONNECTED' })
   } finally {
     running = false
+    // The worker is exiting → it is no longer draining, so stop reporting CONNECTED.
+    await setSession({ state: 'DISCONNECTED' })
     await prisma.$disconnect()
     try { await client.kill() } catch { /* ignore */ }
     process.exit(0)
@@ -139,14 +144,6 @@ async function start(client) {
 
 async function boot() {
   await setSession({ state: 'CONNECTING' })
-
-  // If the web app requested phone-linking, boot in link-code mode; otherwise QR mode.
-  let linkCode
-  try {
-    const row = await prisma.whatsappSession.findUnique({ where: { id: SESSION_ID } })
-    linkCode = row?.requestedPhone || undefined
-  } catch { /* ignore — default to QR */ }
-  if (linkCode) { await setSession({ state: 'PAIRING' }) }
 
   const opts = {
     sessionId: 'kesar-outreach',
@@ -158,8 +155,11 @@ async function boot() {
     disableSpins: true,
   }
 
+  // In-app linking is QR-only: open-wa surfaces a phone-pairing code only to THIS
+  // console, so it can't be shown reliably in the web app. To link by phone number
+  // instead, add `linkCode: '<number>'` to `opts` and read the code from this window.
   // NOTE: no `restartOnCrash` — a single loop avoids overlapping senders / double-sends.
-  create(linkCode ? { ...opts, linkCode } : opts)
+  create(opts)
     .then((client) => start(client))
     .catch(async (err) => {
       console.error('[worker] Failed to start open-wa:', err)
