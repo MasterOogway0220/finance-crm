@@ -7,7 +7,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win --x64"
+    "prepare-worker": "node prepare-worker.js",
+    "build": "npm run prepare-worker && electron-builder --win --x64"
   },
   "dependencies": {
     "electron-updater": "^6.3.9"

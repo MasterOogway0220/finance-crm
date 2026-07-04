@@ -11,6 +11,12 @@ files:
   - "assets/**/*"
   - package.json
 
+extraResources:
+  - from: build-resources/worker
+    to: worker
+  - from: build-resources/worker-config.js
+    to: worker-config.js
+
 win:
   target:
     - target: nsis
