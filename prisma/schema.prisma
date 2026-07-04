@@ -450,6 +450,7 @@ model NoBusinessDismissal {
 
 enum WhatsappStatus {
   PENDING
+  SENDING
   SENT
   FAILED
   SKIPPED
@@ -492,6 +493,14 @@ model WhatsappSession {
   requestedPhone String?
   groupsJson     String?              @db.Text
   updatedAt      DateTime             @updatedAt
+}
+
+model WhatsappSenderLease {
+  id         String    @id @default("default")
+  holderId   String?
+  holderName String?
+  expiresAt  DateTime?
+  updatedAt  DateTime  @updatedAt
 }
 
 model WhatsappTemplate {
