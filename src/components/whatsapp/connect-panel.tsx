@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
+type ElectronAPI = { isDesktopApp?: boolean; startWhatsapp?: () => void; stopWhatsapp?: () => void }
+function electron(): ElectronAPI | null {
+  if (typeof window === 'undefined') return null
+  return (window as unknown as { electronAPI?: ElectronAPI }).electronAPI ?? null
+}
+
 export interface SessionGroup { id: string; title: string; canSend: boolean }
 export interface SessionData { state: string; qr: string | null; groups: SessionGroup[] }
 
@@ -51,7 +57,17 @@ export function ConnectPanel({ onSession }: { onSession: (data: SessionData) => 
       </CardHeader>
       <CardContent className="space-y-3">
         {data.state === 'CONNECTED' ? (
-          <p className="text-sm text-green-700">Linked and ready — queued messages will send from the office PC.</p>
+          <div className="space-y-2">
+            <p className="text-sm text-green-700">Linked and ready — queued messages will send from this PC.</p>
+            {electron()?.isDesktopApp && (
+              <button
+                onClick={() => electron()?.stopWhatsapp?.()}
+                className="rounded border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+              >
+                Disconnect
+              </button>
+            )}
+          </div>
         ) : data.qr ? (
           <div className="space-y-2">
             <p className="text-sm font-medium">Scan to link the sending phone:</p>
@@ -61,24 +77,26 @@ export function ConnectPanel({ onSession }: { onSession: (data: SessionData) => 
               On the sending phone: WhatsApp → <b>Linked devices</b> → <b>Link a device</b> → point the camera at this code.
             </p>
           </div>
-        ) : (
-          <div className="space-y-2">
+        ) : electron()?.isDesktopApp ? (
+          <div className="space-y-3">
             <p className="text-sm">
-              Sending runs from the <b>office PC</b>, not this website — WhatsApp automation can&apos;t run on the server, so
-              there&apos;s no &ldquo;connect&rdquo; button here. The QR appears below once the office PC is running. To connect:
+              Click connect, then scan the QR that appears here with the sending phone
+              (WhatsApp → <b>Linked devices</b> → <b>Link a device</b>).
             </p>
-            <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-              <li><span className="font-medium text-foreground">First time only:</span> on the office PC, run <code className="rounded bg-muted px-1">cd worker</code> then <code className="rounded bg-muted px-1">npm install</code>.</li>
-              <li>Start the worker: <code className="rounded bg-muted px-1">npm start</code>. Leave that window open.</li>
-              <li>A QR code appears here within a few seconds — keep this page open.</li>
-              <li>On the sending phone: WhatsApp → <b>Linked devices</b> → <b>Link a device</b> → scan it.</li>
-            </ol>
+            <button
+              onClick={() => electron()?.startWhatsapp?.()}
+              className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+            >
+              Connect WhatsApp
+            </button>
             <p className="text-xs text-muted-foreground">
-              {data.state === 'CONNECTING'
-                ? 'Office PC is starting up… waiting for the QR to appear.'
-                : 'Status: not linked. This badge turns green automatically once the phone is linked — no action needed here.'}
+              {data.state === 'CONNECTING' ? 'Starting up… the QR will appear in a few seconds.' : 'Not linked yet.'}
             </p>
           </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Open the <b>Kesar Securities CRM desktop app</b> on the office PC to connect WhatsApp, then click <b>Connect</b> and scan the QR.
+          </p>
         )}
       </CardContent>
     </Card>
