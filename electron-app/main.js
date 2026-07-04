@@ -29,16 +29,24 @@ function workerEntry() {
   return fs.existsSync(packaged) ? packaged : path.join(__dirname, '..', 'worker', 'send.js')
 }
 
-// DATABASE_URL is injected at build time into worker-config.js (see packaging task);
-// falls back to the process env for dev runs.
-function workerEnv() {
-  let dbUrl = process.env.DATABASE_URL || ''
+// The DB URL is NOT bundled — the installer is published to a public repo and must
+// carry no secrets. It is read from a local config file placed ONCE on the sender PC:
+//   %APPDATA%\<app>\wa-config.json   →   { "DATABASE_URL": "mysql://user:pass@host:3306/db" }
+// (app.getPath('userData') resolves to that folder). Falls back to the env for dev.
+function readLocalDbUrl() {
   try {
-    const cfg = require(path.join(process.resourcesPath, 'worker-config.js'))
-    if (cfg && cfg.DATABASE_URL) dbUrl = cfg.DATABASE_URL
-  } catch { /* dev: no bundled config */ }
+    const p = path.join(app.getPath('userData'), 'wa-config.json')
+    if (fs.existsSync(p)) {
+      const cfg = JSON.parse(fs.readFileSync(p, 'utf8'))
+      if (cfg && cfg.DATABASE_URL) return cfg.DATABASE_URL
+    }
+  } catch { /* malformed/missing — fall through to env */ }
+  return process.env.DATABASE_URL || ''
+}
+
+function workerEnv() {
   return {
-    DATABASE_URL: dbUrl,
+    DATABASE_URL: readLocalDbUrl(),
     WA_USER_DATA: app.getPath('userData'),
     WA_MACHINE_NAME: require('os').hostname(),
     DAILY_LIMIT: process.env.DAILY_LIMIT || '30',

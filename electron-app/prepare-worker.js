@@ -1,6 +1,9 @@
 // Stages the standalone worker into electron-app/build-resources/worker (code +
-// node_modules + generated Prisma client incl. the Windows query engine) and writes
-// worker-config.js with the embedded DATABASE_URL.
+// node_modules + generated Prisma client incl. the Windows query engine).
+//
+// NOTE: no DATABASE_URL is embedded — the installer is published to a PUBLIC repo and
+// must carry no secrets. The DB URL is read at runtime from a local wa-config.json on
+// the sender PC (see main.js readLocalDbUrl).
 //
 // It self-heals the worker install so whoever builds the installer does NOT have to
 // remember to `npm install` in worker/ first: if deps or the Windows Prisma engine
@@ -40,7 +43,7 @@ if (!windowsEnginePresent()) {
   process.exit(1)
 }
 
-// 3. Stage the worker (excluding its dev .env — never ship one).
+// 3. Stage the worker (excluding its dev .env — never ship one; no secrets in the build).
 fs.rmSync(outRoot, { recursive: true, force: true })
 fs.mkdirSync(outWorker, { recursive: true })
 fs.cpSync(src, outWorker, {
@@ -48,11 +51,4 @@ fs.cpSync(src, outWorker, {
   filter: (p) => path.basename(p) !== '.env',
 })
 
-// 4. Embed the DATABASE_URL for the packaged app.
-const dbUrl = process.env.DATABASE_URL
-if (!dbUrl) { console.error('[prepare-worker] DATABASE_URL must be set to embed into the build'); process.exit(1) }
-fs.writeFileSync(
-  path.join(outRoot, 'worker-config.js'),
-  `module.exports = { DATABASE_URL: ${JSON.stringify(dbUrl)} }\n`,
-)
-console.log('[prepare-worker] staged worker + worker-config.js')
+console.log('[prepare-worker] staged secret-free worker (DB URL is read from wa-config.json on the sender PC)')

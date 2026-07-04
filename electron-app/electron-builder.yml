@@ -14,8 +14,6 @@ files:
 extraResources:
   - from: build-resources/worker
     to: worker
-  - from: build-resources/worker-config.js
-    to: worker-config.js
 
 win:
   target:
