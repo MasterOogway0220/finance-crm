@@ -52,23 +52,33 @@ export function ConnectPanel({ onSession }: { onSession: (data: SessionData) => 
       <CardContent className="space-y-3">
         {data.state === 'CONNECTED' ? (
           <p className="text-sm text-green-700">Linked and ready — queued messages will send from the office PC.</p>
-        ) : (
-          <>
+        ) : data.qr ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Scan to link the sending phone:</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={data.qr} alt="WhatsApp QR code" className="h-56 w-56 rounded border bg-white p-2" />
             <p className="text-xs text-muted-foreground">
-              Link the sending WhatsApp number by scanning the QR below. The office-PC worker must be running for a QR to appear.
+              On the sending phone: WhatsApp → <b>Linked devices</b> → <b>Link a device</b> → point the camera at this code.
             </p>
-            {data.qr ? (
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Scan this QR (WhatsApp → Linked devices → Link a device):</p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={data.qr} alt="WhatsApp QR code" className="h-56 w-56 rounded border bg-white p-2" />
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Waiting for the office-PC worker to start and emit a QR. (To link by phone number instead, use the worker&apos;s <code>linkCode</code> option — the code shows in the worker window.)
-              </p>
-            )}
-          </>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm">
+              Sending runs from the <b>office PC</b>, not this website — WhatsApp automation can&apos;t run on the server, so
+              there&apos;s no &ldquo;connect&rdquo; button here. The QR appears below once the office PC is running. To connect:
+            </p>
+            <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+              <li><span className="font-medium text-foreground">First time only:</span> on the office PC, run <code className="rounded bg-muted px-1">cd worker</code> then <code className="rounded bg-muted px-1">npm install</code>.</li>
+              <li>Start the worker: <code className="rounded bg-muted px-1">npm start</code>. Leave that window open.</li>
+              <li>A QR code appears here within a few seconds — keep this page open.</li>
+              <li>On the sending phone: WhatsApp → <b>Linked devices</b> → <b>Link a device</b> → scan it.</li>
+            </ol>
+            <p className="text-xs text-muted-foreground">
+              {data.state === 'CONNECTING'
+                ? 'Office PC is starting up… waiting for the QR to appear.'
+                : 'Status: not linked. This badge turns green automatically once the phone is linked — no action needed here.'}
+            </p>
+          </div>
         )}
       </CardContent>
     </Card>

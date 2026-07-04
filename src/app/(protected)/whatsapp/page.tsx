@@ -173,12 +173,13 @@ export default function WhatsAppOutreachPage() {
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="page-container space-y-6">
       <div className="flex items-center gap-2">
         <MessageCircle className="h-6 w-6 text-green-600" />
         <h1 className="text-2xl font-bold">WhatsApp Outreach</h1>
       </div>
 
+      <div className="grid gap-6 lg:grid-cols-2 items-start">
       <ConnectPanel onSession={(d) => {
         setSessionState(d.state)
         setGroups(d.groups)
@@ -190,11 +191,6 @@ export default function WhatsAppOutreachPage() {
           return next.size === prev.size ? prev : next
         })
       }} />
-      {sessionState !== 'CONNECTED' && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-          WhatsApp isn&apos;t connected yet — you can still queue; messages send once the office-PC worker is linked and running.
-        </div>
-      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Queue status</CardTitle></CardHeader>
@@ -222,6 +218,12 @@ export default function WhatsAppOutreachPage() {
           )}
         </CardContent>
       </Card>
+      </div>
+      {sessionState !== 'CONNECTED' && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+          WhatsApp isn&apos;t connected yet — you can still queue; messages send once the office-PC worker is linked and running.
+        </div>
+      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Audience</CardTitle></CardHeader>
@@ -354,14 +356,18 @@ export default function WhatsAppOutreachPage() {
             <Button type="button" variant="outline" size="sm" onClick={() => setTemplatesOpen(true)}>Manage templates</Button>
             <Button type="button" variant="outline" size="sm" onClick={() => setOptOutOpen(true)}>Do-Not-Contact</Button>
           </div>
-          <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={6} placeholder="Type your message… use {{name}} for the client's first name" />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Use <code>{'{{name}}'}</code> to insert the client&apos;s first name.</span>
-            <span>{message.length} chars</span>
-          </div>
-          <div className="rounded-md border bg-muted/40 p-3 text-sm whitespace-pre-wrap">
-            <span className="text-xs text-muted-foreground block mb-1">Preview (name → Rahul):</span>
-            {preview}
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="space-y-2">
+              <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={8} placeholder="Type your message… use {{name}} for the client's first name" />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Use <code>{'{{name}}'}</code> to insert the client&apos;s first name.</span>
+                <span>{message.length} chars</span>
+              </div>
+            </div>
+            <div className="rounded-md border bg-muted/40 p-3 text-sm whitespace-pre-wrap">
+              <span className="text-xs text-muted-foreground block mb-1">Preview (name → Rahul):</span>
+              {preview}
+            </div>
           </div>
         </CardContent>
       </Card>
