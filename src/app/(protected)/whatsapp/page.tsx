@@ -36,7 +36,7 @@ const DEFAULT_TEMPLATE =
   `We'd love to help you get back on track with your investments — reply to this message and our team will assist you.\n\nReply STOP to opt out.`
 
 interface AudienceClient { id: string; clientCode: string; name: string; phone: string | null; department: string }
-interface CampaignSummary { campaignId: string; total: number; pending: number; sent: number; failed: number; skipped: number; createdAt: string | null }
+interface CampaignSummary { campaignId: string; total: number; pending: number; sending: number; sent: number; failed: number; skipped: number; needsReview: number; createdAt: string | null }
 
 const LIMIT = 25
 
@@ -209,9 +209,11 @@ export default function WhatsAppOutreachPage() {
                   <span>{c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}</span>
                   <span>· {c.total} total</span>
                   <Badge variant="secondary">{c.sent} sent</Badge>
+                  {c.sending > 0 && <Badge variant="outline">{c.sending} sending</Badge>}
                   <Badge variant="outline">{c.pending} pending</Badge>
                   {c.failed > 0 && <Badge variant="destructive">{c.failed} failed</Badge>}
                   {c.skipped > 0 && <Badge variant="outline">{c.skipped} skipped</Badge>}
+                  {c.needsReview > 0 && <Badge variant="destructive">{c.needsReview} needs review</Badge>}
                 </div>
               ))}
             </div>

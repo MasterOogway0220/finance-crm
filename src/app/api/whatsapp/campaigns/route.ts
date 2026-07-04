@@ -172,16 +172,30 @@ export async function GET() {
     ])
 
     const createdAtMap = new Map(createdAts.map((c) => [c.campaignId, c._max.createdAt]))
-    const map = new Map<string, { campaignId: string; total: number; pending: number; sent: number; failed: number; skipped: number }>()
+    const map = new Map<string, { campaignId: string; total: number; pending: number; sending: number; sent: number; failed: number; skipped: number; needsReview: number }>()
     for (const g of grouped) {
-      const e = map.get(g.campaignId) ?? { campaignId: g.campaignId, total: 0, pending: 0, sent: 0, failed: 0, skipped: 0 }
+      const e = map.get(g.campaignId) ?? { campaignId: g.campaignId, total: 0, pending: 0, sending: 0, sent: 0, failed: 0, skipped: 0, needsReview: 0 }
       const n = g._count._all
       e.total += n
       if (g.status === 'PENDING') e.pending += n
+      else if (g.status === 'SENDING') e.sending += n
       else if (g.status === 'SENT') e.sent += n
       else if (g.status === 'FAILED') e.failed += n
       else if (g.status === 'SKIPPED') e.skipped += n
       map.set(g.campaignId, e)
+    }
+
+    // Stuck sends: SENDING rows older than the stale threshold (their sender likely
+    // died mid-send). Surfaced for manual review — never auto-retried.
+    const staleBefore = new Date(now.getTime() - 600_000) // STALE_SENDING_MS
+    const stuck = await prisma.whatsappMessage.groupBy({
+      by: ['campaignId'],
+      where: { status: 'SENDING', updatedAt: { lt: staleBefore } },
+      _count: { _all: true },
+    })
+    for (const s of stuck) {
+      const e = map.get(s.campaignId)
+      if (e) e.needsReview = s._count._all
     }
 
     const campaigns = [...map.values()]
