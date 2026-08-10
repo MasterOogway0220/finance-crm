@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { isManager, canViewAdmin, isReadOnly, shouldBlockMutation, isHrViewer, canSendWhatsapp } from './roles'
+import { isManager, canViewAdmin, isReadOnly, shouldBlockMutation, isHrViewer, canSendWhatsapp, isIdleLogoutExempt } from './roles'
+
+describe('isIdleLogoutExempt', () => {
+  it('exempts the one carved-out login, case-insensitively', () => {
+    expect(isIdleLogoutExempt('kedaroak_13@rediffmail.com')).toBe(true)
+    expect(isIdleLogoutExempt('KedarOak_13@Rediffmail.com')).toBe(true)
+  })
+  it('does not exempt anyone else', () => {
+    expect(isIdleLogoutExempt('pradipmahadik1982@gmail.com')).toBe(false)
+    expect(isIdleLogoutExempt('kedaroak_13@gmail.com')).toBe(false)
+    expect(isIdleLogoutExempt(null)).toBe(false)
+    expect(isIdleLogoutExempt(undefined)).toBe(false)
+    expect(isIdleLogoutExempt('')).toBe(false)
+  })
+})
 
 describe('isManager (write capability)', () => {
   it('is true for admins', () => {

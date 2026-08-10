@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { signOut } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
+import { isIdleLogoutExempt } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -24,6 +25,9 @@ function formatCountdown(ms: number) {
 }
 
 export default function InactivityGuard() {
+  const { data: session } = useSession()
+  const isExempt = isIdleLogoutExempt(session?.user?.email)
+
   const [showWarning, setShowWarning] = useState(false)
   const [countdown, setCountdown] = useState(WARN_BEFORE_MS)
 
@@ -83,6 +87,14 @@ export default function InactivityGuard() {
 
   // Start timers on mount; reset on activity
   useEffect(() => {
+    // Exempt logins never arm the timers. Runs again once the session resolves, so the
+    // few ms before `session` loads can't leave a stray timer running.
+    if (isExempt) {
+      clearAll()
+      setShowWarning(false)
+      return
+    }
+
     resetTimer()
 
     const onActivity = () => {
@@ -102,7 +114,7 @@ export default function InactivityGuard() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showWarning])
+  }, [showWarning, isExempt])
 
   return (
     <Dialog open={showWarning} onOpenChange={() => {}}>

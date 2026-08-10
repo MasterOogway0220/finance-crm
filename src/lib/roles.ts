@@ -51,6 +51,17 @@ export function isHrViewer(email?: string | null): boolean {
   return !!email && HR_VIEWER_EMAILS.has(email)
 }
 
+/**
+ * Logins exempt from the 30-minute idle auto-logout — their session ends only when
+ * they explicitly log out. Same email-keyed carve-out shape as HR_VIEWER_EMAILS.
+ */
+const IDLE_LOGOUT_EXEMPT_EMAILS = new Set<string>(['kedaroak_13@rediffmail.com'])
+
+/** True when this login must never be signed out for inactivity. */
+export function isIdleLogoutExempt(email?: string | null): boolean {
+  return !!email && IDLE_LOGOUT_EXEMPT_EMAILS.has(email.toLowerCase())
+}
+
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /**
