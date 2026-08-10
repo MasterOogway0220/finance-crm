@@ -68,60 +68,6 @@ function sessionDuration(loginAt: string, logoutAt: string | null): string {
   return durationStr(ms)
 }
 
-function loggedInDaysRows(data: AttendanceEntry[]): string[][] {
-  return [
-    [],
-    ['Logged-in Days (excl. Sat/Sun)'],
-    ...countLoggedInDays(data).map((r) => [r.name, String(r.count)]),
-  ]
-}
-
-function exportCSV(data: AttendanceEntry[], detailed: boolean) {
-  if (detailed) {
-    const rows = [
-      ['Employee', 'Department', 'Date', 'Session #', 'Login Time', 'Logout Time', 'Duration'],
-      ...data.flatMap((entry) =>
-        entry.sessions.map((s, idx) => [
-          entry.employeeName,
-          DEPT_LABELS[entry.department] ?? entry.department,
-          entry.date,
-          String(idx + 1),
-          formatTime(s.loginAt),
-          formatTime(s.logoutAt),
-          sessionDuration(s.loginAt, s.logoutAt),
-        ]),
-      ),
-      ...loggedInDaysRows(data),
-    ]
-    downloadCSV(rows, 'login-history-detailed')
-  } else {
-    const rows = [
-      ['Employee', 'Department', 'Date', 'First Login', 'Last Logout', 'Total Work Time'],
-      ...data.map((entry) => [
-        entry.employeeName,
-        DEPT_LABELS[entry.department] ?? entry.department,
-        entry.date,
-        formatTime(entry.firstLogin),
-        formatTime(entry.lastLogout),
-        durationStr(entry.totalDurationMs),
-      ]),
-      ...loggedInDaysRows(data),
-    ]
-    downloadCSV(rows, 'login-history-summary')
-  }
-}
-
-function downloadCSV(rows: string[][], filename: string) {
-  const csv = rows.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n')
-  const blob = new Blob([csv], { type: 'text/csv' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${filename}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
 // Distinct weekday (Mon–Fri) login dates per employee
 function countLoggedInDays(data: AttendanceEntry[]) {
   const map = new Map<string, { name: string; days: Set<string> }>()
@@ -133,13 +79,14 @@ function countLoggedInDays(data: AttendanceEntry[]) {
     rec.days.add(entry.date)
     map.set(entry.employeeId, rec)
   }
-  return [...map.values()].map((r) => ({ name: r.name, count: r.days.size }))
+  return [...map.entries()].map(([id, r]) => ({ id, name: r.name, count: r.days.size }))
 }
 
-// Builds the same data as exportCSV but as a real .xlsx file. xlsx is lazily
-// imported so it stays out of the page bundle until the user actually exports.
+// xlsx is lazily imported so it stays out of the page bundle until the user
+// actually exports.
 async function exportXLSX(data: AttendanceEntry[], detailed: boolean) {
   const XLSX = await import('xlsx')
+  const daysById = new Map(countLoggedInDays(data).map((r) => [r.id, r.count]))
   const rows = detailed
     ? data.flatMap((entry) =>
         entry.sessions.map((s, idx) => ({
@@ -150,6 +97,7 @@ async function exportXLSX(data: AttendanceEntry[], detailed: boolean) {
           'Login Time': formatTime(s.loginAt),
           'Logout Time': formatTime(s.logoutAt),
           Duration: sessionDuration(s.loginAt, s.logoutAt),
+          'Logged-in Days (excl. Sat/Sun)': daysById.get(entry.employeeId) ?? 0,
         })),
       )
     : data.map((entry) => ({
@@ -159,19 +107,11 @@ async function exportXLSX(data: AttendanceEntry[], detailed: boolean) {
         'First Login': formatTime(entry.firstLogin),
         'Last Logout': formatTime(entry.lastLogout),
         'Total Work Time': durationStr(entry.totalDurationMs),
+        'Logged-in Days (excl. Sat/Sun)': daysById.get(entry.employeeId) ?? 0,
       }))
 
   const workbook = XLSX.utils.book_new()
   const sheet = XLSX.utils.json_to_sheet(rows)
-  XLSX.utils.sheet_add_aoa(
-    sheet,
-    [
-      [],
-      ['Logged-in Days (excl. Sat/Sun)'],
-      ...countLoggedInDays(data).map((r) => [r.name, r.count]),
-    ],
-    { origin: -1 },
-  )
   XLSX.utils.book_append_sheet(workbook, sheet, detailed ? 'Login History Detailed' : 'Login History')
   XLSX.writeFile(workbook, `login-history-${detailed ? 'detailed' : 'summary'}.xlsx`)
 }
@@ -231,7 +171,10 @@ export default function LoginHistoryPage() {
     if (!detailed) setExpandedRows(new Set())
   }, [detailed])
 
-  const loggedInDays = useMemo(() => countLoggedInDays(data), [data])
+  const loggedInDaysById = useMemo(
+    () => new Map(countLoggedInDays(data).map((r) => [r.id, r.count])),
+    [data],
+  )
 
   const filterLabel = useMemo(() => {
     if (filterType === 'date') return formatDate(filterDate)
@@ -339,16 +282,6 @@ export default function LoginHistoryPage() {
           {/* Export */}
           <Button
             size="sm"
-            variant="outline"
-            className="gap-1.5 h-9 text-sm"
-            disabled={data.length === 0}
-            onClick={() => exportCSV(data, detailed)}
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export CSV
-          </Button>
-          <Button
-            size="sm"
             className="gap-1.5 h-9 text-sm"
             disabled={exporting || data.length === 0}
             onClick={async () => {
@@ -372,22 +305,6 @@ export default function LoginHistoryPage() {
           {filterEmployee !== 'all' && employees.length > 0 && ` — ${employees.find((e) => e.id === filterEmployee)?.name}`}
         </p>
 
-        {loggedInDays.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 mt-3">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Logged-in Days (excl. Sat/Sun):
-            </span>
-            {loggedInDays.map((r) => (
-              <span
-                key={r.name}
-                className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700"
-              >
-                {r.name}
-                <span className="rounded-full bg-green-600 text-white px-1.5 py-0.5 text-[10px] leading-none">{r.count}</span>
-              </span>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Data Table */}
@@ -415,6 +332,7 @@ export default function LoginHistoryPage() {
                   <th className="px-5 py-3 text-left">First Login</th>
                   <th className="px-5 py-3 text-left">Last Logout</th>
                   <th className="px-5 py-3 text-left">Total Work Time</th>
+                  <th className="px-5 py-3 text-left">Logged-in Days</th>
                   {detailed && <th className="px-5 py-3 text-left w-10"></th>}
                 </tr>
               </thead>
@@ -463,6 +381,11 @@ export default function LoginHistoryPage() {
                               : durationStr(entry.totalDurationMs)}
                           </span>
                         </td>
+                        <td className="px-5 py-3">
+                          <span className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">
+                            {loggedInDaysById.get(entry.employeeId) ?? 0}
+                          </span>
+                        </td>
                         {detailed && (
                           <td className="px-5 py-3">
                             <button
@@ -483,7 +406,7 @@ export default function LoginHistoryPage() {
                       {/* Detailed sessions */}
                       {detailed && isExpanded && (
                         <tr className="bg-blue-50/20">
-                          <td colSpan={7} className="px-8 py-3">
+                          <td colSpan={8} className="px-8 py-3">
                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
                               Sessions ({entry.sessions.length})
                             </p>
