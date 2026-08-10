@@ -68,6 +68,14 @@ function sessionDuration(loginAt: string, logoutAt: string | null): string {
   return durationStr(ms)
 }
 
+function loggedInDaysRows(data: AttendanceEntry[]): string[][] {
+  return [
+    [],
+    ['Logged-in Days (excl. Sat/Sun)'],
+    ...countLoggedInDays(data).map((r) => [r.name, String(r.count)]),
+  ]
+}
+
 function exportCSV(data: AttendanceEntry[], detailed: boolean) {
   if (detailed) {
     const rows = [
@@ -83,6 +91,7 @@ function exportCSV(data: AttendanceEntry[], detailed: boolean) {
           sessionDuration(s.loginAt, s.logoutAt),
         ]),
       ),
+      ...loggedInDaysRows(data),
     ]
     downloadCSV(rows, 'login-history-detailed')
   } else {
@@ -96,6 +105,7 @@ function exportCSV(data: AttendanceEntry[], detailed: boolean) {
         formatTime(entry.lastLogout),
         durationStr(entry.totalDurationMs),
       ]),
+      ...loggedInDaysRows(data),
     ]
     downloadCSV(rows, 'login-history-summary')
   }
@@ -110,6 +120,20 @@ function downloadCSV(rows: string[][], filename: string) {
   a.download = `${filename}.csv`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+// Distinct weekday (Mon–Fri) login dates per employee
+function countLoggedInDays(data: AttendanceEntry[]) {
+  const map = new Map<string, { name: string; days: Set<string> }>()
+  for (const entry of data) {
+    const [y, m, d] = entry.date.split('-').map(Number)
+    const dow = new Date(y, m - 1, d).getDay()
+    if (dow === 0 || dow === 6) continue
+    const rec = map.get(entry.employeeId) ?? { name: entry.employeeName, days: new Set<string>() }
+    rec.days.add(entry.date)
+    map.set(entry.employeeId, rec)
+  }
+  return [...map.values()].map((r) => ({ name: r.name, count: r.days.size }))
 }
 
 // Builds the same data as exportCSV but as a real .xlsx file. xlsx is lazily
@@ -139,6 +163,15 @@ async function exportXLSX(data: AttendanceEntry[], detailed: boolean) {
 
   const workbook = XLSX.utils.book_new()
   const sheet = XLSX.utils.json_to_sheet(rows)
+  XLSX.utils.sheet_add_aoa(
+    sheet,
+    [
+      [],
+      ['Logged-in Days (excl. Sat/Sun)'],
+      ...countLoggedInDays(data).map((r) => [r.name, r.count]),
+    ],
+    { origin: -1 },
+  )
   XLSX.utils.book_append_sheet(workbook, sheet, detailed ? 'Login History Detailed' : 'Login History')
   XLSX.writeFile(workbook, `login-history-${detailed ? 'detailed' : 'summary'}.xlsx`)
 }
@@ -197,6 +230,8 @@ export default function LoginHistoryPage() {
   useEffect(() => {
     if (!detailed) setExpandedRows(new Set())
   }, [detailed])
+
+  const loggedInDays = useMemo(() => countLoggedInDays(data), [data])
 
   const filterLabel = useMemo(() => {
     if (filterType === 'date') return formatDate(filterDate)
@@ -336,6 +371,23 @@ export default function LoginHistoryPage() {
           Showing {data.length} record{data.length !== 1 ? 's' : ''} for {filterLabel}
           {filterEmployee !== 'all' && employees.length > 0 && ` — ${employees.find((e) => e.id === filterEmployee)?.name}`}
         </p>
+
+        {loggedInDays.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Logged-in Days (excl. Sat/Sun):
+            </span>
+            {loggedInDays.map((r) => (
+              <span
+                key={r.name}
+                className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700"
+              >
+                {r.name}
+                <span className="rounded-full bg-green-600 text-white px-1.5 py-0.5 text-[10px] leading-none">{r.count}</span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Data Table */}
