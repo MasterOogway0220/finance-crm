@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { createNotificationForMany } from '@/lib/notifications'
 import { invalidateCache } from '@/lib/cache'
+import { extractClientCodeFromNarration } from '@/lib/brokerage-code'
 import { Prisma, Role } from '@prisma/client'
 import * as XLSX from 'xlsx'
 
@@ -39,20 +40,6 @@ function detectHeaderRow(rows: string[][]): { headerRowIndex: number; headers: s
     }
   }
   return null
-}
-
-/**
- * Extracts client code from a narration string.
- * Narration format examples:
- *   "Z/M/2026039/ 18A213"  → "18A213"
- *   "Z/L/2026039/57066490 91383117" → "91383117"
- * The client code is always the last space-separated token.
- */
-function extractClientCodeFromNarration(narration: string): string {
-  const trimmed = narration.trim()
-  const lastSpaceIdx = trimmed.lastIndexOf(' ')
-  if (lastSpaceIdx === -1) return trimmed.toUpperCase()
-  return trimmed.slice(lastSpaceIdx + 1).trim().toUpperCase()
 }
 
 const VALID_BRANCHES = ['Mumbai', 'Karad', 'Pune']

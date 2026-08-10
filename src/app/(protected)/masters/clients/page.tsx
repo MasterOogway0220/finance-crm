@@ -429,8 +429,11 @@ export default function ClientMasterPage() {
                     <td className="px-4 py-3 text-gray-600 text-xs">{c.phone}</td>
                     <td className="px-4 py-3 text-gray-600 text-xs">{c.operator.name}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${c.status === 'TRADED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                        {c.status.replace('_', ' ')}
+                      {/* Show live current-month traded state (same source the employee "My Clients" page and the
+                          status filter above use), not the persistent Client.status flag which drifts when the
+                          monthly reset misses. Keeps admin and employee views in agreement. */}
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${c.tradedThisMonth ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {c.tradedThisMonth ? 'TRADED' : 'NOT TRADED'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(c.createdAt)}</td>

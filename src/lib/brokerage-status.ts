@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client'
-import { getMonthRange } from '@/lib/utils'
+// Relative, not '@/lib/utils' — this module is also loaded by the ts-node backfill
+// scripts, which don't resolve the '@' path alias.
+import { getMonthRange } from './utils'
 
 /**
  * Brokerage-driven traded-status sync.
