@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
 import { isReadOnly } from '@/lib/roles'
+import { NotesCell } from '@/components/clients/notes-cell'
 import { ClientWithOperator } from '@/types'
 
 interface Employee { id: string; name: string; department: string }
@@ -213,6 +214,19 @@ export default function ClientMasterPage() {
     setEditSubmitting(false)
   }
 
+  // Notes
+  const handleNotesSave = async (id: string, notes: string) => {
+    const res = await fetch(`/api/clients/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      setClients(prev => prev.map(c => c.id === id ? { ...c, notes } : c))
+      toast.success('Note saved')
+    } else toast.error(data.error || 'Failed to save note')
+  }
+
   // Single Delete
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -398,7 +412,7 @@ export default function ClientMasterPage() {
                   />
                 </th>
               )}
-              {['Code', 'Name', 'Phone', 'Operator', 'Status', 'Added', ...(isMFDealer || readOnly ? [] : ['Actions'])].map(h => (
+              {['Code', 'Name', 'Phone', 'Operator', 'Status', 'Added', 'Notes', ...(isMFDealer || readOnly ? [] : ['Actions'])].map(h => (
                 <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -406,10 +420,10 @@ export default function ClientMasterPage() {
           <tbody>
             {loading
               ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}><td colSpan={8} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={9} className="px-4 py-2"><Skeleton className="h-8 w-full" /></td></tr>
                 ))
               : clients.length === 0
-              ? <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">No clients found{hasActiveFilters ? ' for the selected filters' : ''}</td></tr>
+              ? <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">No clients found{hasActiveFilters ? ' for the selected filters' : ''}</td></tr>
               : clients.map(c => (
                   <tr key={c.id} className={`border-b border-gray-100 hover:bg-gray-50 ${selected.has(c.id) ? 'bg-blue-50/50' : ''}`}>
                     {!isMFDealer && !readOnly && (
@@ -437,6 +451,14 @@ export default function ClientMasterPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(c.createdAt)}</td>
+                    <td className="px-4 py-3 min-w-[150px]">
+                      <NotesCell
+                        key={c.id}
+                        value={c.notes}
+                        readOnly={isMFDealer || readOnly}
+                        onSave={(notes) => handleNotesSave(c.id, notes)}
+                      />
+                    </td>
                     {!isMFDealer && !readOnly && (
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">

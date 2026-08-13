@@ -10,6 +10,7 @@ import { Search, Download, CalendarIcon, Users, AlertTriangle } from 'lucide-rea
 import { toast } from 'sonner'
 import { formatDate, getInitials, cn } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
+import { NotesCell } from '@/components/clients/notes-cell'
 import { ClientWithOperator } from '@/types'
 
 const STATUS_OPTIONS = [
@@ -252,8 +253,6 @@ function ClientRow({ client, onNotesSave, onFollowUpChange }: {
   onNotesSave: (id: string, notes: string) => void
   onFollowUpChange: (id: string, date: Date | undefined) => void
 }) {
-  const [notes, setNotes] = useState(client.notes || '')
-  const [editingNotes, setEditingNotes] = useState(false)
   const [followUp, setFollowUp] = useState<Date | undefined>(
     client.followUpDate ? new Date(client.followUpDate) : undefined
   )
@@ -316,23 +315,7 @@ function ClientRow({ client, onNotesSave, onFollowUpChange }: {
         </Popover>
       </td>
       <td className="px-4 py-3">
-        {editingNotes ? (
-          <input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={() => { setEditingNotes(false); if (notes !== client.notes) onNotesSave(client.id, notes) }}
-            autoFocus
-            className="w-full text-xs border rounded px-1.5 py-1 outline-none focus:border-blue-400"
-          />
-        ) : (
-          <button
-            onClick={() => setEditingNotes(true)}
-            className="text-xs text-gray-500 hover:text-blue-600 text-left max-w-[130px] truncate block"
-            title={notes}
-          >
-            {notes || <span className="text-gray-300 italic">Click to add</span>}
-          </button>
-        )}
+        <NotesCell value={client.notes} onSave={(n) => onNotesSave(client.id, n)} />
       </td>
     </tr>
   )
