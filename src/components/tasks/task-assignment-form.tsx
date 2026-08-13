@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
+import { Switch } from '@/components/ui/switch'
 import { CalendarIcon, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -58,6 +59,10 @@ export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
   const [loadingEmployees, setLoadingEmployees] = useState(false)
   const [deadline, setDeadline] = useState<Date | undefined>()
   const [deadlineError, setDeadlineError] = useState('')
+  const [monthly, setMonthly] = useState(false)
+  const [assignDay, setAssignDay] = useState('')
+  const [dueDay, setDueDay] = useState('')
+  const [monthlyError, setMonthlyError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<FormData>({
@@ -91,21 +96,35 @@ export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
   }, [selectedDepartment, setValue])
 
   const onSubmit = async (data: FormData) => {
-    if (!deadline) { setDeadlineError('Deadline is required'); return }
-    if (deadline < new Date()) { setDeadlineError('Deadline cannot be in the past'); return }
-    setDeadlineError('')
+    let payload: Record<string, unknown>
+    if (monthly) {
+      const a = parseInt(assignDay, 10)
+      const d = parseInt(dueDay, 10)
+      if (!a || a < 1 || a > 31 || !d || d < 1 || d > 31) { setMonthlyError('Enter days between 1 and 31'); return }
+      if (d < a) { setMonthlyError('Due date must be on or after the assignment date'); return }
+      setMonthlyError('')
+      payload = { ...data, monthly: true, assignDay: a, dueDay: d }
+    } else {
+      if (!deadline) { setDeadlineError('Deadline is required'); return }
+      if (deadline < new Date()) { setDeadlineError('Deadline cannot be in the past'); return }
+      setDeadlineError('')
+      payload = { ...data, deadline: deadline.toISOString() }
+    }
     setIsSubmitting(true)
     try {
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, deadline: deadline.toISOString() }),
+        body: JSON.stringify(payload),
       })
       const result = await res.json()
       if (result.success) {
-        toast.success('Task assigned successfully')
+        toast.success(monthly ? 'Monthly task assignment activated' : 'Task assigned successfully')
         reset()
         setDeadline(undefined)
+        setMonthly(false)
+        setAssignDay('')
+        setDueDay('')
         onSuccess?.()
       } else {
         toast.error(result.error || 'Failed to assign task')
@@ -187,8 +206,52 @@ export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
           {errors.description && <p className="text-xs text-red-500">{errors.description.message}</p>}
         </div>
 
-        {/* Row 4: Deadline + Priority */}
+        {/* Monthly task assignment toggle */}
+        <div className="flex items-center gap-3">
+          <Switch
+            id="monthly-assignment"
+            checked={monthly}
+            onCheckedChange={(v) => { setMonthly(v); setDeadlineError(''); setMonthlyError('') }}
+          />
+          <Label htmlFor="monthly-assignment" className="text-xs font-semibold uppercase tracking-wide text-gray-500 cursor-pointer">
+            Monthly Task Assignment
+          </Label>
+        </div>
+
+        {/* Row 4: Deadline (or monthly days) + Priority */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {monthly ? (
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Assignment Date <span className="text-red-500 normal-case">*</span></Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={assignDay}
+                    onChange={(e) => setAssignDay(e.target.value)}
+                    placeholder="e.g. 1"
+                    className={cn('h-10', monthlyError && 'border-red-400')}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Due Date <span className="text-red-500 normal-case">*</span></Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={dueDay}
+                    onChange={(e) => setDueDay(e.target.value)}
+                    placeholder="e.g. 4"
+                    className={cn('h-10', monthlyError && 'border-red-400')}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">Day of the month (1–31). Dates falling on a weekend auto-shift to Monday.</p>
+              {monthlyError && <p className="text-xs text-red-500">{monthlyError}</p>}
+            </div>
+          ) : (
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Deadline <span className="text-red-500 normal-case">*</span></Label>
             <Popover>
@@ -229,6 +292,7 @@ export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
             </Popover>
             {deadlineError && <p className="text-xs text-red-500">{deadlineError}</p>}
           </div>
+          )}
 
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Priority</Label>

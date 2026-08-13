@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { createNotificationForMany, tasksLinkForDepartment } from '@/lib/notifications'
 import { Department } from '@prisma/client'
 import { runMonthlyReset } from '@/lib/monthly-reset'
+import { runMonthlyTaskAssignment } from '@/lib/recurring-tasks'
 import { runYearReset } from '@/lib/year-leave-reset'
 
 // POST /api/heartbeat — update lastSeenAt + expire overdue tasks
@@ -79,6 +80,10 @@ export async function POST() {
     // The idempotency guard inside runMonthlyReset skips if already archived.
     await runMonthlyReset()
 
+    // Create this month's tasks for recurring assignments whose
+    // (weekend-adjusted) assignment day has arrived. Idempotent per month.
+    await runMonthlyTaskAssignment()
+
     // On Jan 1, allocate 30 leaves for the new year if not already done
     if (now.getMonth() === 0 && now.getDate() === 1) {
       const year = now.getFullYear()
@@ -92,7 +97,8 @@ export async function POST() {
     }
 
     return NextResponse.json({ success: true })
-  } catch {
+  } catch (error) {
+    console.error('[POST /api/heartbeat]', error)
     return NextResponse.json({ success: false }, { status: 500 })
   }
 }

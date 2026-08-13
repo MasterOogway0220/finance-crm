@@ -87,6 +87,8 @@ model Employee {
   assignedClients    Client[]          @relation("OperatorClients")
   tasksReceived      Task[]            @relation("TaskAssignee")
   tasksAssigned      Task[]            @relation("TaskAssigner")
+  recurringTasksReceived RecurringTask[] @relation("RecurringTaskAssignee")
+  recurringTasksAssigned RecurringTask[] @relation("RecurringTaskAssigner")
   taskComments       TaskComment[]
   notifications      Notification[]
   activityLogs       ActivityLog[]
@@ -192,6 +194,24 @@ model Task {
   @@index([status, deadline])
   @@index([assignedToId, status])
   @@index([assignedById, status])
+}
+
+model RecurringTask {
+  id            String       @id @default(cuid())
+  title         String
+  description   String       @db.Text
+  assignedToId  String
+  assignedTo    Employee     @relation("RecurringTaskAssignee", fields: [assignedToId], references: [id])
+  assignedById  String
+  assignedBy    Employee     @relation("RecurringTaskAssigner", fields: [assignedById], references: [id])
+  priority      TaskPriority @default(MEDIUM)
+  assignDay     Int
+  dueDay        Int
+  lastRunPeriod String?      // "YYYY-MM" of the last month a task was created — idempotency guard
+  createdAt     DateTime     @default(now())
+
+  @@index([assignedToId])
+  @@index([assignedById])
 }
 
 model TaskCompletionProof {

@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { createNotification, tasksLinkForDepartment } from '@/lib/notifications'
-import { taskSchema } from '@/lib/validations'
+import { taskSchema, recurringTaskSchema } from '@/lib/validations'
+import { computeMonthlyDates, monthPeriod } from '@/lib/recurring-tasks'
 import { getMonthRange } from '@/lib/utils'
 import { Department, Role, TaskPriority, TaskStatus } from '@prisma/client'
 
@@ -140,6 +141,62 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+
+    // Monthly recurring assignment — stores a template; the actual task is
+    // created by runMonthlyTaskAssignment (heartbeat) on the assignment day.
+    if (body?.monthly === true) {
+      const parsedRecurring = recurringTaskSchema.safeParse(body)
+      if (!parsedRecurring.success) {
+        return NextResponse.json(
+          { success: false, error: parsedRecurring.error.issues[0]?.message ?? 'Validation failed' },
+          { status: 400 }
+        )
+      }
+      const rec = parsedRecurring.data
+
+      const recAssignee = await prisma.employee.findUnique({
+        where: { id: rec.assignedToId },
+        select: { id: true, name: true, isActive: true, department: true },
+      })
+      if (!recAssignee || !recAssignee.isActive) {
+        return NextResponse.json({ success: false, error: 'Assignee not found or inactive' }, { status: 404 })
+      }
+      if ((userRole === 'EQUITY_DEALER' || userRole === 'MF_DEALER') && recAssignee.department !== 'BACK_OFFICE') {
+        return NextResponse.json(
+          { success: false, error: 'You can only assign tasks to Back Office employees' },
+          { status: 403 }
+        )
+      }
+
+      const now = new Date()
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const { assignDate } = computeMonthlyDates(rec.assignDay, rec.dueDay, now)
+
+      const recurring = await prisma.recurringTask.create({
+        data: {
+          title: rec.title,
+          description: rec.description,
+          assignedToId: rec.assignedToId,
+          assignedById: session.user.id,
+          priority: rec.priority as TaskPriority,
+          assignDay: rec.assignDay,
+          dueDay: rec.dueDay,
+          // If this month's (weekend-adjusted) assignment day already passed,
+          // start from next month; otherwise the heartbeat assigns this month.
+          lastRunPeriod: todayStart > assignDate ? monthPeriod(now) : null,
+        },
+      })
+
+      await logActivity({
+        userId: session.user.id,
+        action: 'CREATE',
+        module: 'TASKS',
+        details: `Created monthly task assignment: "${rec.title}" for ${recAssignee.name} (assign day ${rec.assignDay}, due day ${rec.dueDay})`,
+      })
+
+      return NextResponse.json({ success: true, data: recurring }, { status: 201 })
+    }
+
     const parsed = taskSchema.safeParse(body)
 
     if (!parsed.success) {
