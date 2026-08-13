@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { createNotification, tasksLinkForDepartment } from '@/lib/notifications'
 import { taskSchema, recurringTaskSchema } from '@/lib/validations'
-import { computeMonthlyDates, monthPeriod } from '@/lib/recurring-tasks'
+import { nextRunGuard } from '@/lib/recurring-tasks'
 import { getMonthRange } from '@/lib/utils'
 import { Department, Role, TaskPriority, TaskStatus } from '@prisma/client'
 
@@ -168,10 +168,6 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const now = new Date()
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const { assignDate } = computeMonthlyDates(rec.assignDay, rec.dueDay, now)
-
       const recurring = await prisma.recurringTask.create({
         data: {
           title: rec.title,
@@ -183,7 +179,7 @@ export async function POST(request: NextRequest) {
           dueDay: rec.dueDay,
           // If this month's (weekend-adjusted) assignment day already passed,
           // start from next month; otherwise the heartbeat assigns this month.
-          lastRunPeriod: todayStart > assignDate ? monthPeriod(now) : null,
+          lastRunPeriod: nextRunGuard(rec.assignDay, rec.dueDay, null, new Date()),
         },
       })
 

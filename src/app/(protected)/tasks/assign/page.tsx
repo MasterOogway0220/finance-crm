@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { auth, getActiveRole } from '@/lib/auth'
-import { TaskAssignmentForm } from '@/components/tasks/task-assignment-form'
+import { TaskAssignSection } from '@/components/tasks/recurring-task-list'
 
 export default async function AssignTaskPage() {
   const session = await auth()
@@ -16,7 +16,7 @@ export default async function AssignTaskPage() {
         <h1 className="page-title">Assign Task</h1>
         <p className="text-sm text-gray-500 mt-0.5">Create and assign a task to a Back Office team member</p>
       </div>
-      <TaskAssignmentForm />
+      <TaskAssignSection />
     </div>
   )
 }

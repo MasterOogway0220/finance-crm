@@ -21,16 +21,24 @@ export const taskSchema = z.object({
   priority: z.enum(['HIGH', 'MEDIUM', 'LOW']).default('MEDIUM'),
 })
 
-export const recurringTaskSchema = taskSchema
+const recurringTaskBase = taskSchema
   .omit({ deadline: true })
   .extend({
     assignDay: z.number().int().min(1, 'Assignment date must be between 1 and 31').max(31, 'Assignment date must be between 1 and 31'),
     dueDay: z.number().int().min(1, 'Due date must be between 1 and 31').max(31, 'Due date must be between 1 and 31'),
   })
-  .refine((d) => d.dueDay >= d.assignDay, {
-    message: 'Due date must be on or after the assignment date',
-    path: ['dueDay'],
-  })
+
+const dueAfterAssign = {
+  message: 'Due date must be on or after the assignment date',
+  path: ['dueDay'],
+}
+
+export const recurringTaskSchema = recurringTaskBase.refine((d) => d.dueDay >= d.assignDay, dueAfterAssign)
+
+// Editing a template: everything but the assignee (stop + recreate to reassign)
+export const recurringTaskUpdateSchema = recurringTaskBase
+  .omit({ assignedToId: true })
+  .refine((d) => d.dueDay >= d.assignDay, dueAfterAssign)
 
 export const clientSchema = z.object({
   clientCode: z.string().min(1, 'Client code is required'),

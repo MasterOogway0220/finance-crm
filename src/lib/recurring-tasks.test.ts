@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeMonthlyDates } from './recurring-tasks'
+import { computeMonthlyDates, nextRunGuard } from './recurring-tasks'
 
 describe('computeMonthlyDates', () => {
   it('keeps weekday dates unchanged', () => {
@@ -37,5 +37,22 @@ describe('computeMonthlyDates', () => {
     const { assignDate, dueDate } = computeMonthlyDates(30, 31, new Date(2026, 4, 10))
     expect(assignDate).toEqual(new Date(2026, 4, 29))
     expect(dueDate).toEqual(new Date(2026, 5, 1))
+  })
+})
+
+describe('nextRunGuard', () => {
+  const now = new Date(2026, 7, 13) // Thu 13 Aug 2026
+
+  it('keeps the current value when the assignment day is still ahead', () => {
+    expect(nextRunGuard(20, 24, null, now)).toBeNull() // fires this month
+    expect(nextRunGuard(20, 24, '2026-08', now)).toBe('2026-08') // already ran — no double fire
+  })
+
+  it('stamps the current period when the assignment day already passed', () => {
+    expect(nextRunGuard(1, 4, null, now)).toBe('2026-08') // starts next month
+  })
+
+  it('treats today as still assignable', () => {
+    expect(nextRunGuard(13, 14, null, now)).toBeNull()
   })
 })

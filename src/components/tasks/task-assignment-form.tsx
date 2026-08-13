@@ -41,7 +41,7 @@ const DEPARTMENTS = [
   { value: 'ADMIN', label: 'Admin' },
 ]
 
-const PRIORITY_OPTIONS = [
+export const PRIORITY_OPTIONS = [
   { value: 'HIGH', label: '🔴  High' },
   { value: 'MEDIUM', label: '🟡  Medium' },
   { value: 'LOW', label: '🟢  Low' },

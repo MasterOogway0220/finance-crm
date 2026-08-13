@@ -37,6 +37,21 @@ export function computeMonthlyDates(assignDay: number, dueDay: number, ref: Date
   return { assignDate, dueDate }
 }
 
+// lastRunPeriod value that avoids a stale or double fire after create/edit:
+// if this month's (weekend-adjusted) assignment day already passed, stamp the
+// current period so the schedule starts next month; otherwise keep the current
+// value (null fires this month; an already-run month is not fired twice).
+export function nextRunGuard(
+  assignDay: number,
+  dueDay: number,
+  current: string | null,
+  now: Date,
+): string | null {
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const { assignDate } = computeMonthlyDates(assignDay, dueDay, now)
+  return todayStart > assignDate ? monthPeriod(now) : current
+}
+
 // Runs from the heartbeat (like runMonthlyReset): creates this month's task for
 // each recurring assignment once its (weekend-adjusted) assignment day arrives.
 export async function runMonthlyTaskAssignment() {
