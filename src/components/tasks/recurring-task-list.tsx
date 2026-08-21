@@ -15,6 +15,7 @@ import {
 import { Loader2, Pencil, Repeat, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { TaskAssignmentForm, PRIORITY_OPTIONS } from './task-assignment-form'
+import { MonthDayPicker, ordinal } from './month-day-picker'
 
 interface RecurringTask {
   id: string
@@ -25,12 +26,6 @@ interface RecurringTask {
   dueDay: number
   assignedTo: { id: string; name: string; department: string }
   assignedBy: { id: string; name: string }
-}
-
-const ordinal = (n: number) => {
-  const s = ['th', 'st', 'nd', 'rd']
-  const v = n % 100
-  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`
 }
 
 function RecurringTaskList({ refreshKey }: { refreshKey: number }) {
@@ -146,28 +141,39 @@ function RecurringTaskList({ refreshKey }: { refreshKey: number }) {
               <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Description</Label>
               <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Assignment Date</Label>
-                <Input type="number" min={1} max={31} value={form.assignDay} onChange={(e) => setForm({ ...form, assignDay: e.target.value })} className="h-10" />
+                <MonthDayPicker
+                  value={form.assignDay}
+                  onChange={(d) => setForm({
+                    ...form,
+                    assignDay: d,
+                    dueDay: form.dueDay && parseInt(form.dueDay, 10) < parseInt(d, 10) ? '' : form.dueDay,
+                  })}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Due Date</Label>
-                <Input type="number" min={1} max={31} value={form.dueDay} onChange={(e) => setForm({ ...form, dueDay: e.target.value })} className="h-10" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Priority</Label>
-                <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
-                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PRIORITY_OPTIONS.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MonthDayPicker
+                  value={form.dueDay}
+                  onChange={(d) => setForm({ ...form, dueDay: d })}
+                  min={parseInt(form.assignDay, 10) || undefined}
+                />
               </div>
             </div>
-            <p className="text-xs text-gray-500">Day of the month (1–31). Dates falling on a weekend auto-shift to Monday.</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Priority</Label>
+              <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PRIORITY_OPTIONS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-gray-500">Repeats every month. Dates falling on a weekend auto-shift to Monday.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>

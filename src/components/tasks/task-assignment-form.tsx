@@ -17,6 +17,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useActiveRoleStore } from '@/stores/active-role-store'
+import { MonthDayPicker } from './month-day-picker'
 
 const schema = z.object({
   department: z.string().min(1, 'Select department'),
@@ -225,30 +226,26 @@ export function TaskAssignmentForm({ onSuccess }: { onSuccess?: () => void }) {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Assignment Date <span className="text-red-500 normal-case">*</span></Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={31}
+                  <MonthDayPicker
                     value={assignDay}
-                    onChange={(e) => setAssignDay(e.target.value)}
-                    placeholder="e.g. 1"
-                    className={cn('h-10', monthlyError && 'border-red-400')}
+                    onChange={(d) => {
+                      setAssignDay(d)
+                      if (dueDay && parseInt(dueDay, 10) < parseInt(d, 10)) setDueDay('')
+                    }}
+                    error={!!monthlyError}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Due Date <span className="text-red-500 normal-case">*</span></Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={31}
+                  <MonthDayPicker
                     value={dueDay}
-                    onChange={(e) => setDueDay(e.target.value)}
-                    placeholder="e.g. 4"
-                    className={cn('h-10', monthlyError && 'border-red-400')}
+                    onChange={setDueDay}
+                    min={parseInt(assignDay, 10) || undefined}
+                    error={!!monthlyError}
                   />
                 </div>
               </div>
-              <p className="text-xs text-gray-500">Day of the month (1–31). Dates falling on a weekend auto-shift to Monday.</p>
+              <p className="text-xs text-gray-500">Repeats every month. Dates falling on a weekend auto-shift to Monday.</p>
               {monthlyError && <p className="text-xs text-red-500">{monthlyError}</p>}
             </div>
           ) : (
