@@ -4,8 +4,10 @@ import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { clientSchema } from '@/lib/validations'
 import { validateClientCode } from '@/lib/client-code-validator'
+import { canViewAdmin } from '@/lib/roles'
 import { getMonthRange } from '@/lib/utils'
 import { ClientRemark, ClientStatus, Department, MFClientRemark, MFClientStatus, Role, Prisma } from '@prisma/client'
+import * as XLSX from 'xlsx'
 
 export async function GET(request: NextRequest) {
   try {
@@ -141,6 +143,10 @@ export async function GET(request: NextRequest) {
 
     // idsOnly mode — return just IDs for select-all functionality
     const idsOnly = searchParams.get('idsOnly') === 'true'
+    // xlsx export — same filters, no pagination
+    // ponytail: unbounded — pulls the full filtered table into memory and feeds one
+    // IN() for the traded lookup below. Fine at ~2k clients; revisit past ~20k.
+    const asXlsx = searchParams.get('format') === 'xlsx'
     if (idsOnly) {
       const ids = await prisma.client.findMany({
         where,
@@ -159,8 +165,7 @@ export async function GET(request: NextRequest) {
           },
         },
         orderBy: { updatedAt: 'desc' },
-        skip,
-        take: limit,
+        ...(asXlsx ? {} : { skip, take: limit }),
       }),
       prisma.client.count({ where }),
     ])
@@ -187,6 +192,44 @@ export async function GET(request: NextRequest) {
       ...c,
       tradedThisMonth: c.department === 'EQUITY' ? tradedSet.has(c.id) : undefined,
     }))
+
+    if (asXlsx) {
+      // The client masters are admin/CA-only pages (MARKETING gets the equity one).
+      // Without this the export would hand every authenticated role the full
+      // phone/notes list in one request — the paged JSON path above is capped at 100.
+      if (!canViewAdmin(userRole) && userRole !== 'MARKETING') {
+        return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+      }
+      const isMF = department === 'MUTUAL_FUND'
+      const rows = enrichedClients.map((c) => ({
+        Code: c.clientCode,
+        Name: [c.firstName, c.middleName, c.lastName].filter(Boolean).join(' '),
+        Phone: c.phone,
+        Operator: c.operator.name,
+        ...(isMF
+          ? { 'MF Status': c.mfStatus, 'MF Remark': c.mfRemark }
+          : { Status: c.tradedThisMonth ? 'TRADED' : 'NOT TRADED', Notes: c.notes ?? '' }),
+        // IST, not UTC — the table renders createdAt in the browser's zone, and a
+        // client added before 05:30 IST would otherwise export as the previous day.
+        Added: c.createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }),
+      }))
+      // json_to_sheet needs at least one row to emit headers
+      const header = isMF
+        ? ['Code', 'Name', 'Phone', 'Operator', 'MF Status', 'MF Remark', 'Added']
+        : ['Code', 'Name', 'Phone', 'Operator', 'Status', 'Notes', 'Added']
+      const sheet = rows.length > 0 ? XLSX.utils.json_to_sheet(rows, { header }) : XLSX.utils.aoa_to_sheet([header])
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, sheet, isMF ? 'MF Clients' : 'Equity Clients')
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+      const filename = `${isMF ? 'mf' : 'equity'}-clients-${new Date().toISOString().split('T')[0]}.xlsx`
+      return new NextResponse(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+        },
+      })
+    }
 
     return NextResponse.json({
       success: true,

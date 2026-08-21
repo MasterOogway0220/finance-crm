@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Search, X, Pencil, Trash2, Upload, FileSpreadsheet, ArrowRightLeft } from 'lucide-react'
+import { Search, X, Pencil, Trash2, Upload, Download, FileSpreadsheet, ArrowRightLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -123,6 +123,9 @@ export default function MFClientMasterPage() {
 
   useEffect(() => { fetchClients() }, [fetchClients])
   useEffect(() => { setPage(1) }, [search, statusFilter, operatorFilter, ageFilter])
+
+  // Export honours the current filters — same params the table is showing
+  const handleExport = () => window.open(`/api/clients?${buildParams()}&format=xlsx`, '_blank')
 
   const hasActiveFilters = statusFilter !== 'all' || operatorFilter !== 'all' || searchInput !== '' || ageFilter !== 'all'
   const clearFilters = () => { setSearchInput(''); setStatusFilter('all'); setOperatorFilter('all'); setAgeFilter('all'); setPage(1) }
@@ -252,11 +255,12 @@ export default function MFClientMasterPage() {
           <h1 className="page-title">Mutual Fund Client Master</h1>
           <p className="text-sm text-gray-500">{total > 0 ? `${total} MF clients` : 'Manage mutual fund department clients'}</p>
         </div>
-        {!isMFDealer && !readOnly && (
-          <div className="flex gap-2">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExport} className="gap-2"><Download className="h-4 w-4" />Export Excel</Button>
+          {!isMFDealer && !readOnly && (
             <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2"><Upload className="h-4 w-4" />Bulk Import</Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Selection bar */}

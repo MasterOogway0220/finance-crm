@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { UserPlus, Search, ArrowRightLeft, X, Pencil, Trash2, Upload, FileSpreadsheet } from 'lucide-react'
+import { UserPlus, Search, ArrowRightLeft, X, Pencil, Trash2, Upload, Download, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, getInitials } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -145,6 +145,9 @@ export default function ClientMasterPage() {
 
   // Reset page when filters change, but do NOT clear selection
   useEffect(() => { setPage(1) }, [search, statusFilter, operatorFilter, ageFilter])
+
+  // Export honours the current filters — same params the table is showing
+  const handleExport = () => window.open(`/api/clients?${buildParams()}&format=xlsx`, '_blank')
 
   const hasActiveFilters = statusFilter !== 'all' || operatorFilter !== 'all' || searchInput !== '' || ageFilter !== 'all'
   const clearFilters = () => { setSearchInput(''); setStatusFilter('all'); setOperatorFilter('all'); setAgeFilter('all'); setPage(1) }
@@ -330,16 +333,21 @@ export default function ClientMasterPage() {
           <h1 className="page-title">Equity Client Master</h1>
           <p className="text-sm text-gray-500">{total > 0 ? `${total} equity clients` : 'Manage equity department clients'}</p>
         </div>
-        {!isMFDealer && !readOnly && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2">
-              <Upload className="h-4 w-4" />Bulk Import
-            </Button>
-            <Button variant="outline" onClick={() => router.push('/masters/clients/new')} className="gap-2">
-              <UserPlus className="h-4 w-4" />Add Client
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExport} className="gap-2">
+            <Download className="h-4 w-4" />Export Excel
+          </Button>
+          {!isMFDealer && !readOnly && (
+            <>
+              <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-2">
+                <Upload className="h-4 w-4" />Bulk Import
+              </Button>
+              <Button variant="outline" onClick={() => router.push('/masters/clients/new')} className="gap-2">
+                <UserPlus className="h-4 w-4" />Add Client
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Selection bar */}
