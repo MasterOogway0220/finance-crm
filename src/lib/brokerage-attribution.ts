@@ -6,7 +6,10 @@ import { isCurrentMonth } from '@/lib/utils'
  * given operator scope, applying hybrid attribution:
  *
  *   - For the current calendar month: filter by Client.operatorId (current owner).
- *     Mid-month transfers move credit to the new owner.
+ *     Mid-month transfers move credit to the new owner. Rows whose client was closed
+ *     (Client row deleted → clientId null) have no current owner, so they fall back to
+ *     the snapshot operatorId — otherwise their brokerage vanishes from every operator
+ *     view while still counting in the month total.
  *   - For any past month: filter by BrokerageDetail.operatorId (snapshot at upload).
  *     Closed months are immutable — transfers don't shift past attribution.
  *
@@ -30,10 +33,10 @@ export function brokerageOperatorFilter(
   const isCurrent = isCurrentMonth(month, year)
   if (Array.isArray(scope)) {
     return isCurrent
-      ? { client: { operatorId: { in: scope } } }
+      ? { OR: [{ client: { operatorId: { in: scope } } }, { clientId: null, operatorId: { in: scope } }] }
       : { operatorId: { in: scope } }
   }
   return isCurrent
-    ? { client: { operatorId: scope } }
+    ? { OR: [{ client: { operatorId: scope } }, { clientId: null, operatorId: scope }] }
     : { operatorId: scope }
 }

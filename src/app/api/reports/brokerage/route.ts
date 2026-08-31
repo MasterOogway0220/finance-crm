@@ -2,6 +2,7 @@ import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { canViewAdmin } from '@/lib/roles'
+import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
 
 const RANGE_MONTHS: Record<string, number[]> = {
   Q1: [0, 1, 2],
@@ -99,7 +100,6 @@ export async function GET(request: NextRequest) {
       pastInRange
         ? prisma.brokerageDetail.findMany({
             where: {
-              clientId: { not: null },
               operatorId: { in: operatorIds },
               brokerage: { uploadDate: { gte: yearStart, lte: pastEndDate } },
             },
@@ -109,8 +109,7 @@ export async function GET(request: NextRequest) {
       curMonthInRange
         ? prisma.brokerageDetail.findMany({
             where: {
-              clientId: { not: null },
-              client: { operatorId: { in: operatorIds } },
+              ...brokerageOperatorFilter(operatorIds, curMonthIdx + 1, year),
               brokerage: {
                 uploadDate: {
                   gte: new Date(year, curMonthIdx, 1),
@@ -118,9 +117,9 @@ export async function GET(request: NextRequest) {
                 },
               },
             },
-            select: { amount: true, client: { select: { operatorId: true } }, brokerage: { select: { uploadDate: true } } },
+            select: { amount: true, operatorId: true, client: { select: { operatorId: true } }, brokerage: { select: { uploadDate: true } } },
           })
-        : Promise.resolve([] as Array<{ amount: number; client: { operatorId: string }; brokerage: { uploadDate: Date } }>),
+        : Promise.resolve([] as Array<{ amount: number; operatorId: string; client: { operatorId: string } | null; brokerage: { uploadDate: Date } }>),
     ])
 
     // Fill matrix from both buckets.
@@ -135,7 +134,7 @@ export async function GET(request: NextRequest) {
       }
     }
     for (const d of curDetails) {
-      const opName = opIdToName.get(d.client!.operatorId)
+      const opName = opIdToName.get(d.client?.operatorId ?? d.operatorId)
       if (!opName) continue
       const monthIdx = new Date(d.brokerage.uploadDate).getMonth()
       if (!activeMonthSet.has(monthIdx)) continue

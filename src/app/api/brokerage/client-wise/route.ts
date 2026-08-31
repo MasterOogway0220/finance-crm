@@ -51,7 +51,6 @@ export async function GET(request: NextRequest) {
     // attribution decision applies uniformly to the whole result set.
     const dateFilter = { isActive: true, uploadDate: { gte: dateStart, lte: dateEnd } }
     const baseWhere = {
-      clientId: { not: null },
       ...segmentFilter,
       ...brokerageOperatorFilter(operatorId, month, year),
       brokerage: dateFilter,

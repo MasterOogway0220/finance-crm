@@ -43,7 +43,6 @@ export async function GET(request: NextRequest) {
     // Hybrid attribution — see src/lib/brokerage-attribution.ts.
     const details = await prisma.brokerageDetail.findMany({
       where: {
-        clientId: { not: null },
         ...segmentFilter,
         ...brokerageOperatorFilter(operatorId, month, year),
         brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },

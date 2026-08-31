@@ -91,7 +91,6 @@ export async function GET(request: NextRequest) {
     // Hybrid attribution for the selected single month — see src/lib/brokerage-attribution.ts.
     const monthDetails = await prisma.brokerageDetail.findMany({
       where: {
-        clientId: { not: null },
         ...brokerageOperatorFilter(operatorIds, month, year),
         brokerage: { isActive: true, uploadDate: { gte: start, lte: end } },
       },
@@ -104,8 +103,9 @@ export async function GET(request: NextRequest) {
       },
     })
     // Pick operator from the right field depending on attribution mode for the selected month.
+    // Closed clients leave clientId null → fall back to the upload-time snapshot.
     const ownerOf = (d: typeof monthDetails[number]): string =>
-      currentMonth ? d.client!.operatorId : d.operatorId
+      currentMonth ? (d.client?.operatorId ?? d.operatorId) : d.operatorId
 
     const tradedSets = new Map<string, Set<string>>()
     const allTradedIds = new Set<string>()
@@ -144,7 +144,6 @@ export async function GET(request: NextRequest) {
       pastYearEnd >= yearStart
         ? prisma.brokerageDetail.findMany({
             where: {
-              clientId: { not: null },
               operatorId: { in: operatorIds },
               brokerage: { isActive: true, uploadDate: { gte: yearStart, lte: pastYearEnd } },
             },
@@ -154,13 +153,12 @@ export async function GET(request: NextRequest) {
       isThisYear
         ? prisma.brokerageDetail.findMany({
             where: {
-              clientId: { not: null },
-              client: { operatorId: { in: operatorIds } },
+              ...brokerageOperatorFilter(operatorIds, nowMonth, year),
               brokerage: { isActive: true, uploadDate: { gte: new Date(year, nowMonth - 1, 1), lte: yearEnd } },
             },
-            select: { amount: true, client: { select: { operatorId: true } }, brokerage: { select: { uploadDate: true } } },
+            select: { amount: true, operatorId: true, client: { select: { operatorId: true } }, brokerage: { select: { uploadDate: true } } },
           })
-        : Promise.resolve([] as Array<{ amount: number; client: { operatorId: string }; brokerage: { uploadDate: Date } }>),
+        : Promise.resolve([] as Array<{ amount: number; operatorId: string; client: { operatorId: string } | null; brokerage: { uploadDate: Date } }>),
     ])
 
     const historyMap = new Map<string, Record<string, number>>()
@@ -172,7 +170,7 @@ export async function GET(request: NextRequest) {
       historyMap.set(d.operatorId, opHist)
     }
     for (const d of curMonthYearDetails) {
-      const ownerId = d.client!.operatorId
+      const ownerId = d.client?.operatorId ?? d.operatorId
       const label = labelOf(new Date(d.brokerage.uploadDate))
       const opHist = historyMap.get(ownerId) ?? {}
       opHist[label] = (opHist[label] ?? 0) + d.amount

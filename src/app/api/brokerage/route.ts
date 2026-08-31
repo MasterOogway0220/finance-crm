@@ -2,6 +2,7 @@ import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isCurrentMonth } from '@/lib/utils'
+import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
 
 export async function GET(request: NextRequest) {
   try {
@@ -71,42 +72,25 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       // Current-month details (only fetched if the requested month is the current calendar month;
       // otherwise this returns []) — used for both this-month KPIs and the current-month bar in history chart.
-      isCurrentRequested
-        ? prisma.brokerageDetail.findMany({
-            where: {
-              clientId: { not: null },
-              ...segmentFilter,
-              client: { operatorId: { in: operatorIds } },
-              brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
-            },
-            select: {
-              amount: true,
-              clientId: true,
-              client: { select: { operatorId: true } },
-              brokerage: { select: { uploadDate: true } },
-            },
-          })
-        : prisma.brokerageDetail.findMany({
-            // Requested month is a closed month → snapshot attribution.
-            where: {
-              clientId: { not: null },
-              ...segmentFilter,
-              operatorId: { in: operatorIds },
-              brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
-            },
-            select: {
-              amount: true,
-              clientId: true,
-              operatorId: true,
-              brokerage: { select: { uploadDate: true } },
-            },
-          }),
+      prisma.brokerageDetail.findMany({
+        where: {
+          ...segmentFilter,
+          ...brokerageOperatorFilter(operatorIds, month, year),
+          brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
+        },
+        select: {
+          amount: true,
+          clientId: true,
+          operatorId: true,
+          client: { select: { operatorId: true } },
+          brokerage: { select: { uploadDate: true } },
+        },
+      }),
 
       // Past-month history within the 7-month window, snapshot attribution.
       pastHistoryEnd >= historyStart
         ? prisma.brokerageDetail.findMany({
             where: {
-              clientId: { not: null },
               ...segmentFilter,
               operatorId: { in: operatorIds },
               brokerage: { isActive: true, uploadDate: { gte: historyStart, lte: pastHistoryEnd } },
@@ -133,9 +117,8 @@ export async function GET(request: NextRequest) {
     const allDetails: DetailEntry[] = []
     for (const d of curMonthDetails) {
       const day = new Date(d.brokerage.uploadDate).getDate()
-      const ownerId = isCurrentRequested
-        ? (d as { client: { operatorId: string } }).client.operatorId
-        : (d as { operatorId: string }).operatorId
+      // Closed clients leave clientId null → fall back to the upload-time snapshot.
+      const ownerId = isCurrentRequested ? (d.client?.operatorId ?? d.operatorId) : d.operatorId
       allDetails.push({ operatorId: ownerId, clientId: d.clientId, amount: d.amount, day })
     }
     const totalMonthlyBrokerage = allDetails.reduce((sum, d) => sum + d.amount, 0)
