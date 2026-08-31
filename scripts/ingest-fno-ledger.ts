@@ -13,6 +13,7 @@
 import { PrismaClient } from '@prisma/client'
 import * as XLSX from 'xlsx'
 import { extractClientCodeFromNarration } from '../src/lib/brokerage-code'
+import { mergeBrokerageDetails } from '../src/lib/brokerage-merge'
 
 const prisma = new PrismaClient()
 
@@ -101,38 +102,28 @@ async function main() {
     const active = existing.find((u) => u.isActive)
     const nextVersion = existing.length ? existing[0].version + 1 : 1
 
-    const merged = new Map<string, { clientCode: string; clientId: string | null; operatorId: string; amount: number }>()
-    if (active) {
-      const prev = await prisma.brokerageDetail.findMany({
-        where: { brokerageId: active.id },
-        select: { clientCode: true, clientId: true, operatorId: true, amount: true },
-      })
-      for (const d of prev) merged.set(d.clientCode, { ...d })
-    }
+    const prevRows = active
+      ? await prisma.brokerageDetail.findMany({
+          where: { brokerageId: active.id },
+          select: { clientCode: true, clientId: true, operatorId: true, amount: true },
+        })
+      : []
 
-    let addedHere = 0
-    const newCodes: string[] = []
-    for (const [code, amount] of fno) {
-      const client = codeToClient.get(code)
-      if (!client) continue
-      addedHere += amount
-      touchedClientIds.add(client.id)
-      const row = merged.get(code)
-      if (row) {
-        row.amount += amount
-      } else {
-        newCodes.push(code)
-        // Snapshot the operator who owns the client today — same rule the upload route uses.
-        merged.set(code, { clientCode: code, clientId: client.id, operatorId: client.operatorId, amount })
-      }
-    }
+    // Same helper the upload route's "add to existing data" mode uses.
+    const { details, addedAmount: addedHere } = mergeBrokerageDetails(prevRows, fno, codeToClient)
     if (addedHere === 0) continue
     addedTotal += addedHere
 
-    const details = [...merged.values()]
+    for (const code of fno.keys()) {
+      const client = codeToClient.get(code)
+      if (client) touchedClientIds.add(client.id)
+    }
+    const prevCodes = new Set(prevRows.map((d) => d.clientCode))
+    const newCodes = details.map((d) => d.clientCode).filter((c) => !prevCodes.has(c))
+
     const totalAmount = details.reduce((s, d) => s + d.amount, 0)
     console.log(
-      `${day}  v${active?.version ?? '-'} -> v${nextVersion}  rows ${active ? details.length - newCodes.length : 0}+${newCodes.length}=${details.length}  ` +
+      `${day}  v${active?.version ?? '-'} -> v${nextVersion}  rows ${prevCodes.size}+${newCodes.length}=${details.length}  ` +
       `+₹${addedHere.toFixed(2)} (new total ₹${totalAmount.toFixed(2)})${newCodes.length ? `  new: ${newCodes.join(',')}` : ''}`,
     )
 

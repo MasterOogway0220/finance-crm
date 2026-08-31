@@ -5,6 +5,8 @@ import { logActivity } from '@/lib/activity-log'
 import { createNotificationForMany } from '@/lib/notifications'
 import { invalidateCache } from '@/lib/cache'
 import { extractClientCodeFromNarration } from '@/lib/brokerage-code'
+import { mergeBrokerageDetails } from '@/lib/brokerage-merge'
+import { resyncEquityClientStatus } from '@/lib/brokerage-status'
 import { Prisma, Role } from '@prisma/client'
 import * as XLSX from 'xlsx'
 
@@ -178,25 +180,48 @@ export async function POST(request: NextRequest) {
     })
 
     const codeToClient = new Map(clientRecords.map((c) => [c.clientCode, c]))
-    const unmappedCodes: string[] = []
-    const details: { clientCode: string; clientId: string | null; operatorId: string; amount: number }[] = []
 
-    for (const [code, amount] of codeAmountMap.entries()) {
-      const client = codeToClient.get(code)
-      if (!client) {
-        unmappedCodes.push(code)
-      } else {
-        details.push({
-          clientCode: code,
-          clientId: client.id,
-          operatorId: client.operatorId,
-          amount,
-        })
-      }
+    const existingUploads = await prisma.brokerageUpload.findMany({
+      where: { uploadDate, branch },
+      select: { id: true, version: true, isActive: true, fileName: true },
+      orderBy: { version: 'desc' },
+    })
+    const existingVersions = existingUploads.length
+    const nextVersion = existingVersions > 0 ? existingUploads[0].version + 1 : 1
+
+    // Merge mode: seed the new version from the day's active rows so a second ledger for
+    // the same date (the F&O/options segment ships as its own file) ADDS to the day instead
+    // of replacing it. Replace mode — the default — starts empty, as a corrected re-upload
+    // of the same ledger must.
+    const isMerge = formData.get('mode') === 'merge'
+
+    // Merge ADDS, so it is not idempotent the way replace is: uploading the same file twice
+    // would silently double that day's brokerage. Same file name on the same date+branch is
+    // the cheap tell, and it costs no extra query.
+    if (isMerge && existingUploads.some((u) => u.fileName === file.name)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `"${file.name}" has already been uploaded for ${branch} on ${dateParam}. Merging it again would double-count this day. Reverse the day first if you need to redo it.`,
+        },
+        { status: 409 }
+      )
     }
 
-    // If ALL codes are unmapped, reject — nothing to upload
-    if (details.length === 0) {
+    const activeUpload = existingUploads.find((u) => u.isActive)
+    const prevRows =
+      isMerge && activeUpload
+        ? await prisma.brokerageDetail.findMany({
+            where: { brokerageId: activeUpload.id },
+            select: { clientCode: true, clientId: true, operatorId: true, amount: true },
+          })
+        : []
+
+    const { details, unmappedCodes, addedAmount, carriedAmount, mappedFromFile } =
+      mergeBrokerageDetails(prevRows, codeAmountMap, codeToClient)
+
+    // If ALL codes in THIS file are unmapped, reject — the upload would add nothing
+    if (mappedFromFile === 0) {
       return NextResponse.json(
         {
           success: false,
@@ -229,14 +254,6 @@ export async function POST(request: NextRequest) {
     }
     const operatorSummary = Array.from(opSummaryMap.values())
 
-    const existingUploads = await prisma.brokerageUpload.findMany({
-      where: { uploadDate, branch },
-      select: { id: true, version: true, isActive: true },
-      orderBy: { version: 'desc' },
-    })
-    const existingVersions = existingUploads.length
-    const nextVersion = existingVersions > 0 ? existingUploads[0].version + 1 : 1
-
     // Preview mode — return summary without writing to DB
     const isPreview = formData.get('preview') === 'true'
     if (isPreview) {
@@ -250,15 +267,15 @@ export async function POST(request: NextRequest) {
           duplicatesConsolidated,
           existingVersions,
           nextVersion,
+          dateExists: existingVersions > 0,
+          isMerge,
+          addedAmount,
+          carriedAmount,
         },
       })
     }
 
     // Confirm mode — create new version, deactivate previous versions
-    const autoTradedClientIds = details
-      .filter((d) => d.clientId !== null && d.amount > 0)
-      .map((d) => d.clientId!)
-
     const upload = await prisma.$transaction(async (tx) => {
       // Collect client IDs from existing versions before deactivating them
       let prevClientIds: string[] = []
@@ -288,22 +305,11 @@ export async function POST(request: NextRequest) {
         include: { details: true },
       })
 
-      if (autoTradedClientIds.length > 0) {
-        await tx.client.updateMany({
-          where: { id: { in: autoTradedClientIds }, department: 'EQUITY' },
-          data: { status: 'TRADED' },
-        })
-      }
-
-      // Reset clients in old version who are NOT in the new version back to NOT_TRADED
-      const newTradedSet = new Set(autoTradedClientIds)
-      const toResetIds = prevClientIds.filter(id => !newTradedSet.has(id))
-      if (toResetIds.length > 0) {
-        await tx.client.updateMany({
-          where: { id: { in: toResetIds }, department: 'EQUITY' },
-          data: { status: 'NOT_TRADED' },
-        })
-      }
+      // Re-derive Client.status from the now-active brokerage data rather than from this
+      // date alone — a client dropped from a re-uploaded day may still have brokerage on
+      // another day of the month. status always reflects the *current* month (default ref),
+      // the same rule the reverse and activate routes follow.
+      await resyncEquityClientStatus(tx, [...prevClientIds, ...details.map((d) => d.clientId)])
 
       return newUpload
     })
@@ -328,7 +334,7 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       action: 'UPLOAD',
       module: 'BROKERAGE',
-      details: `Uploaded brokerage for ${uploadDate.toISOString().split('T')[0]} (${branch}). Total: ${totalAmount}. Mapped: ${details.length}. Unmapped: ${unmappedCodes.length}`,
+      details: `${isMerge ? 'Merged' : 'Uploaded'} brokerage for ${uploadDate.toISOString().split('T')[0]} (${branch}). ${isMerge ? `Added: ${addedAmount}. ` : ''}Total: ${totalAmount}. Mapped: ${mappedFromFile}. Unmapped: ${unmappedCodes.length}`,
     })
 
     // Invalidate admin dashboard cache so traded-client counts reflect the new upload immediately
@@ -341,7 +347,8 @@ export async function POST(request: NextRequest) {
         uploadDate: upload.uploadDate,
         version: upload.version,
         totalAmount,
-        mappedCount: details.length,
+        addedAmount,
+        mappedCount: mappedFromFile,
         unmappedCount: unmappedCodes.length,
         skippedCodes: unmappedCodes,
         previousVersionsDeactivated: existingUploads.length,

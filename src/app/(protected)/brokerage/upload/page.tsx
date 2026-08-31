@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CalendarIcon, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -20,6 +21,9 @@ interface UploadSummary {
   unmappedCodes: string[]
   duplicatesConsolidated: number
   dateExists: boolean
+  isMerge: boolean
+  addedAmount: number
+  carriedAmount: number
 }
 
 export default function BrokerageUploadPage() {
@@ -31,6 +35,7 @@ export default function BrokerageUploadPage() {
   const [processing, setProcessing] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [branch, setBranch] = useState<string>('Mumbai')
+  const [merge, setMerge] = useState(false)
 
   const handleProcessFile = async () => {
     if (!file || !date) return
@@ -40,6 +45,7 @@ export default function BrokerageUploadPage() {
     formData.append('date', format(date, 'yyyy-MM-dd'))
     formData.append('preview', 'true')
     formData.append('branch', branch)
+    formData.append('mode', merge ? 'merge' : 'replace')
     try {
       const res = await fetch('/api/brokerage/upload', { method: 'POST', body: formData })
       const data = await res.json()
@@ -62,6 +68,7 @@ export default function BrokerageUploadPage() {
     formData.append('date', format(date, 'yyyy-MM-dd'))
     formData.append('preview', 'false')
     formData.append('branch', branch)
+    formData.append('mode', merge ? 'merge' : 'replace')
     try {
       const res = await fetch('/api/brokerage/upload', { method: 'POST', body: formData })
       const data = await res.json()
@@ -139,6 +146,16 @@ export default function BrokerageUploadPage() {
               <UploadZone onFile={setFile} />
             </div>
 
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <Checkbox checked={merge} onCheckedChange={(v) => setMerge(v === true)} className="mt-0.5" />
+              <span className="text-sm text-gray-700">
+                Add to existing data for this date
+                <span className="block text-xs text-gray-400">
+                  Tick this for a second file on the same day — e.g. the F&amp;O / options ledger. Leave it off to replace the day.
+                </span>
+              </span>
+            </label>
+
             <Button onClick={handleProcessFile} disabled={!file || processing} className="w-full" size="lg">
               {processing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Process File
@@ -153,14 +170,20 @@ export default function BrokerageUploadPage() {
             <CardTitle className="text-base">Step 2: Preview & Confirm</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {summary.dateExists && (
+            {summary.isMerge && summary.carriedAmount > 0 ? (
+              <Alert className="border-green-300 bg-green-50">
+                <AlertDescription className="text-green-700 text-sm">
+                  Adding {formatCurrency(summary.addedAmount)} to the {formatCurrency(summary.carriedAmount)} already recorded for {branch} on {format(date, 'd MMM yyyy')}.
+                </AlertDescription>
+              </Alert>
+            ) : summary.dateExists ? (
               <Alert className="border-amber-300 bg-amber-50">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-amber-700 text-sm">
-                  ⚠️ Brokerage for {branch} on {format(date, 'd MMM yyyy')} already exists. Uploading will overwrite existing data for this branch.
+                  ⚠️ Brokerage for {branch} on {format(date, 'd MMM yyyy')} already exists and will be <strong>replaced</strong>. If this is a second segment file (F&amp;O / options), go back and tick &ldquo;Add to existing data&rdquo; instead. To <em>correct</em> a day that already has an F&amp;O file merged in, reverse it from the brokerage list first, then re-upload both files.
                 </AlertDescription>
               </Alert>
-            )}
+            ) : null}
 
             {summary.unmappedCodes.length > 0 && (
               <Alert className="border-yellow-300 bg-yellow-50">
