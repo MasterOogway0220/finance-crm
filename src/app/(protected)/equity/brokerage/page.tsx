@@ -30,26 +30,29 @@ export default function EquityBrokeragePage() {
   const [cwNoZero, setCwNoZero] = useState(false)
   const [cwClients, setCwClients] = useState<ClientBrokerage[]>([])
   const [cwLoading, setCwLoading] = useState(true)
+  const [segment, setSegment] = useState<'ALL' | 'CASH' | 'FNO'>('ALL')
 
   // Fetch daily brokerage for MTD summary and table
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/brokerage/daily?month=${month}&year=${year}`)
+    const seg = segment === 'ALL' ? '' : `&segment=${segment}`
+    fetch(`/api/brokerage/daily?month=${month}&year=${year}${seg}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data.daily) })
       .finally(() => setLoading(false))
-  }, [month, year])
+  }, [month, year, segment])
 
   // Fetch client-wise brokerage
   useEffect(() => {
     setCwLoading(true)
     const params = new URLSearchParams({ month, year: year })
     if (cwDay !== 'monthly') params.set('day', cwDay)
+    if (segment !== 'ALL') params.set('segment', segment)
     fetch(`/api/brokerage/client-wise?${params}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setCwClients(d.data.clients) })
       .finally(() => setCwLoading(false))
-  }, [month, year, cwDay])
+  }, [month, year, cwDay, segment])
 
   const totalMTD = data.reduce((s, d) => s + d.amount, 0)
 
@@ -95,6 +98,14 @@ export default function EquityBrokeragePage() {
           <Select value={year} onValueChange={(v) => { setYear(v); setCwDay('monthly') }}>
             <SelectTrigger className="w-24 h-9"><SelectValue /></SelectTrigger>
             <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={segment} onValueChange={(v) => setSegment(v as 'ALL' | 'CASH' | 'FNO')}>
+            <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All segments</SelectItem>
+              <SelectItem value="CASH">Cash only</SelectItem>
+              <SelectItem value="FNO">F&amp;O only</SelectItem>
+            </SelectContent>
           </Select>
         </div>
       </div>

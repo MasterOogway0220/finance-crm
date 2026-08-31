@@ -267,13 +267,18 @@ model BrokerageDetail {
   client          Client?         @relation(fields: [clientId], references: [id])
   operatorId      String
   amount          Float
+  // 'CASH' or 'FNO' — a trading day arrives as one ledger file per segment. Rows are kept
+  // per segment rather than summed, so the brokerage views can separate options from cash
+  // and re-uploading one segment's file leaves the other segment's rows alone.
+  segment         String          @default("CASH")
   createdAt       DateTime        @default(now())
 
-  @@unique([brokerageId, clientCode])
+  @@unique([brokerageId, clientCode, segment])
   @@index([operatorId])
   @@index([brokerageId])
   @@index([operatorId, brokerageId])
   @@index([clientId])
+  @@index([segment])
 }
 
 model MonthlyArchive {

@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const month = parseInt(searchParams.get('month') ?? String(now.getMonth() + 1))
     const year  = parseInt(searchParams.get('year')  ?? String(now.getFullYear()))
     const day   = searchParams.get('day')
+    const segmentParam = searchParams.get('segment')
+    const segmentFilter = segmentParam === 'CASH' || segmentParam === 'FNO' ? { segment: segmentParam } : {}
 
     const userRole     = (await getActiveRole(session.user))
     const isAdmin = canViewAdmin(userRole)
@@ -50,6 +52,7 @@ export async function GET(request: NextRequest) {
     const dateFilter = { isActive: true, uploadDate: { gte: dateStart, lte: dateEnd } }
     const baseWhere = {
       clientId: { not: null },
+      ...segmentFilter,
       ...brokerageOperatorFilter(operatorId, month, year),
       brokerage: dateFilter,
     }

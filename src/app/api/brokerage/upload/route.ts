@@ -5,7 +5,7 @@ import { logActivity } from '@/lib/activity-log'
 import { createNotificationForMany } from '@/lib/notifications'
 import { invalidateCache } from '@/lib/cache'
 import { extractClientCodeFromNarration } from '@/lib/brokerage-code'
-import { mergeBrokerageDetails } from '@/lib/brokerage-merge'
+import { buildVersionDetails, type DetailRow, type Segment } from '@/lib/brokerage-merge'
 import { resyncEquityClientStatus } from '@/lib/brokerage-status'
 import { Prisma, Role } from '@prisma/client'
 import * as XLSX from 'xlsx'
@@ -183,42 +183,28 @@ export async function POST(request: NextRequest) {
 
     const existingUploads = await prisma.brokerageUpload.findMany({
       where: { uploadDate, branch },
-      select: { id: true, version: true, isActive: true, fileName: true },
+      select: { id: true, version: true, isActive: true },
       orderBy: { version: 'desc' },
     })
     const existingVersions = existingUploads.length
     const nextVersion = existingVersions > 0 ? existingUploads[0].version + 1 : 1
 
-    // Merge mode: seed the new version from the day's active rows so a second ledger for
-    // the same date (the F&O/options segment ships as its own file) ADDS to the day instead
-    // of replacing it. Replace mode — the default — starts empty, as a corrected re-upload
-    // of the same ledger must.
-    const isMerge = formData.get('mode') === 'merge'
-
-    // Merge ADDS, so it is not idempotent the way replace is: uploading the same file twice
-    // would silently double that day's brokerage. Same file name on the same date+branch is
-    // the cheap tell, and it costs no extra query.
-    if (isMerge && existingUploads.some((u) => u.fileName === file.name)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `"${file.name}" has already been uploaded for ${branch} on ${dateParam}. Merging it again would double-count this day. Reverse the day first if you need to redo it.`,
-        },
-        { status: 409 }
-      )
-    }
+    // Which segment's ledger is this? The uploaded file supplies every row for its own
+    // segment; the day's other segment is carried forward untouched. So the F&O file adds
+    // options without wiping cash, and a corrected cash file replaces cash without wiping
+    // options. See src/lib/brokerage-merge.ts.
+    const segment: Segment = formData.get('segment') === 'FNO' ? 'FNO' : 'CASH'
 
     const activeUpload = existingUploads.find((u) => u.isActive)
-    const prevRows =
-      isMerge && activeUpload
-        ? await prisma.brokerageDetail.findMany({
-            where: { brokerageId: activeUpload.id },
-            select: { clientCode: true, clientId: true, operatorId: true, amount: true },
-          })
-        : []
+    const prevRows = activeUpload
+      ? ((await prisma.brokerageDetail.findMany({
+          where: { brokerageId: activeUpload.id },
+          select: { clientCode: true, clientId: true, operatorId: true, amount: true, segment: true },
+        })) as DetailRow[])
+      : []
 
-    const { details, unmappedCodes, addedAmount, carriedAmount, mappedFromFile } =
-      mergeBrokerageDetails(prevRows, codeAmountMap, codeToClient)
+    const { details, unmappedCodes, segmentAmount, carriedAmount, mappedFromFile } =
+      buildVersionDetails(prevRows, segment, codeAmountMap, codeToClient)
 
     // If ALL codes in THIS file are unmapped, reject — the upload would add nothing
     if (mappedFromFile === 0) {
@@ -268,8 +254,8 @@ export async function POST(request: NextRequest) {
           existingVersions,
           nextVersion,
           dateExists: existingVersions > 0,
-          isMerge,
-          addedAmount,
+          segment,
+          segmentAmount,
           carriedAmount,
         },
       })
@@ -334,7 +320,7 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       action: 'UPLOAD',
       module: 'BROKERAGE',
-      details: `${isMerge ? 'Merged' : 'Uploaded'} brokerage for ${uploadDate.toISOString().split('T')[0]} (${branch}). ${isMerge ? `Added: ${addedAmount}. ` : ''}Total: ${totalAmount}. Mapped: ${mappedFromFile}. Unmapped: ${unmappedCodes.length}`,
+      details: `Uploaded ${segment} brokerage for ${uploadDate.toISOString().split('T')[0]} (${branch}). ${segment}: ${segmentAmount}. Day total: ${totalAmount}. Mapped: ${mappedFromFile}. Unmapped: ${unmappedCodes.length}`,
     })
 
     // Invalidate admin dashboard cache so traded-client counts reflect the new upload immediately
@@ -347,7 +333,8 @@ export async function POST(request: NextRequest) {
         uploadDate: upload.uploadDate,
         version: upload.version,
         totalAmount,
-        addedAmount,
+        segment,
+        segmentAmount,
         mappedCount: mappedFromFile,
         unmappedCount: unmappedCodes.length,
         skippedCodes: unmappedCodes,

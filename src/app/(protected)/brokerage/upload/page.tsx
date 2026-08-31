@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CalendarIcon, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -21,8 +20,8 @@ interface UploadSummary {
   unmappedCodes: string[]
   duplicatesConsolidated: number
   dateExists: boolean
-  isMerge: boolean
-  addedAmount: number
+  segment: 'CASH' | 'FNO'
+  segmentAmount: number
   carriedAmount: number
 }
 
@@ -35,7 +34,7 @@ export default function BrokerageUploadPage() {
   const [processing, setProcessing] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [branch, setBranch] = useState<string>('Mumbai')
-  const [merge, setMerge] = useState(false)
+  const [segment, setSegment] = useState<'CASH' | 'FNO'>('CASH')
 
   const handleProcessFile = async () => {
     if (!file || !date) return
@@ -45,7 +44,7 @@ export default function BrokerageUploadPage() {
     formData.append('date', format(date, 'yyyy-MM-dd'))
     formData.append('preview', 'true')
     formData.append('branch', branch)
-    formData.append('mode', merge ? 'merge' : 'replace')
+    formData.append('segment', segment)
     try {
       const res = await fetch('/api/brokerage/upload', { method: 'POST', body: formData })
       const data = await res.json()
@@ -68,7 +67,7 @@ export default function BrokerageUploadPage() {
     formData.append('date', format(date, 'yyyy-MM-dd'))
     formData.append('preview', 'false')
     formData.append('branch', branch)
-    formData.append('mode', merge ? 'merge' : 'replace')
+    formData.append('segment', segment)
     try {
       const res = await fetch('/api/brokerage/upload', { method: 'POST', body: formData })
       const data = await res.json()
@@ -146,15 +145,22 @@ export default function BrokerageUploadPage() {
               <UploadZone onFile={setFile} />
             </div>
 
-            <label className="flex items-start gap-2.5 cursor-pointer">
-              <Checkbox checked={merge} onCheckedChange={(v) => setMerge(v === true)} className="mt-0.5" />
-              <span className="text-sm text-gray-700">
-                Add to existing data for this date
-                <span className="block text-xs text-gray-400">
-                  Tick this for a second file on the same day — e.g. the F&amp;O / options ledger. Leave it off to replace the day.
-                </span>
-              </span>
-            </label>
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Segment</p>
+              <Select value={segment} onValueChange={(v) => setSegment(v as 'CASH' | 'FNO')}>
+                <SelectTrigger className="w-56 h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CASH">Cash / Equity</SelectItem>
+                  <SelectItem value="FNO">F&amp;O (Options)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400 mt-1">
+                Which segment&rsquo;s ledger this file is. Each segment is stored separately, so uploading the
+                F&amp;O file on an options day leaves the day&rsquo;s cash brokerage untouched, and vice versa.
+              </p>
+            </div>
 
             <Button onClick={handleProcessFile} disabled={!file || processing} className="w-full" size="lg">
               {processing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -170,20 +176,17 @@ export default function BrokerageUploadPage() {
             <CardTitle className="text-base">Step 2: Preview & Confirm</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {summary.isMerge && summary.carriedAmount > 0 ? (
-              <Alert className="border-green-300 bg-green-50">
-                <AlertDescription className="text-green-700 text-sm">
-                  Adding {formatCurrency(summary.addedAmount)} to the {formatCurrency(summary.carriedAmount)} already recorded for {branch} on {format(date, 'd MMM yyyy')}.
-                </AlertDescription>
-              </Alert>
-            ) : summary.dateExists ? (
-              <Alert className="border-amber-300 bg-amber-50">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-amber-700 text-sm">
-                  ⚠️ Brokerage for {branch} on {format(date, 'd MMM yyyy')} already exists and will be <strong>replaced</strong>. If this is a second segment file (F&amp;O / options), go back and tick &ldquo;Add to existing data&rdquo; instead. To <em>correct</em> a day that already has an F&amp;O file merged in, reverse it from the brokerage list first, then re-upload both files.
-                </AlertDescription>
-              </Alert>
-            ) : null}
+            <Alert className={summary.carriedAmount > 0 ? 'border-green-300 bg-green-50' : 'border-blue-300 bg-blue-50'}>
+              <AlertDescription className={`text-sm ${summary.carriedAmount > 0 ? 'text-green-700' : 'text-blue-700'}`}>
+                Uploading the <strong>{summary.segment === 'FNO' ? 'F&O (options)' : 'cash / equity'}</strong> ledger for {branch} on {format(date, 'd MMM yyyy')} — {formatCurrency(summary.segmentAmount)}.
+                {summary.carriedAmount > 0
+                  ? ` The ${summary.segment === 'FNO' ? 'cash' : 'F&O'} brokerage already recorded for this day (${formatCurrency(summary.carriedAmount)}) is kept, for a day total of ${formatCurrency(summary.totalAmount)}.`
+                  : ''}
+                {summary.dateExists && summary.carriedAmount === 0
+                  ? ` This replaces the ${summary.segment === 'FNO' ? 'F&O' : 'cash'} rows already on this day.`
+                  : ''}
+              </AlertDescription>
+            </Alert>
 
             {summary.unmappedCodes.length > 0 && (
               <Alert className="border-yellow-300 bg-yellow-50">

@@ -14,6 +14,9 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const month = parseInt(searchParams.get('month') ?? String(now.getMonth() + 1))
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
+    // Optional segment filter: 'CASH' | 'FNO'. Absent => both.
+    const segmentParam = searchParams.get('segment')
+    const segmentFilter = segmentParam === 'CASH' || segmentParam === 'FNO' ? { segment: segmentParam } : {}
 
     const userRole = (await getActiveRole(session.user))
 
@@ -72,6 +75,7 @@ export async function GET(request: NextRequest) {
         ? prisma.brokerageDetail.findMany({
             where: {
               clientId: { not: null },
+              ...segmentFilter,
               client: { operatorId: { in: operatorIds } },
               brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
             },
@@ -86,6 +90,7 @@ export async function GET(request: NextRequest) {
             // Requested month is a closed month → snapshot attribution.
             where: {
               clientId: { not: null },
+              ...segmentFilter,
               operatorId: { in: operatorIds },
               brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
             },
@@ -102,6 +107,7 @@ export async function GET(request: NextRequest) {
         ? prisma.brokerageDetail.findMany({
             where: {
               clientId: { not: null },
+              ...segmentFilter,
               operatorId: { in: operatorIds },
               brokerage: { isActive: true, uploadDate: { gte: historyStart, lte: pastHistoryEnd } },
             },

@@ -62,10 +62,12 @@ export default function BrokeragePage() {
   const [selectedUploads, setSelectedUploads] = useState<Set<string>>(new Set())
   const [bulkReverseOpen, setBulkReverseOpen] = useState(false)
   const [bulkReversing, setBulkReversing] = useState(false)
+  const [segment, setSegment] = useState<'ALL' | 'CASH' | 'FNO'>('ALL')
 
   const fetchData = () => {
     setLoading(true)
-    fetch(`/api/brokerage?month=${month}&year=${year}`)
+    const seg = segment === 'ALL' ? '' : `&segment=${segment}`
+    fetch(`/api/brokerage?month=${month}&year=${year}${seg}`)
       .then((r) => r.json())
       .then((d) => { if (d.success) setData(d.data) })
       .finally(() => setLoading(false))
@@ -77,7 +79,7 @@ export default function BrokeragePage() {
       .then((d) => { if (d.success) setUploadLog(d.data) })
   }
 
-  useEffect(() => { fetchData(); fetchLog() }, [month, year])
+  useEffect(() => { fetchData(); fetchLog() }, [month, year, segment])
 
   const handleReverse = async () => {
     if (!reverseTarget) return
@@ -174,6 +176,14 @@ export default function BrokeragePage() {
           <Select value={year} onValueChange={setYear}>
             <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>{YEARS.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={segment} onValueChange={(v) => setSegment(v as 'ALL' | 'CASH' | 'FNO')}>
+            <SelectTrigger className="w-36 h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All segments</SelectItem>
+              <SelectItem value="CASH">Cash only</SelectItem>
+              <SelectItem value="FNO">F&amp;O only</SelectItem>
+            </SelectContent>
           </Select>
           {!readOnly && (
             <Link href="/brokerage/upload">

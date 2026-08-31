@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const month = parseInt(searchParams.get('month') ?? String(now.getMonth() + 1))
     const year = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
     const operatorIdParam = searchParams.get('operatorId')
+    const segmentParam = searchParams.get('segment')
+    const segmentFilter = segmentParam === 'CASH' || segmentParam === 'FNO' ? { segment: segmentParam } : {}
 
     const userRole = (await getActiveRole(session.user))
 
@@ -42,6 +44,7 @@ export async function GET(request: NextRequest) {
     const details = await prisma.brokerageDetail.findMany({
       where: {
         clientId: { not: null },
+        ...segmentFilter,
         ...brokerageOperatorFilter(operatorId, month, year),
         brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
       },

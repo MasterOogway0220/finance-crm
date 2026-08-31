@@ -13,7 +13,7 @@
 import { PrismaClient } from '@prisma/client'
 import * as XLSX from 'xlsx'
 import { extractClientCodeFromNarration } from '../src/lib/brokerage-code'
-import { mergeBrokerageDetails } from '../src/lib/brokerage-merge'
+import { buildVersionDetails, type DetailRow } from '../src/lib/brokerage-merge'
 
 const prisma = new PrismaClient()
 
@@ -105,12 +105,12 @@ async function main() {
     const prevRows = active
       ? await prisma.brokerageDetail.findMany({
           where: { brokerageId: active.id },
-          select: { clientCode: true, clientId: true, operatorId: true, amount: true },
-        })
+          select: { clientCode: true, clientId: true, operatorId: true, amount: true, segment: true },
+        }) as DetailRow[]
       : []
 
-    // Same helper the upload route's "add to existing data" mode uses.
-    const { details, addedAmount: addedHere } = mergeBrokerageDetails(prevRows, fno, codeToClient)
+    // Same helper the upload route uses — writes the FNO segment, leaves CASH rows alone.
+    const { details, segmentAmount: addedHere } = buildVersionDetails(prevRows, 'FNO', fno, codeToClient)
     if (addedHere === 0) continue
     addedTotal += addedHere
 
@@ -118,8 +118,8 @@ async function main() {
       const client = codeToClient.get(code)
       if (client) touchedClientIds.add(client.id)
     }
-    const prevCodes = new Set(prevRows.map((d) => d.clientCode))
-    const newCodes = details.map((d) => d.clientCode).filter((c) => !prevCodes.has(c))
+    const prevCodes = new Set(prevRows.filter((d) => d.segment === 'CASH').map((d) => d.clientCode))
+    const newCodes = details.filter((d) => d.segment === 'FNO').map((d) => d.clientCode)
 
     const totalAmount = details.reduce((s, d) => s + d.amount, 0)
     console.log(
