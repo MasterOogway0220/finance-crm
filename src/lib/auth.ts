@@ -65,7 +65,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             email: employee.email,
             name: employee.name,
             role: employee.role,
-            secondaryRole: employee.secondaryRole ?? null,
+            // A secondary role equal to the primary is bad data, not a dual role —
+            // drop it so the login picker / role switcher don't show it twice.
+            secondaryRole: employee.secondaryRole && employee.secondaryRole !== employee.role ? employee.secondaryRole : null,
             department: employee.department,
             designation: employee.designation,
           }

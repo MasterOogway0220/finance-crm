@@ -450,7 +450,7 @@ export default function EmployeeMasterPage() {
                 <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {ROLE_OPTIONS.map((r) => (
+                  {ROLE_OPTIONS.filter((r) => r !== watch('role')).map((r) => (
                     <SelectItem key={r} value={r}>{r.replace(/_/g, ' ')}</SelectItem>
                   ))}
                 </SelectContent>
