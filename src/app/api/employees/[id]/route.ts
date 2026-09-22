@@ -123,13 +123,6 @@ export async function PATCH(
     }
 
     const { password, ...rest } = parsed.data
-    const nextSecondary = rest.secondaryRole === undefined ? existing.secondaryRole : rest.secondaryRole
-    if (nextSecondary && nextSecondary === (rest.role ?? existing.role)) {
-      return NextResponse.json(
-        { success: false, error: 'Secondary role must be different from the primary role' },
-        { status: 400 }
-      )
-    }
     const updateData: Record<string, unknown> = { ...rest }
 
     if (password) {
