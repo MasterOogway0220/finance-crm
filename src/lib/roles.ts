@@ -10,6 +10,30 @@ const ROLE_PRIORITY: Record<string, number> = {
   MARKETING: 2,
 }
 
+/**
+ * Merges a (possibly partial) role update onto an employee's stored values and
+ * returns the secondaryRole to persist. Throws if the effective secondary equals
+ * the effective primary — a secondary equal to the primary is not a dual role and
+ * renders as two identical login-picker cards (duplicate React keys, no real
+ * second choice), so we reject it at the write boundary.
+ *
+ * `secondaryProvided` distinguishes an explicit clear (`patch.secondaryRole`
+ * `null` → returns null) from an untouched field (returns the stored value). Pass
+ * `true` with `existing.secondaryRole: null` for a fresh create.
+ */
+export function resolveSecondaryRoleUpdate(
+  existing: { role: string; secondaryRole: string | null },
+  patch: { role?: string | null; secondaryRole?: string | null },
+  secondaryProvided: boolean,
+): string | null {
+  const effectiveRole = patch.role ?? existing.role
+  const effectiveSecondary = secondaryProvided ? (patch.secondaryRole ?? null) : existing.secondaryRole
+  if (effectiveSecondary && effectiveSecondary === effectiveRole) {
+    throw new Error('Secondary role must differ from the primary role')
+  }
+  return effectiveSecondary
+}
+
 /** Returns the highest-privilege role between primary and secondary. */
 export function getEffectiveRole(user: { role: Role; secondaryRole?: Role | null }): Role {
   if (!user.secondaryRole) return user.role

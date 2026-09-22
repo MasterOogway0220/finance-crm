@@ -38,6 +38,9 @@ const schema = z.object({
   secondaryRole: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']).nullable().optional(),
   password: z.string().min(8).optional().or(z.literal('')),
   isActive: z.boolean(),
+}).refine((d) => !d.secondaryRole || d.secondaryRole !== d.role, {
+  message: 'Secondary role must differ from the primary role',
+  path: ['secondaryRole'],
 })
 
 type FormData = z.infer<typeof schema>
@@ -456,6 +459,7 @@ export default function EmployeeMasterPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-400">Allows this employee to switch between two roles without separate accounts.</p>
+              {errors.secondaryRole && <p className="text-xs text-red-500">{errors.secondaryRole.message}</p>}
             </div>
 
             <div className="space-y-1.5">

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isManager, canViewAdmin, isReadOnly, shouldBlockMutation, isHrViewer, canSendWhatsapp, isIdleLogoutExempt } from './roles'
+import { isManager, canViewAdmin, isReadOnly, shouldBlockMutation, isHrViewer, canSendWhatsapp, isIdleLogoutExempt, resolveSecondaryRoleUpdate } from './roles'
 
 describe('isIdleLogoutExempt', () => {
   it('exempts the one carved-out login, case-insensitively', () => {
@@ -93,5 +93,33 @@ describe('canSendWhatsapp', () => {
     expect(canSendWhatsapp('EQUITY_DEALER')).toBe(false)
     expect(canSendWhatsapp(null)).toBe(false)
     expect(canSendWhatsapp(undefined)).toBe(false)
+  })
+})
+
+describe('resolveSecondaryRoleUpdate', () => {
+  const bo = { role: 'BACK_OFFICE', secondaryRole: null }
+  const boAdmin = { role: 'BACK_OFFICE', secondaryRole: 'ADMIN' }
+
+  it('rejects a new secondary equal to the stored primary (change-secondary-only)', () => {
+    expect(() => resolveSecondaryRoleUpdate(bo, { secondaryRole: 'BACK_OFFICE' }, true)).toThrow(/differ/)
+  })
+  it('rejects a new primary equal to the stored secondary (change-primary-only)', () => {
+    expect(() => resolveSecondaryRoleUpdate(boAdmin, { role: 'ADMIN' }, false)).toThrow(/differ/)
+  })
+  it('rejects when both change to the same role', () => {
+    expect(() => resolveSecondaryRoleUpdate(bo, { role: 'ADMIN', secondaryRole: 'ADMIN' }, true)).toThrow(/differ/)
+  })
+  it('allows a distinct secondary and returns it', () => {
+    expect(resolveSecondaryRoleUpdate(bo, { secondaryRole: 'ADMIN' }, true)).toBe('ADMIN')
+  })
+  it('clears the secondary when explicitly set to null', () => {
+    expect(resolveSecondaryRoleUpdate(boAdmin, { secondaryRole: null }, true)).toBe(null)
+  })
+  it('keeps the stored secondary when the field is untouched', () => {
+    expect(resolveSecondaryRoleUpdate(boAdmin, { role: 'EQUITY_DEALER' }, false)).toBe('ADMIN')
+  })
+  it('treats a fresh create (existing secondary null, provided true) correctly', () => {
+    expect(resolveSecondaryRoleUpdate({ role: 'BACK_OFFICE', secondaryRole: null }, { secondaryRole: 'ADMIN' }, true)).toBe('ADMIN')
+    expect(() => resolveSecondaryRoleUpdate({ role: 'ADMIN', secondaryRole: null }, { secondaryRole: 'ADMIN' }, true)).toThrow(/differ/)
   })
 })

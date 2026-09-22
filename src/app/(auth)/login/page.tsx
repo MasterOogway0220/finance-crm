@@ -76,7 +76,9 @@ const ROLE_COLORS: Record<string, { bg: string; border: string; icon: string; ba
 
 function RolePicker({ pending, onPick }: { pending: PendingSession; onPick: (role: string) => void }) {
   const [hoveredRole, setHoveredRole] = useState<string | null>(null)
-  const roles = [pending.primaryRole, pending.secondaryRole]
+  // Dedupe so a legacy secondary==primary row can't render two identical cards
+  // (duplicate React keys) — the guard now prevents new ones, this covers old data.
+  const roles = [...new Set([pending.primaryRole, pending.secondaryRole].filter(Boolean))]
 
   return (
     <div className="w-full min-h-dvh bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">

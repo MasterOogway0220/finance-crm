@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { employeeSchema } from '@/lib/validations'
+import { resolveSecondaryRoleUpdate } from '@/lib/roles'
 import { Department, Role } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
@@ -88,6 +89,17 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data
 
+    let secondaryRole: Role | null
+    try {
+      secondaryRole = resolveSecondaryRoleUpdate(
+        { role: data.role, secondaryRole: null },
+        data,
+        true,
+      ) as Role | null
+    } catch (e) {
+      return NextResponse.json({ success: false, error: (e as Error).message }, { status: 400 })
+    }
+
     const existing = await prisma.employee.findUnique({ where: { email: data.email } })
     if (existing) {
       return NextResponse.json({ success: false, error: 'Employee with this email already exists' }, { status: 409 })
@@ -103,6 +115,7 @@ export async function POST(request: NextRequest) {
         department: data.department as Department,
         designation: data.designation,
         role: data.role as Role,
+        secondaryRole: (secondaryRole ?? null) as Role | null,
         password: hashedPassword,
         isActive: data.isActive ?? true,
       },

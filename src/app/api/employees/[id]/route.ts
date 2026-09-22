@@ -2,7 +2,7 @@ import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
-import { Role } from '@prisma/client'
+import { resolveSecondaryRoleUpdate } from '@/lib/roles'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 
@@ -11,7 +11,7 @@ const updateEmployeeSchema = z.object({
   phone: z.string().length(10, 'Phone must be 10 digits').regex(/^\d{10}$/).optional(),
   department: z.enum(['EQUITY', 'MUTUAL_FUND', 'BACK_OFFICE', 'ADMIN']).optional(),
   designation: z.string().min(1, 'Designation is required').optional(),
-  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE', 'CHARTERED_ACCOUNTANT']).optional(),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE', 'CHARTERED_ACCOUNTANT', 'MARKETING']).optional(),
   secondaryRole: z.enum(['SUPER_ADMIN', 'ADMIN', 'EQUITY_DEALER', 'MF_DEALER', 'BACK_OFFICE']).nullable().optional(),
   isActive: z.boolean().optional(),
   password: z.string().min(8, 'Password must be at least 8 characters').optional(),
@@ -110,6 +110,16 @@ export async function PATCH(
         data: { password: await bcrypt.hash(parsed.data.password, 12) },
       })
       return NextResponse.json({ success: true })
+    }
+
+    // A secondary role must differ from the primary. Validate the *effective* values
+    // after this partial update so it holds whether the request changes the primary,
+    // the secondary, or only one of them ('secondaryRole' in data distinguishes an
+    // explicit clear from an untouched field).
+    try {
+      resolveSecondaryRoleUpdate(existing, parsed.data, 'secondaryRole' in parsed.data)
+    } catch (e) {
+      return NextResponse.json({ success: false, error: (e as Error).message }, { status: 400 })
     }
 
     const { password, ...rest } = parsed.data
