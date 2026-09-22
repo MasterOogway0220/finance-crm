@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { validateClientCode } from '@/lib/client-code-validator'
+import { attachUnassignedBrokerage, resyncEquityClientStatus } from '@/lib/brokerage-status'
 import { Department, Role } from '@prisma/client'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
@@ -227,6 +228,20 @@ export async function POST(request: NextRequest) {
       skipDuplicates: true,
     })
 
+    // Attach brokerage uploaded for these codes before the clients existed (stored
+    // unassigned so it was never dropped) — credit it to each EQUITY client's operator.
+    const equityCodes = validRows.filter(r => r.department === 'EQUITY' && r.operatorId).map(r => r.clientCode)
+    if (equityCodes.length > 0) {
+      const eqClients = await prisma.client.findMany({
+        where: { clientCode: { in: equityCodes }, department: 'EQUITY' },
+        select: { id: true, clientCode: true, operatorId: true },
+      })
+      const attachedIds: string[] = []
+      for (const c of eqClients) {
+        if ((await attachUnassignedBrokerage(prisma, c.clientCode, c.id, c.operatorId)) > 0) attachedIds.push(c.id)
+      }
+      if (attachedIds.length > 0) await resyncEquityClientStatus(prisma, attachedIds)
+    }
 
     await logActivity({
       userId: session.user.id,

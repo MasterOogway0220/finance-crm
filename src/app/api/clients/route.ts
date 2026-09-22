@@ -5,6 +5,7 @@ import { logActivity } from '@/lib/activity-log'
 import { clientSchema } from '@/lib/validations'
 import { validateClientCode } from '@/lib/client-code-validator'
 import { canViewAdmin } from '@/lib/roles'
+import { attachUnassignedBrokerage, resyncEquityClientStatus } from '@/lib/brokerage-status'
 import { getMonthRange } from '@/lib/utils'
 import { ClientRemark, ClientStatus, Department, MFClientRemark, MFClientStatus, Role, Prisma } from '@prisma/client'
 import * as XLSX from 'xlsx'
@@ -313,6 +314,14 @@ export async function POST(request: NextRequest) {
       data: { ...clientFields, department: primaryDept, operatorId: data.operatorId },
       include: { operator: { select: { id: true, name: true } } },
     })
+
+    // Attach any brokerage uploaded for this code before the client existed (stored
+    // unassigned so it was never dropped) — now that the EQUITY client exists, credit
+    // it to the client's operator and refresh the traded flag.
+    if (primaryDept === Department.EQUITY) {
+      const attached = await attachUnassignedBrokerage(prisma, client.clientCode, client.id, client.operatorId)
+      if (attached > 0) await resyncEquityClientStatus(prisma, [client.id])
+    }
 
     // For BOTH or pure EQUITY: also create MF record
     if (isBoth || primaryDept === Department.EQUITY) {

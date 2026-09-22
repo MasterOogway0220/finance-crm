@@ -23,6 +23,9 @@ interface UploadSummary {
   segment: 'CASH' | 'FNO'
   segmentAmount: number
   carriedAmount: number
+  multiDate?: boolean
+  dateCount?: number
+  dateBreakdown?: Array<{ date: string; totalAmount: number; segmentAmount: number; mapped: number; unmapped: number }>
 }
 
 export default function BrokerageUploadPage() {
@@ -178,20 +181,24 @@ export default function BrokerageUploadPage() {
           <CardContent className="space-y-4">
             <Alert className={summary.carriedAmount > 0 ? 'border-green-300 bg-green-50' : 'border-blue-300 bg-blue-50'}>
               <AlertDescription className={`text-sm ${summary.carriedAmount > 0 ? 'text-green-700' : 'text-blue-700'}`}>
-                Uploading the <strong>{summary.segment === 'FNO' ? 'F&O (options)' : 'cash / equity'}</strong> ledger for {branch} on {format(date, 'd MMM yyyy')} — {formatCurrency(summary.segmentAmount)}.
-                {summary.carriedAmount > 0
-                  ? ` The ${summary.segment === 'FNO' ? 'cash' : 'F&O'} brokerage already recorded for this day (${formatCurrency(summary.carriedAmount)}) is kept, for a day total of ${formatCurrency(summary.totalAmount)}.`
-                  : ''}
-                {summary.dateExists && summary.carriedAmount === 0
-                  ? ` This replaces the ${summary.segment === 'FNO' ? 'F&O' : 'cash'} rows already on this day.`
-                  : ''}
+                {summary.multiDate ? (
+                  <>Uploading the <strong>{summary.segment === 'FNO' ? 'F&O (options)' : 'cash / equity'}</strong> ledger for {branch} — this file spans <strong>{summary.dateCount} trading dates</strong>, and each row is filed under its own date (total {formatCurrency(summary.totalAmount)}). The picked date is ignored for a multi-date file.</>
+                ) : (
+                  <>Uploading the <strong>{summary.segment === 'FNO' ? 'F&O (options)' : 'cash / equity'}</strong> ledger for {branch} on {format(date, 'd MMM yyyy')} — {formatCurrency(summary.segmentAmount)}.
+                  {summary.carriedAmount > 0
+                    ? ` The ${summary.segment === 'FNO' ? 'cash' : 'F&O'} brokerage already recorded for this day (${formatCurrency(summary.carriedAmount)}) is kept, for a day total of ${formatCurrency(summary.totalAmount)}.`
+                    : ''}
+                  {summary.dateExists && summary.carriedAmount === 0
+                    ? ` This replaces the ${summary.segment === 'FNO' ? 'F&O' : 'cash'} rows already on this day.`
+                    : ''}</>
+                )}
               </AlertDescription>
             </Alert>
 
             {summary.unmappedCodes.length > 0 && (
               <Alert className="border-yellow-300 bg-yellow-50">
                 <AlertDescription className="text-yellow-700 text-sm">
-                  {summary.unmappedCodes.length} client codes not found in Client Master (skipped): {summary.unmappedCodes.slice(0, 5).join(', ')}{summary.unmappedCodes.length > 5 ? ` +${summary.unmappedCodes.length - 5} more` : ''}
+                  {summary.unmappedCodes.length} client code(s) not in Client Master — recorded under <strong>Unassigned</strong> (nothing dropped; they attach to the operator once the client is added): {summary.unmappedCodes.slice(0, 5).join(', ')}{summary.unmappedCodes.length > 5 ? ` +${summary.unmappedCodes.length - 5} more` : ''}
                 </AlertDescription>
               </Alert>
             )}

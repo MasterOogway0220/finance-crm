@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 // Relative, not '@/lib/utils' — this module is also loaded by the ts-node backfill
 // scripts, which don't resolve the '@' path alias.
 import { getMonthRange } from './utils'
+import { UNASSIGNED_OPERATOR } from './brokerage-merge'
 
 /**
  * Brokerage-driven traded-status sync.
@@ -88,4 +89,27 @@ export async function resyncEquityClientStatus(
     notTraded = res.count
   }
   return { traded, notTraded }
+}
+
+/**
+ * Attaches previously-unattributed brokerage to a client that has just been created.
+ *
+ * When a code is uploaded before its Client exists, the upload never drops it — the
+ * rows are stored under `UNASSIGNED_OPERATOR` with `clientId` null and surfaced in the
+ * "Unassigned" bucket. Once a Client with that code exists, point those rows at it so
+ * the money leaves the bucket and credits the real operator. Idempotent: only rows
+ * still unassigned for this exact code are touched. Returns how many rows attached;
+ * the caller should resync status afterward when the count is non-zero.
+ */
+export async function attachUnassignedBrokerage(
+  db: DbClient,
+  clientCode: string,
+  clientId: string,
+  operatorId: string,
+): Promise<number> {
+  const res = await db.brokerageDetail.updateMany({
+    where: { clientCode, clientId: null, operatorId: UNASSIGNED_OPERATOR },
+    data: { clientId, operatorId },
+  })
+  return res.count
 }

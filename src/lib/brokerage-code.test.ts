@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractClientCodeFromNarration } from './brokerage-code'
+import { extractClientCodeFromNarration, parseCellDateKey } from './brokerage-code'
 
 describe('extractClientCodeFromNarration', () => {
   it('takes the last token of the spaced form', () => {
@@ -22,5 +22,31 @@ describe('extractClientCodeFromNarration', () => {
 
   it('trims surrounding whitespace', () => {
     expect(extractClientCodeFromNarration('  F/58581903 18V212  ')).toBe('18V212')
+  })
+})
+
+describe('parseCellDateKey', () => {
+  it('reads a real Date (SheetJS cellDates) as a UTC day key', () => {
+    expect(parseCellDateKey(new Date('2026-08-04T00:00:00.000Z'))).toBe('2026-08-04')
+  })
+  it('reads the broker text format d-Mon-yy and d-Mon-yyyy', () => {
+    expect(parseCellDateKey('4-Aug-26')).toBe('2026-08-04')
+    expect(parseCellDateKey('15-Dec-2026')).toBe('2026-12-15')
+  })
+  it('reads ISO and Indian day-first strings', () => {
+    expect(parseCellDateKey('2026-08-04')).toBe('2026-08-04')
+    expect(parseCellDateKey('04/08/2026')).toBe('2026-08-04')
+    expect(parseCellDateKey('4-8-2026')).toBe('2026-08-04')
+  })
+  it('reads an Excel serial number', () => {
+    // 4-Aug-2026 == serial 46238
+    expect(parseCellDateKey(46238)).toBe('2026-08-04')
+    expect(parseCellDateKey('46238')).toBe('2026-08-04')
+  })
+  it('returns null for blank or unrecognised values (caller falls back, never drops)', () => {
+    expect(parseCellDateKey('')).toBeNull()
+    expect(parseCellDateKey(null)).toBeNull()
+    expect(parseCellDateKey('Opening Balance')).toBeNull()
+    expect(parseCellDateKey('4-Xyz-26')).toBeNull()
   })
 })

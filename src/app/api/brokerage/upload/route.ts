@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { logActivity } from '@/lib/activity-log'
 import { createNotificationForMany } from '@/lib/notifications'
 import { invalidateCache } from '@/lib/cache'
-import { extractClientCodeFromNarration } from '@/lib/brokerage-code'
+import { extractClientCodeFromNarration, parseCellDateKey } from '@/lib/brokerage-code'
 import { buildVersionDetails, UNASSIGNED_OPERATOR, type DetailRow, type Segment } from '@/lib/brokerage-merge'
 import { resyncEquityClientStatus } from '@/lib/brokerage-status'
 import { Prisma, Role } from '@prisma/client'
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     // Parse xlsx/csv with SheetJS
     const arrayBuffer = await file.arrayBuffer()
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true })
     const sheetName = workbook.SheetNames[0]
     const sheet = workbook.Sheets[sheetName]
     const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 }) as string[][]
@@ -114,107 +114,140 @@ export async function POST(request: NextRequest) {
     const creditIdx = findColumnIndex(headers, ['credit'])
     const isLedgerFormat = narrationIdx !== -1 && creditIdx !== -1
 
-    // Aggregate amounts by client code (deduplicate by summing); track row count per code
-    const codeAmountMap = new Map<string, number>()
-    const codeRowCount = new Map<string, number>()
-
-    if (isLedgerFormat) {
-      // Ledger format: client code embedded in Narration, amount in Credit column
-      const dateIdx = findColumnIndex(headers, ['date'])
-      for (const row of dataRows) {
-        const dateVal = String(row[dateIdx] ?? '').trim()
-        const narration = String(row[narrationIdx] ?? '').trim()
-        const creditRaw = String(row[creditIdx] ?? '').trim()
-
-        // Skip rows without a date (opening balance, totals rows)
-        if (!dateVal) continue
-        // Skip rows without a narration (structural/separator rows)
-        if (!narration) continue
-
-        const amount = parseFloat(creditRaw.replace(/,/g, ''))
-        // Skip zero or non-numeric credit entries
-        if (!amount || isNaN(amount) || amount <= 0) continue
-
-        const code = extractClientCodeFromNarration(narration)
-        if (!code) continue
-
-        codeAmountMap.set(code, (codeAmountMap.get(code) ?? 0) + amount)
-        codeRowCount.set(code, (codeRowCount.get(code) ?? 0) + 1)
-      }
-    } else {
-      // Simple format: explicit ClientCode and Amount columns
-      const codeIdx = findColumnIndex(headers, [
-        'client code', 'clientcode', 'client_code', 'code', 'client id', 'clientid',
-      ])
-      const amountIdx = findColumnIndex(headers, [
-        'amount', 'brokerage', 'brokerage amount', 'net amount', 'netamount',
-      ])
-
-      if (codeIdx === -1) {
-        return NextResponse.json({ success: false, error: 'Could not find client code column' }, { status: 400 })
-      }
-      if (amountIdx === -1) {
-        return NextResponse.json({ success: false, error: 'Could not find amount column' }, { status: 400 })
-      }
-
-      for (const row of dataRows) {
-        const code = String(row[codeIdx] ?? '').trim().toUpperCase()
-        const amount = parseFloat(String(row[amountIdx] ?? '0').replace(/,/g, ''))
-        if (!code || isNaN(amount)) continue
-        codeAmountMap.set(code, (codeAmountMap.get(code) ?? 0) + amount)
-        codeRowCount.set(code, (codeRowCount.get(code) ?? 0) + 1)
-      }
-    }
-
-    if (codeAmountMap.size === 0) {
-      return NextResponse.json({ success: false, error: 'No valid data rows found' }, { status: 400 })
-    }
-
-    const duplicatesConsolidated = [...codeRowCount.values()].filter((c) => c > 1).length
-
-    // Map client codes to operators via Client table
-    const allCodes = Array.from(codeAmountMap.keys())
-    const clientRecords = await prisma.client.findMany({
-      where: { clientCode: { in: allCodes }, department: 'EQUITY' },
-      select: { id: true, clientCode: true, operatorId: true },
-    })
-
-    const codeToClient = new Map(clientRecords.map((c) => [c.clientCode, c]))
-
-    const existingUploads = await prisma.brokerageUpload.findMany({
-      where: { uploadDate, branch },
-      select: { id: true, version: true, isActive: true },
-      orderBy: { version: 'desc' },
-    })
-    const existingVersions = existingUploads.length
-    const nextVersion = existingVersions > 0 ? existingUploads[0].version + 1 : 1
-
     // Which segment's ledger is this? The uploaded file supplies every row for its own
     // segment; the day's other segment is carried forward untouched. So the F&O file adds
     // options without wiping cash, and a corrected cash file replaces cash without wiping
     // options. See src/lib/brokerage-merge.ts.
     const segment: Segment = formData.get('segment') === 'FNO' ? 'FNO' : 'CASH'
 
-    const activeUpload = existingUploads.find((u) => u.isActive)
-    const prevRows = activeUpload
-      ? ((await prisma.brokerageDetail.findMany({
-          where: { brokerageId: activeUpload.id },
-          select: { clientCode: true, clientId: true, operatorId: true, amount: true, segment: true },
-        })) as DetailRow[])
-      : []
+    // Parse rows into (rowDate, code, amount). The ledger format carries a per-row date;
+    // the simple ClientCode/Amount format does not (rowDate stays null).
+    type ParsedRow = { dateKey: string | null; code: string; amount: number }
+    const parsedRows: ParsedRow[] = []
 
-    const { details, unmappedCodes, segmentAmount, carriedAmount, mappedFromFile } =
-      buildVersionDetails(prevRows, segment, codeAmountMap, codeToClient)
+    if (isLedgerFormat) {
+      const dateIdx = findColumnIndex(headers, ['date'])
+      for (const row of dataRows) {
+        const dateVal = row[dateIdx]
+        const narration = String(row[narrationIdx] ?? '').trim()
+        const creditRaw = String(row[creditIdx] ?? '').trim()
+        if (dateVal == null || String(dateVal).trim() === '') continue  // opening balance / totals rows
+        if (!narration) continue                                        // structural / separator rows
+        const amount = parseFloat(creditRaw.replace(/,/g, ''))
+        if (!amount || isNaN(amount) || amount <= 0) continue           // zero / non-numeric credits
+        const code = extractClientCodeFromNarration(narration)
+        if (!code) continue
+        parsedRows.push({ dateKey: parseCellDateKey(dateVal), code, amount })
+      }
+    } else {
+      const codeIdx = findColumnIndex(headers, [
+        'client code', 'clientcode', 'client_code', 'code', 'client id', 'clientid',
+      ])
+      const amountIdx = findColumnIndex(headers, [
+        'amount', 'brokerage', 'brokerage amount', 'net amount', 'netamount',
+      ])
+      if (codeIdx === -1) {
+        return NextResponse.json({ success: false, error: 'Could not find client code column' }, { status: 400 })
+      }
+      if (amountIdx === -1) {
+        return NextResponse.json({ success: false, error: 'Could not find amount column' }, { status: 400 })
+      }
+      for (const row of dataRows) {
+        const code = String(row[codeIdx] ?? '').trim().toUpperCase()
+        const amount = parseFloat(String(row[amountIdx] ?? '0').replace(/,/g, ''))
+        if (!code || isNaN(amount)) continue
+        parsedRows.push({ dateKey: null, code, amount })
+      }
+    }
 
-    // Every row is recorded — an upload is never rejected for unmapped codes. Codes
-    // with no Client in the master are stored unattributed (see buildVersionDetails)
-    // and reported in unmappedCodes so the UI can flag them; they attach to a real
-    // operator once the client is added.
+    if (parsedRows.length === 0) {
+      return NextResponse.json({ success: false, error: 'No valid data rows found' }, { status: 400 })
+    }
 
-    const totalAmount = details.reduce((sum, d) => sum + d.amount, 0)
+    // Single-date files (the daily cash ledger, or any file whose dated rows resolve to
+    // one day) keep the picked date — unchanged behavior. A file spanning 2+ distinct
+    // dates (the full-year F&O ledger) is distributed so every row lands on its own
+    // trading date instead of being crammed onto the one picked date. Undated rows fall
+    // back to the picked date, never dropped.
+    const distinctDates = new Set(parsedRows.map((r) => r.dateKey).filter((k): k is string => !!k))
+    const multiDate = distinctDates.size >= 2
 
-    // Build operator summary (needed for both preview and confirm)
-    const operatorIds = [...new Set(details.map((d) => d.operatorId))]
+    // dateKey -> code -> amount (summed), and -> code -> row count (for dedupe reporting)
+    const groups = new Map<string, { codeAmount: Map<string, number>; codeRows: Map<string, number> }>()
+    for (const r of parsedRows) {
+      const key = multiDate ? (r.dateKey ?? dateParam) : dateParam
+      let g = groups.get(key)
+      if (!g) { g = { codeAmount: new Map(), codeRows: new Map() }; groups.set(key, g) }
+      g.codeAmount.set(r.code, (g.codeAmount.get(r.code) ?? 0) + r.amount)
+      g.codeRows.set(r.code, (g.codeRows.get(r.code) ?? 0) + 1)
+    }
+
+    // Map every code across all dates to its EQUITY client/operator in one query.
+    const allCodes = [...new Set(parsedRows.map((r) => r.code))]
+    const clientRecords = await prisma.client.findMany({
+      where: { clientCode: { in: allCodes }, department: 'EQUITY' },
+      select: { id: true, clientCode: true, operatorId: true },
+    })
+    const codeToClient = new Map(clientRecords.map((c) => [c.clientCode, c]))
+
+    // Compute the write plan for each date group (reads only). Every row is recorded —
+    // an upload is never rejected for unmapped codes; codes with no Client are stored
+    // unattributed (see buildVersionDetails) and reported so the UI can flag them.
+    type Plan = {
+      uploadDate: Date
+      dateKey: string
+      existingUploads: { id: string; version: number; isActive: boolean }[]
+      nextVersion: number
+      details: DetailRow[]
+      unmappedCodes: string[]
+      segmentAmount: number
+      carriedAmount: number
+      mappedFromFile: number
+      totalAmount: number
+      duplicatesConsolidated: number
+    }
+    const plans: Plan[] = []
+    for (const [dateKey, g] of groups) {
+      const uploadDate = new Date(`${dateKey}T00:00:00.000Z`)
+      const existingUploads = await prisma.brokerageUpload.findMany({
+        where: { uploadDate, branch },
+        select: { id: true, version: true, isActive: true },
+        orderBy: { version: 'desc' },
+      })
+      const nextVersion = existingUploads.length > 0 ? existingUploads[0].version + 1 : 1
+      const activeUpload = existingUploads.find((u) => u.isActive)
+      const prevRows = activeUpload
+        ? ((await prisma.brokerageDetail.findMany({
+            where: { brokerageId: activeUpload.id },
+            select: { clientCode: true, clientId: true, operatorId: true, amount: true, segment: true },
+          })) as DetailRow[])
+        : []
+      const built = buildVersionDetails(prevRows, segment, g.codeAmount, codeToClient)
+      plans.push({
+        uploadDate,
+        dateKey,
+        existingUploads,
+        nextVersion,
+        ...built,
+        totalAmount: built.details.reduce((s, d) => s + d.amount, 0),
+        duplicatesConsolidated: [...g.codeRows.values()].filter((c) => c > 1).length,
+      })
+    }
+    plans.sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+
+    // Aggregate figures across all date groups.
+    const allDetails = plans.flatMap((p) => p.details)
+    const totalAmount = plans.reduce((s, p) => s + p.totalAmount, 0)
+    const segmentAmount = plans.reduce((s, p) => s + p.segmentAmount, 0)
+    const carriedAmount = plans.reduce((s, p) => s + p.carriedAmount, 0)
+    const mappedFromFile = plans.reduce((s, p) => s + p.mappedFromFile, 0)
+    const unmappedCodes = [...new Set(plans.flatMap((p) => p.unmappedCodes))]
+    const duplicatesConsolidated = plans.reduce((s, p) => s + p.duplicatesConsolidated, 0)
+    const existingVersions = plans.reduce((s, p) => s + p.existingUploads.length, 0)
+    const dateExists = plans.some((p) => p.existingUploads.length > 0)
+
+    // Build operator summary across all groups (for both preview and response).
+    const operatorIds = [...new Set(allDetails.map((d) => d.operatorId).filter((id) => id !== UNASSIGNED_OPERATOR))]
     const operators = await prisma.employee.findMany({
       where: { id: { in: operatorIds } },
       select: { id: true, name: true },
@@ -222,7 +255,7 @@ export async function POST(request: NextRequest) {
     const operatorNameMap = new Map(operators.map((o) => [o.id, o.name]))
 
     const opSummaryMap = new Map<string, { operatorName: string; clientCount: number; totalAmount: number }>()
-    for (const d of details) {
+    for (const d of allDetails) {
       const name = d.operatorId === UNASSIGNED_OPERATOR
         ? 'Unassigned (code not in master)'
         : operatorNameMap.get(d.operatorId) ?? 'Unknown'
@@ -235,6 +268,15 @@ export async function POST(request: NextRequest) {
     }
     const operatorSummary = Array.from(opSummaryMap.values())
 
+    // Per-date breakdown so the preview can show a multi-date file's spread.
+    const dateBreakdown = plans.map((p) => ({
+      date: p.dateKey,
+      totalAmount: p.totalAmount,
+      segmentAmount: p.segmentAmount,
+      mapped: p.mappedFromFile,
+      unmapped: p.unmappedCodes.length,
+    }))
+
     // Preview mode — return summary without writing to DB
     const isPreview = formData.get('preview') === 'true'
     if (isPreview) {
@@ -242,58 +284,66 @@ export async function POST(request: NextRequest) {
         success: true,
         data: {
           operatorSummary,
-          totalClients: details.length,
+          totalClients: allDetails.length,
           totalAmount,
           unmappedCodes,
           duplicatesConsolidated,
           existingVersions,
-          nextVersion,
-          dateExists: existingVersions > 0,
+          nextVersion: plans[0].nextVersion,
+          dateExists,
           segment,
           segmentAmount,
           carriedAmount,
+          multiDate,
+          dateCount: plans.length,
+          dateBreakdown,
         },
       })
     }
 
     // Confirm mode — create new version, deactivate previous versions
-    const upload = await prisma.$transaction(async (tx) => {
-      // Collect client IDs from existing versions before deactivating them
-      let prevClientIds: string[] = []
-      if (existingUploads.length > 0) {
-        const prevDetails = await tx.brokerageDetail.findMany({
-          where: { brokerageId: { in: existingUploads.map(u => u.id) }, clientId: { not: null } },
-          select: { clientId: true },
+    // Confirm mode — write one new active version per date group in a single transaction.
+    // Each group carries its day's other segment forward and replaces this segment, exactly
+    // as the single-date path always has; a single-date file is just one group.
+    const affectedClientIds = new Set<string>()
+    const created = await prisma.$transaction(async (tx) => {
+      const uploads: { id: string; uploadDate: Date; version: number }[] = []
+      for (const p of plans) {
+        if (p.existingUploads.length > 0) {
+          const prevDetails = await tx.brokerageDetail.findMany({
+            where: { brokerageId: { in: p.existingUploads.map((u) => u.id) }, clientId: { not: null } },
+            select: { clientId: true },
+          })
+          prevDetails.forEach((d) => affectedClientIds.add(d.clientId!))
+          await tx.brokerageUpload.updateMany({
+            where: { uploadDate: p.uploadDate, branch },
+            data: { isActive: false },
+          })
+        }
+        const newUpload = await tx.brokerageUpload.create({
+          data: {
+            uploadDate: p.uploadDate,
+            branch,
+            version: p.nextVersion,
+            isActive: true,
+            uploadedById: session.user.id,
+            totalAmount: p.totalAmount,
+            fileName: file.name,
+            details: { create: p.details },
+          },
+          select: { id: true, uploadDate: true, version: true },
         })
-        prevClientIds = [...new Set(prevDetails.map(d => d.clientId!))]
-        await tx.brokerageUpload.updateMany({
-          where: { uploadDate, branch },
-          data: { isActive: false },
-        })
+        p.details.forEach((d) => { if (d.clientId) affectedClientIds.add(d.clientId) })
+        uploads.push(newUpload)
       }
 
-      const newUpload = await tx.brokerageUpload.create({
-        data: {
-          uploadDate,
-          branch,
-          version: nextVersion,
-          isActive: true,
-          uploadedById: session.user.id,
-          totalAmount,
-          fileName: file.name,
-          details: { create: details },
-        },
-        include: { details: true },
-      })
+      // Re-derive Client.status from the now-active brokerage data across every touched
+      // client. status always reflects the *current* month (default ref), the same rule
+      // the reverse and activate routes follow.
+      await resyncEquityClientStatus(tx, [...affectedClientIds])
 
-      // Re-derive Client.status from the now-active brokerage data rather than from this
-      // date alone — a client dropped from a re-uploaded day may still have brokerage on
-      // another day of the month. status always reflects the *current* month (default ref),
-      // the same rule the reverse and activate routes follow.
-      await resyncEquityClientStatus(tx, [...prevClientIds, ...details.map((d) => d.clientId)])
-
-      return newUpload
-    })
+      return uploads
+    }, { timeout: 120_000, maxWait: 15_000 })  // a full-year F&O ledger writes many date groups
 
     // Send notifications to all EQUITY_DEALER employees
     const equityDealers = await prisma.employee.findMany({
@@ -301,12 +351,16 @@ export async function POST(request: NextRequest) {
       select: { id: true },
     })
 
+    const dateLabel = plans.length === 1
+      ? new Date(`${plans[0].dateKey}T00:00:00.000Z`).toDateString()
+      : `${plans.length} dates (${plans[0].dateKey} to ${plans[plans.length - 1].dateKey})`
+
     if (equityDealers.length > 0) {
       await createNotificationForMany({
         userIds: equityDealers.map((e) => e.id),
         type: 'BROKERAGE_UPLOAD',
         title: 'Brokerage data uploaded',
-        message: `Brokerage data for ${branch} branch on ${uploadDate.toDateString()} has been uploaded.`,
+        message: `Brokerage data for ${branch} branch on ${dateLabel} has been uploaded.`,
         link: '/brokerage',
       })
     }
@@ -315,7 +369,7 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
       action: 'UPLOAD',
       module: 'BROKERAGE',
-      details: `Uploaded ${segment} brokerage for ${uploadDate.toISOString().split('T')[0]} (${branch}). ${segment}: ${segmentAmount}. Day total: ${totalAmount}. Mapped: ${mappedFromFile}. Unmapped: ${unmappedCodes.length}`,
+      details: `Uploaded ${segment} brokerage for ${dateLabel} (${branch}). ${segment}: ${segmentAmount}. Total: ${totalAmount}. Mapped: ${mappedFromFile}. Unmapped: ${unmappedCodes.length}`,
     })
 
     // Invalidate admin dashboard cache so traded-client counts reflect the new upload immediately
@@ -324,16 +378,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        uploadId: upload.id,
-        uploadDate: upload.uploadDate,
-        version: upload.version,
+        uploadId: created[0].id,
+        uploadDate: created[0].uploadDate,
+        uploadDates: created.map((u) => u.uploadDate),
+        dateCount: created.length,
+        version: created[0].version,
         totalAmount,
         segment,
         segmentAmount,
         mappedCount: mappedFromFile,
         unmappedCount: unmappedCodes.length,
         skippedCodes: unmappedCodes,
-        previousVersionsDeactivated: existingUploads.length,
+        previousVersionsDeactivated: existingVersions,
       },
     })
   } catch (error) {
