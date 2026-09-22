@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isCurrentMonth } from '@/lib/utils'
 import { brokerageOperatorFilter } from '@/lib/brokerage-attribution'
+import { UNASSIGNED_OPERATOR } from '@/lib/brokerage-merge'
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,12 +45,24 @@ export async function GET(request: NextRequest) {
     const equityDealerWhere: Record<string, unknown> = { role: 'EQUITY_DEALER', isActive: true }
     if (userRole === 'EQUITY_DEALER') equityDealerWhere.id = session.user.id
 
-    const operators = await prisma.employee.findMany({
+    const dealers = await prisma.employee.findMany({
       where: equityDealerWhere,
       select: { id: true, name: true },
     })
 
-    const operatorIds = operators.map((o) => o.id)
+    // Client-count aggregations key off real employee ids only.
+    const operatorIds = dealers.map((o) => o.id)
+
+    // Surface brokerage whose client code isn't in the master (stored unattributed
+    // under UNASSIGNED_OPERATOR) as its own bucket, so nothing an upload recorded is
+    // missing from the view and the month total is complete. Admin-scope only — an
+    // individual dealer sees just their own rows. The unassigned rows (clientId null,
+    // operatorId = UNASSIGNED) match via the clientId-null branch of the attribution
+    // filter for the current month, and by operatorId for past months.
+    const operators = userRole === 'EQUITY_DEALER'
+      ? dealers
+      : [...dealers, { id: UNASSIGNED_OPERATOR, name: 'Unassigned (code not in master)' }]
+    const scopeIds = operators.map((o) => o.id)
 
     // Hybrid attribution requires two queries:
     //   - history (covers all 7 months including current): snapshot for past, current-owner
@@ -75,7 +88,7 @@ export async function GET(request: NextRequest) {
       prisma.brokerageDetail.findMany({
         where: {
           ...segmentFilter,
-          ...brokerageOperatorFilter(operatorIds, month, year),
+          ...brokerageOperatorFilter(scopeIds, month, year),
           brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
         },
         select: {
@@ -92,7 +105,7 @@ export async function GET(request: NextRequest) {
         ? prisma.brokerageDetail.findMany({
             where: {
               ...segmentFilter,
-              operatorId: { in: operatorIds },
+              operatorId: { in: scopeIds },
               brokerage: { isActive: true, uploadDate: { gte: historyStart, lte: pastHistoryEnd } },
             },
             select: {

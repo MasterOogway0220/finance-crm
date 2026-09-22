@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildVersionDetails, reactivationTarget, type DetailRow } from './brokerage-merge'
+import { buildVersionDetails, reactivationTarget, UNASSIGNED_OPERATOR, type DetailRow } from './brokerage-merge'
 
 const clients = new Map([
   ['18S442', { id: 'c-442', operatorId: 'op-a' }],
@@ -68,17 +68,23 @@ describe('buildVersionDetails', () => {
     expect(r.details.find((d) => d.segment === 'FNO')?.operatorId).toBe('op-NEW')
   })
 
-  it('skips codes missing from Client master without dropping the rest', () => {
+  it('records a code missing from Client master as unassigned, never dropping it', () => {
     const r = buildVersionDetails(cash, 'FNO', new Map([['NOPE', 10], ['18S442', 40]]), clients)
     expect(r.unmappedCodes).toEqual(['NOPE'])
     expect(r.mappedFromFile).toBe(1)
-    expect(r.segmentAmount).toBe(40)
+    // segmentAmount is the whole segment's money, including the unmapped row
+    expect(r.segmentAmount).toBe(50)
+    const nope = r.details.find((d) => d.clientCode === 'NOPE')
+    expect(nope).toMatchObject({ clientId: null, operatorId: UNASSIGNED_OPERATOR, amount: 10, segment: 'FNO' })
   })
 
-  it('reports zero mapped rows when the whole file is unmapped, even with prior rows', () => {
+  it('still records every row when the whole file is unmapped (never a no)', () => {
     const r = buildVersionDetails(cash, 'FNO', new Map([['NOPE', 10]]), clients)
     expect(r.mappedFromFile).toBe(0)
-    expect(r.details).toHaveLength(2)
+    // 2 carried cash rows + 1 unassigned FNO row — nothing dropped
+    expect(r.details).toHaveLength(3)
+    expect(r.details.filter((d) => d.operatorId === UNASSIGNED_OPERATOR)).toHaveLength(1)
+    expect(r.segmentAmount).toBe(10)
   })
 
   it('does not mutate the rows it was handed', () => {

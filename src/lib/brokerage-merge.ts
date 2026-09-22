@@ -26,6 +26,16 @@
 
 export type Segment = 'CASH' | 'FNO'
 
+/**
+ * operatorId placeholder for a brokerage row whose client code has no matching
+ * Client in the master. We never drop such a row — the amount is real money and
+ * must be recorded — so it is stored unattributed under this sentinel (a plain
+ * string, since operatorId is not a foreign key) with clientId null. The brokerage
+ * views surface it as an "Unassigned" bucket, and it attaches to a real operator
+ * once a Client with that code is created. Never collides with an Employee id (cuid).
+ */
+export const UNASSIGNED_OPERATOR = 'UNASSIGNED'
+
 export type DetailRow = {
   clientCode: string
   clientId: string | null
@@ -54,13 +64,17 @@ export function buildVersionDetails(
   let segmentAmount = 0
 
   for (const [clientCode, amount] of codeAmountMap) {
+    // Every code in the file is recorded — nothing is ever dropped. A code with no
+    // Client in the master is stored unattributed (clientId null, operatorId sentinel)
+    // rather than skipped, and reported in unmappedCodes so the UI can flag it.
     const client = codeToClient.get(clientCode)
+    segmentAmount += amount
     if (!client) {
       unmappedCodes.push(clientCode)
-      continue
+      details.push({ clientCode, clientId: null, operatorId: UNASSIGNED_OPERATOR, amount, segment })
+    } else {
+      details.push({ clientCode, clientId: client.id, operatorId: client.operatorId, amount, segment })
     }
-    segmentAmount += amount
-    details.push({ clientCode, clientId: client.id, operatorId: client.operatorId, amount, segment })
   }
 
   return {

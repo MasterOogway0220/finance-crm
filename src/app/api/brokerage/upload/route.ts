@@ -5,7 +5,7 @@ import { logActivity } from '@/lib/activity-log'
 import { createNotificationForMany } from '@/lib/notifications'
 import { invalidateCache } from '@/lib/cache'
 import { extractClientCodeFromNarration } from '@/lib/brokerage-code'
-import { buildVersionDetails, type DetailRow, type Segment } from '@/lib/brokerage-merge'
+import { buildVersionDetails, UNASSIGNED_OPERATOR, type DetailRow, type Segment } from '@/lib/brokerage-merge'
 import { resyncEquityClientStatus } from '@/lib/brokerage-status'
 import { Prisma, Role } from '@prisma/client'
 import * as XLSX from 'xlsx'
@@ -206,17 +206,10 @@ export async function POST(request: NextRequest) {
     const { details, unmappedCodes, segmentAmount, carriedAmount, mappedFromFile } =
       buildVersionDetails(prevRows, segment, codeAmountMap, codeToClient)
 
-    // If ALL codes in THIS file are unmapped, reject — the upload would add nothing
-    if (mappedFromFile === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `None of the ${unmappedCodes.length} client code(s) in this file exist in the system. Add these clients first, then re-upload.`,
-          data: { unmappedCodes, mappedCount: 0 },
-        },
-        { status: 422 }
-      )
-    }
+    // Every row is recorded — an upload is never rejected for unmapped codes. Codes
+    // with no Client in the master are stored unattributed (see buildVersionDetails)
+    // and reported in unmappedCodes so the UI can flag them; they attach to a real
+    // operator once the client is added.
 
     const totalAmount = details.reduce((sum, d) => sum + d.amount, 0)
 
@@ -230,7 +223,9 @@ export async function POST(request: NextRequest) {
 
     const opSummaryMap = new Map<string, { operatorName: string; clientCount: number; totalAmount: number }>()
     for (const d of details) {
-      const name = operatorNameMap.get(d.operatorId) ?? 'Unknown'
+      const name = d.operatorId === UNASSIGNED_OPERATOR
+        ? 'Unassigned (code not in master)'
+        : operatorNameMap.get(d.operatorId) ?? 'Unknown'
       const existing = opSummaryMap.get(d.operatorId) ?? { operatorName: name, clientCount: 0, totalAmount: 0 }
       opSummaryMap.set(d.operatorId, {
         operatorName: name,
