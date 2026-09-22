@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildVersionDetails, type DetailRow } from './brokerage-merge'
+import { buildVersionDetails, reactivationTarget, type DetailRow } from './brokerage-merge'
 
 const clients = new Map([
   ['18S442', { id: 'c-442', operatorId: 'op-a' }],
@@ -85,5 +85,24 @@ describe('buildVersionDetails', () => {
     const prev: DetailRow[] = [{ clientCode: '18S442', clientId: 'c-442', operatorId: 'op-a', amount: 60, segment: 'CASH' }]
     buildVersionDetails(prev, 'FNO', new Map([['18S442', 40]]), clients)
     expect(prev[0].amount).toBe(60)
+  })
+})
+
+describe('reactivationTarget', () => {
+  it('activates the highest-version survivor when none is active', () => {
+    const id = reactivationTarget([
+      { id: 'a', version: 1, isActive: false },
+      { id: 'b', version: 2, isActive: false },
+    ])
+    expect(id).toBe('b')
+  })
+  it('does nothing when a version is still active', () => {
+    expect(reactivationTarget([
+      { id: 'a', version: 1, isActive: false },
+      { id: 'b', version: 2, isActive: true },
+    ])).toBeNull()
+  })
+  it('does nothing when no versions survive', () => {
+    expect(reactivationTarget([])).toBeNull()
   })
 })

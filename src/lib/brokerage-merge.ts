@@ -71,3 +71,23 @@ export function buildVersionDetails(
     mappedFromFile: codeAmountMap.size - unmappedCodes.length,
   }
 }
+
+/**
+ * After one or more versions of a (date, branch) group are reversed (deleted),
+ * decides which remaining version should become active.
+ *
+ * Reversing the active version used to leave the whole day with no active version:
+ * the brokerage views (which query `isActive: true`) showed nothing, and the next
+ * upload read an empty `prevRows` and so dropped the day's OTHER segment — an F&O
+ * ledger silently vanished when a cash correction was reversed and re-uploaded.
+ *
+ * Returns the id of the highest-version survivor to activate, or null when the
+ * group still has an active version or has no survivors at all (nothing to do).
+ */
+export function reactivationTarget(
+  remaining: ReadonlyArray<{ id: string; version: number; isActive: boolean }>,
+): string | null {
+  if (remaining.length === 0) return null
+  if (remaining.some((u) => u.isActive)) return null
+  return remaining.reduce((max, u) => (u.version > max.version ? u : max)).id
+}
