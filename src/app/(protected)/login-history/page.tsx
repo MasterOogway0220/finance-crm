@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { countWorkingDays, summarizeAttendance, formatMinutes } from '@/lib/attendance-summary'
+import { countWorkingDays, summarizeAttendance, formatMinutes, type AttendanceSummaryRow } from '@/lib/attendance-summary'
 
 interface Session {
   id: string
@@ -71,7 +71,7 @@ function sessionDuration(loginAt: string, logoutAt: string | null): string {
 
 // xlsx is lazily imported so it stays out of the page bundle until the user
 // actually exports.
-async function exportXLSX(data: AttendanceEntry[], detailed: boolean) {
+async function exportXLSX(data: AttendanceEntry[], detailed: boolean, monthSummary: AttendanceSummaryRow[] | null) {
   const XLSX = await import('xlsx')
   const daysById = new Map(summarizeAttendance(data, 0).map((r) => [r.employeeId, r.loggedInDays]))
   const rows = detailed
@@ -100,6 +100,17 @@ async function exportXLSX(data: AttendanceEntry[], detailed: boolean) {
   const workbook = XLSX.utils.book_new()
   const sheet = XLSX.utils.json_to_sheet(rows)
   XLSX.utils.book_append_sheet(workbook, sheet, detailed ? 'Login History Detailed' : 'Login History')
+  if (monthSummary) {
+    const summaryRows = monthSummary.map((r) => ({
+      Employee: r.employeeName,
+      'Total Working Days': r.workingDays,
+      'Days Logged In': r.loggedInDays,
+      'Avg Working Time': r.avgWorkMs === null ? '—' : durationStr(r.avgWorkMs),
+      'Avg Login Time': formatMinutes(r.avgLoginMin),
+      'Avg Logoff Time': formatMinutes(r.avgLogoutMin),
+    }))
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), 'Monthly Summary')
+  }
   XLSX.writeFile(workbook, `login-history-${detailed ? 'detailed' : 'summary'}.xlsx`)
 }
 
@@ -283,7 +294,7 @@ export default function LoginHistoryPage() {
             onClick={async () => {
               setExporting(true)
               try {
-                await exportXLSX(data, detailed)
+                await exportXLSX(data, detailed, filterType === 'month' ? monthSummary : null)
               } catch {
                 toast.error('Export failed')
               } finally {

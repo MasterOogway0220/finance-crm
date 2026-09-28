@@ -131,7 +131,17 @@ export async function POST(request: NextRequest) {
       const summarySheet = XLSX.utils.json_to_sheet(summaryRows)
       XLSX.utils.book_append_sheet(workbook, summarySheet, 'Leave Summary')
 
-      // Sheet 2 — individual approved leave records for the year
+      // Sheet 2 — month-wise leaves taken (matches the on-screen month-wise table)
+      const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const monthlyRows = summary.map((r) => ({
+        Employee: r.employeeName,
+        ...Object.fromEntries(MONTHS.map((m, i) => [m, r.monthly[i]])),
+        'Total Taken': r.leavesTaken,
+        'Total Leaves': r.totalLeaves,
+      }))
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(monthlyRows), 'Month-wise Leaves')
+
+      // Sheet 3 — individual approved leave records for the year
       const leaveWhere: Record<string, unknown> = {
         status: 'APPROVED',
         fromDate: {
