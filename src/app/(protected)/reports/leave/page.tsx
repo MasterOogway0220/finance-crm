@@ -15,9 +15,12 @@ interface LeaveRow {
   totalLeaves: number
   leavesTaken: number
   leavesRemaining: number
+  monthly: number[]
 }
 
 interface Employee { id: string; name: string; department: string }
+
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const YEARS = [2024, 2025, 2026, 2027].map((y) => ({ value: String(y), label: String(y) }))
 
@@ -203,6 +206,36 @@ export default function LeaveReportPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Month-wise Leaves Taken */}
+      {!loading && data.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-gray-700">Month-wise Leaves Taken — {year}</h2>
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  {['Employee', ...MONTH_LABELS, 'Total Taken', 'Total Leaves'].map(h => (
+                    <th key={h} className="px-3 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.map(row => (
+                  <tr key={row.employeeId} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-3 py-3 font-medium text-gray-800 whitespace-nowrap">{row.employeeName}</td>
+                    {row.monthly.map((d, i) => (
+                      <td key={i} className="px-3 py-3 text-center text-gray-600">{d || '—'}</td>
+                    ))}
+                    <td className="px-3 py-3 text-center font-medium text-red-600">{row.leavesTaken}</td>
+                    <td className="px-3 py-3 text-center font-medium">{row.totalLeaves}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

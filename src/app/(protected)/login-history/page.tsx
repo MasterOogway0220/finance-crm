@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { countWorkingDays, summarizeAttendance, formatMinutes } from '@/lib/attendance-summary'
 
 interface Session {
   id: string
@@ -68,25 +69,11 @@ function sessionDuration(loginAt: string, logoutAt: string | null): string {
   return durationStr(ms)
 }
 
-// Distinct weekday (Mon–Fri) login dates per employee
-function countLoggedInDays(data: AttendanceEntry[]) {
-  const map = new Map<string, { name: string; days: Set<string> }>()
-  for (const entry of data) {
-    const [y, m, d] = entry.date.split('-').map(Number)
-    const dow = new Date(y, m - 1, d).getDay()
-    if (dow === 0 || dow === 6) continue
-    const rec = map.get(entry.employeeId) ?? { name: entry.employeeName, days: new Set<string>() }
-    rec.days.add(entry.date)
-    map.set(entry.employeeId, rec)
-  }
-  return [...map.entries()].map(([id, r]) => ({ id, name: r.name, count: r.days.size }))
-}
-
 // xlsx is lazily imported so it stays out of the page bundle until the user
 // actually exports.
 async function exportXLSX(data: AttendanceEntry[], detailed: boolean) {
   const XLSX = await import('xlsx')
-  const daysById = new Map(countLoggedInDays(data).map((r) => [r.id, r.count]))
+  const daysById = new Map(summarizeAttendance(data, 0).map((r) => [r.employeeId, r.loggedInDays]))
   const rows = detailed
     ? data.flatMap((entry) =>
         entry.sessions.map((s, idx) => ({
@@ -171,9 +158,18 @@ export default function LoginHistoryPage() {
     if (!detailed) setExpandedRows(new Set())
   }, [detailed])
 
+  const monthSummary = useMemo(
+    () => summarizeAttendance(
+      data,
+      countWorkingDays(Number(filterYear), Number(filterMonth), new Date()),
+      filterEmployee === 'all' ? employees : employees.filter((e) => e.id === filterEmployee),
+    ),
+    [data, filterYear, filterMonth, filterEmployee, employees],
+  )
+
   const loggedInDaysById = useMemo(
-    () => new Map(countLoggedInDays(data).map((r) => [r.id, r.count])),
-    [data],
+    () => new Map(monthSummary.map((r) => [r.employeeId, r.loggedInDays])),
+    [monthSummary],
   )
 
   const filterLabel = useMemo(() => {
@@ -306,6 +302,39 @@ export default function LoginHistoryPage() {
         </p>
 
       </div>
+
+      {/* Monthly Summary */}
+      {filterType === 'month' && !loading && monthSummary.length > 0 && (
+        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+          <p className="px-5 py-3 border-b text-sm font-semibold text-gray-700">Monthly Summary — {filterLabel}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <th className="px-5 py-3 text-left">Employee</th>
+                  <th className="px-5 py-3 text-left">Total Working Days</th>
+                  <th className="px-5 py-3 text-left">Days Logged In</th>
+                  <th className="px-5 py-3 text-left">Avg Working Time</th>
+                  <th className="px-5 py-3 text-left">Avg Login Time</th>
+                  <th className="px-5 py-3 text-left">Avg Logoff Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {monthSummary.map((row) => (
+                  <tr key={row.employeeId} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3 font-medium text-gray-900">{row.employeeName}</td>
+                    <td className="px-5 py-3 text-gray-700">{row.workingDays}</td>
+                    <td className="px-5 py-3 text-gray-700">{row.loggedInDays}</td>
+                    <td className="px-5 py-3 text-gray-700">{row.avgWorkMs === null ? '—' : durationStr(row.avgWorkMs)}</td>
+                    <td className="px-5 py-3 text-gray-700">{formatMinutes(row.avgLoginMin)}</td>
+                    <td className="px-5 py-3 text-gray-700">{formatMinutes(row.avgLogoutMin)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Data Table */}
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">

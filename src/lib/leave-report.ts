@@ -14,6 +14,13 @@ export interface LeaveReportRow {
   totalLeaves: number
   leavesTaken: number
   leavesRemaining: number
+  monthly: number[] // Jan..Dec leave days, bucketed by fromDate
+}
+
+export function monthlyLeaveDays(leaves: { fromDate: Date; days: number }[]): number[] {
+  const monthly = Array<number>(12).fill(0)
+  for (const l of leaves) monthly[l.fromDate.getUTCMonth()] += l.days
+  return monthly
 }
 
 /**
@@ -47,8 +54,8 @@ export async function getLeaveReport(filters: LeaveReportFilters): Promise<Leave
       }
 
       // Count approved leave days for this year
-      const approvedLeaves = await prisma.leaveApplication.aggregate({
-        _sum: { days: true },
+      const approvedLeaves = await prisma.leaveApplication.findMany({
+        select: { fromDate: true, days: true },
         where: {
           employeeId: emp.id,
           status: 'APPROVED',
@@ -59,7 +66,8 @@ export async function getLeaveReport(filters: LeaveReportFilters): Promise<Leave
         },
       })
 
-      const leavesTaken = approvedLeaves._sum.days ?? 0
+      const monthly = monthlyLeaveDays(approvedLeaves)
+      const leavesTaken = monthly.reduce((s, d) => s + d, 0)
 
       return {
         employeeId: emp.id,
@@ -69,6 +77,7 @@ export async function getLeaveReport(filters: LeaveReportFilters): Promise<Leave
         totalLeaves: balance.totalLeaves,
         leavesTaken,
         leavesRemaining: balance.totalLeaves - leavesTaken,
+        monthly,
       }
     })
   )
