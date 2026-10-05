@@ -18,6 +18,8 @@ declare module 'next-auth' {
       secondaryRole: Role | null
       department: Department
       designation: string
+      sessionEndsAt: string // ISO; the 6 PM (or, after 6 PM, midnight) IST cut-off
+      recorded: boolean // false for a login after 6 PM, whose time isn't recorded
     }
   }
 }

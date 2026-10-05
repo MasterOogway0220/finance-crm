@@ -20,9 +20,10 @@ import {
   Headset,
   ClipboardList,
   MessageCircle,
+  Clock,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
-import { isHrViewer } from '@/lib/roles'
+import { isHrViewer, isReadOnly } from '@/lib/roles'
 import { useActiveRoleStore, ROLE_LABELS } from '@/stores/active-role-store'
 import { useNotificationStore } from '@/stores/notification-store'
 
@@ -296,6 +297,11 @@ export default function Sidebar({ onClose }: SidebarProps) {
           : [{ label: 'Employee Leave Report', href: '/reports/leave', icon: CalendarDays } as NavItem]),
       ]
     : baseNav
+  // Extra-time requests (time worked after the 6 PM cut-off) are open to every
+  // role that can write — the read-only CA can't submit one.
+  const navWithExtraTime = baseNav.length && !isReadOnly(effectiveRole)
+    ? [...navItems, { label: 'Extra Time', href: '/extra-time', icon: Clock } as NavItem]
+    : navItems
 
   const userName = session?.user?.name ?? 'User'
   const roleLabel = ROLE_LABELS[effectiveRole] ?? ''
@@ -319,7 +325,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        {navItems.map((item) =>
+        {navWithExtraTime.map((item) =>
           item.children ? (
             <ExpandableNavItem key={item.label} item={item} pathname={pathname} onClose={onClose} />
           ) : (

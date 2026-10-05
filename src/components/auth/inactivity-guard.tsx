@@ -49,6 +49,15 @@ export default function InactivityGuard() {
     signOut({ callbackUrl: '/login' })
   }, [clearAll])
 
+  // Timed-out (not button) logouts are recorded as a system idle logout first.
+  const idleLogout = useCallback(() => {
+    isLoggingOut.current = true
+    clearAll()
+    fetch('/api/login-log/idle', { method: 'POST' })
+      .catch(() => {})
+      .finally(() => signOut({ callbackUrl: '/login' }))
+  }, [clearAll])
+
   const startCountdown = useCallback(() => {
     warningShownAt.current = Date.now()
     setCountdown(WARN_BEFORE_MS)
@@ -59,12 +68,12 @@ export default function InactivityGuard() {
       const remaining = WARN_BEFORE_MS - elapsed
       if (remaining <= 0) {
         clearAll()
-        logout()
+        idleLogout()
       } else {
         setCountdown(remaining)
       }
     }, 500)
-  }, [clearAll, logout])
+  }, [clearAll, idleLogout])
 
   const resetTimer = useCallback(() => {
     clearAll()
@@ -77,9 +86,9 @@ export default function InactivityGuard() {
     }, TIMEOUT_MS - WARN_BEFORE_MS)
 
     timeoutRef.current = setTimeout(() => {
-      logout()
+      idleLogout()
     }, TIMEOUT_MS)
-  }, [clearAll, startCountdown, logout])
+  }, [clearAll, startCountdown, idleLogout])
 
   const handleStayLoggedIn = useCallback(() => {
     resetTimer()

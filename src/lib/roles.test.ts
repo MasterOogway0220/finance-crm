@@ -74,6 +74,9 @@ describe('shouldBlockMutation', () => {
     expect(shouldBlockMutation('CHARTERED_ACCOUNTANT', 'POST', '/api/auth/signout')).toBe(false)
     expect(shouldBlockMutation('CHARTERED_ACCOUNTANT', 'POST', '/api/auth/session')).toBe(false)
   })
+  it('allows the idle-logout marker so CA idle logouts are recorded', () => {
+    expect(shouldBlockMutation('CHARTERED_ACCOUNTANT', 'POST', '/api/login-log/idle')).toBe(false)
+  })
   it('allows the report export endpoint (read-only POST) for the CA', () => {
     expect(shouldBlockMutation('CHARTERED_ACCOUNTANT', 'POST', '/api/reports/export')).toBe(false)
   })

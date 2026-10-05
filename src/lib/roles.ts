@@ -106,5 +106,7 @@ export function shouldBlockMutation(
   // its body carries filters/columns — it reads data to build a file, never writes.
   if (pathname.startsWith('/api/auth')) return false
   if (pathname.startsWith('/api/reports/export')) return false
+  // Marks an idle timeout on the user's own login log, just before logout.
+  if (pathname.startsWith('/api/login-log/idle')) return false
   return true
 }

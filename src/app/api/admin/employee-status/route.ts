@@ -2,6 +2,7 @@ import { auth, getActiveRole } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { canViewAdmin } from '@/lib/roles'
+import { closeExpiredLoginLogs } from '@/lib/login-log'
 
 const ONLINE_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
 
@@ -17,6 +18,8 @@ export async function GET() {
     if (!canViewAdmin(role)) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
+
+    await closeExpiredLoginLogs()
 
     // Use IST (UTC+5:30) for "today" calculation
     const nowUtc = new Date()

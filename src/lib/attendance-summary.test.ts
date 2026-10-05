@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { countWorkingDays, summarizeAttendance, formatMinutes } from './attendance-summary'
+import { countWorkingDays, summarizeAttendance, formatMinutes, groupAttendance } from './attendance-summary'
 
 const TODAY = new Date(2026, 8, 28) // Mon 28 Sep 2026
 
@@ -17,7 +17,7 @@ describe('countWorkingDays', () => {
   })
 })
 
-const day = (date: string, firstLogin: string, lastLogout: string | null, totalDurationMs: number) => ({
+const day = (date: string, firstLogin: string | null, lastLogout: string | null, totalDurationMs: number) => ({
   date, employeeId: 'e1', employeeName: 'Asha', firstLogin, lastLogout, totalDurationMs,
 })
 const H = 3600000
@@ -65,6 +65,17 @@ describe('summarizeAttendance', () => {
     expect(rows[1]).toMatchObject({ workingDays: 20, avgWorkMs: null, avgLoginMin: null, avgLogoutMin: null })
   })
 
+  it('leaves extra-time-only days (no recorded login) out of the login average', () => {
+    const [row] = summarizeAttendance([
+      day('2026-09-01', '2026-09-01T04:00:00Z', '2026-09-01T12:30:00Z', 8 * H),
+      day('2026-09-02', null, null, 1 * H),
+    ], 20)
+    expect(row.loggedInDays).toBe(2)
+    expect(row.avgLoginMin).toBe(570)
+    expect(row.avgWorkMs).toBe(4.5 * H) // (8h + 1h extra) / 2
+    expect(row.avgLogoutMin).toBe(1080)
+  })
+
   it('returns null averages when no day has a logout', () => {
     const [row] = summarizeAttendance([day('2026-09-01', '2026-09-01T04:00:00Z', null, 0)], 20)
     expect(row.avgWorkMs).toBeNull()
@@ -78,5 +89,70 @@ describe('formatMinutes', () => {
     expect(formatMinutes(1110)).toBe('06:30 PM')
     expect(formatMinutes(0)).toBe('12:00 AM')
     expect(formatMinutes(null)).toBe('—')
+  })
+})
+
+const emp = { id: 'e1', name: 'Asha', department: 'EQUITY', designation: 'Dealer' }
+const log = (id: string, loginAt: string, logoutAt: string | null, logoutType: string | null = 'SELF') => ({
+  id, employeeId: 'e1', loginAt: new Date(loginAt), logoutAt: logoutAt ? new Date(logoutAt) : null, logoutType, employee: emp,
+})
+const extra = (startAt: string, endAt: string) => ({
+  employeeId: 'e1', startAt: new Date(startAt), endAt: new Date(endAt), employee: emp,
+})
+
+describe('groupAttendance', () => {
+  it('sums closed sessions of one IST day', () => {
+    const [d] = groupAttendance([
+      log('a', '2026-10-05T04:00:00Z', '2026-10-05T07:00:00Z'), // 3h
+      log('b', '2026-10-05T08:00:00Z', '2026-10-05T12:30:00Z', 'AUTO'), // 4.5h
+    ], [])
+    expect(d).toMatchObject({
+      date: '2026-10-05', firstLogin: '2026-10-05T04:00:00.000Z', lastLogout: '2026-10-05T12:30:00.000Z',
+      lastLogoutType: 'AUTO', totalDurationMs: 7.5 * H, extraMs: 0,
+    })
+    expect(d.sessions.map((s) => s.logoutType)).toEqual(['SELF', 'AUTO'])
+  })
+
+  it('groups by IST date', () => {
+    const [d] = groupAttendance([log('a', '2026-10-04T20:00:00Z', '2026-10-04T21:00:00Z')], []) // 01:30 IST 5 Oct
+    expect(d.date).toBe('2026-10-05')
+  })
+
+  it('keeps an open session out of the total and leaves lastLogout null', () => {
+    const [d] = groupAttendance([
+      log('a', '2026-10-05T04:00:00Z', '2026-10-05T06:00:00Z'),
+      log('b', '2026-10-05T07:00:00Z', null, null),
+    ], [])
+    expect(d.lastLogout).toBeNull()
+    expect(d.totalDurationMs).toBe(2 * H)
+  })
+
+  it('adds approved extra time to the day total', () => {
+    const [d] = groupAttendance(
+      [log('a', '2026-10-05T04:00:00Z', '2026-10-05T12:30:00Z', 'AUTO')], // 8.5h
+      [extra('2026-10-05T12:30:00Z', '2026-10-05T14:00:00Z')], // 18:00–19:30 IST
+    )
+    expect(d.extraMs).toBe(1.5 * H)
+    expect(d.totalDurationMs).toBe(10 * H)
+  })
+
+  it('creates a day for extra time with no recorded login', () => {
+    const [d] = groupAttendance([], [extra('2026-10-05T13:30:00Z', '2026-10-05T14:30:00Z')])
+    expect(d).toMatchObject({
+      date: '2026-10-05', employeeName: 'Asha', firstLogin: null, lastLogout: null,
+      totalDurationMs: H, extraMs: H, sessions: [],
+    })
+  })
+
+  it('sorts by date desc then employee name', () => {
+    const other = { ...emp, id: 'e2', name: 'Bharat' }
+    const rows = groupAttendance([
+      { ...log('a', '2026-10-05T04:00:00Z', '2026-10-05T05:00:00Z'), employeeId: 'e2', employee: other },
+      log('b', '2026-10-05T04:00:00Z', '2026-10-05T05:00:00Z'),
+      log('c', '2026-10-06T04:00:00Z', '2026-10-06T05:00:00Z'),
+    ], [])
+    expect(rows.map((r) => `${r.date} ${r.employeeName}`)).toEqual([
+      '2026-10-06 Asha', '2026-10-05 Asha', '2026-10-05 Bharat',
+    ])
   })
 })

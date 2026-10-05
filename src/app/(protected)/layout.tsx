@@ -7,6 +7,7 @@ import { Toaster } from 'sonner'
 import Sidebar from '@/components/layout/sidebar'
 import TopBar from '@/components/layout/topbar'
 import InactivityGuard from '@/components/auth/inactivity-guard'
+import WorkHoursGuard from '@/components/auth/work-hours-guard'
 
 const HEARTBEAT_INTERVAL = 5 * 60 * 1000 // 5 minutes
 
@@ -84,6 +85,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
         <Toaster position="top-right" richColors closeButton />
         <InactivityGuard />
+        <WorkHoursGuard />
         <HeartbeatProvider />
       </div>
     </SessionProvider>

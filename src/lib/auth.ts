@@ -5,6 +5,8 @@ import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { Role, Department } from '@prisma/client'
 import { getEffectiveRole } from '@/lib/roles'
+import { isRecordedLogin, sessionEndsAt } from '@/lib/work-hours'
+import { closeOpenLoginLogs } from '@/lib/login-log'
 export { getEffectiveRole } from '@/lib/roles'
 
 /**
@@ -86,7 +88,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.secondaryRole = (user as { secondaryRole: Role | null }).secondaryRole ?? null
         token.department = (user as { department: Department }).department
         token.designation = (user as { designation: string }).designation
+        token.sessionEndsAt = sessionEndsAt(new Date()).toISOString()
+        token.recorded = isRecordedLogin(new Date())
       }
+      // Past the 6 PM / midnight cut-off — or a token from before this rule, whose
+      // holder must log in once more so today's login is recorded — clear the session.
+      if (!token.sessionEndsAt || Date.now() >= Date.parse(token.sessionEndsAt as string)) return null
       return token
     },
     async session({ session, token }) {
@@ -96,6 +103,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.secondaryRole = (token.secondaryRole as Role | null) ?? null
         session.user.department = token.department as Department
         session.user.designation = token.designation as string
+        session.user.sessionEndsAt = token.sessionEndsAt as string
+        session.user.recorded = token.recorded !== false
       }
       return session
     },
@@ -104,15 +113,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user }) {
       try {
         const userId = user.id!
+        const now = new Date()
         // Close any previously open login logs (orphaned from crashes / missed logouts)
-        await prisma.employeeLoginLog.updateMany({
-          where: { employeeId: userId, logoutAt: null },
-          data: { logoutAt: new Date() },
-        })
-        // Create fresh login log
-        await prisma.employeeLoginLog.create({
-          data: { employeeId: userId },
-        })
+        await closeOpenLoginLogs(userId, 'SELF', now)
+        // Only logins before the 6 PM cut-off are recorded; later time needs an extra-time request
+        if (isRecordedLogin(now)) {
+          await prisma.employeeLoginLog.create({
+            data: { employeeId: userId, loginAt: now },
+          })
+        }
         await prisma.employee.update({
           where: { id: userId },
           data: { lastSeenAt: new Date() },
@@ -127,10 +136,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!userId) return
       try {
         // Close all open login logs for this user
-        await prisma.employeeLoginLog.updateMany({
-          where: { employeeId: userId, logoutAt: null },
-          data: { logoutAt: new Date() },
-        })
+        await closeOpenLoginLogs(userId, 'SELF')
       } catch (err) {
         console.error('[auth:signOut event]', err)
       }

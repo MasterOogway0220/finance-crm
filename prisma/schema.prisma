@@ -37,6 +37,12 @@ enum LeaveStatus {
   CANCELLED
 }
 
+enum LogoutType {
+  SELF
+  AUTO
+  IDLE
+}
+
 enum TaskPriority {
   HIGH
   MEDIUM
@@ -99,6 +105,8 @@ model Employee {
   leaveApplications    LeaveApplication[] @relation("LeaveApplicant")
   reviewedLeaves       LeaveApplication[] @relation("LeaveReviewer")
   loginLogs            EmployeeLoginLog[]
+  extraTimeRequests    ExtraTimeRequest[]    @relation("ExtraTimeApplicant")
+  reviewedExtraTime    ExtraTimeRequest[]    @relation("ExtraTimeReviewer")
   mfBusinessRecorded   MFBusiness[]          @relation("MFBusinessEmployee")
   mfBusinessReferred   MFBusiness[]          @relation("MFBusinessReferrer")
   mfServicesRecorded   MFService[]           @relation("MFServiceEmployee")
@@ -402,11 +410,32 @@ model EmployeeLoginLog {
   employee   Employee  @relation(fields: [employeeId], references: [id])
   loginAt    DateTime  @default(now())
   logoutAt   DateTime?
+  logoutType LogoutType? // null on rows from before logout types were recorded
 
   @@index([employeeId])
   @@index([loginAt])
   @@index([employeeId, loginAt])
   @@index([loginAt, logoutAt])
+}
+
+// Time worked after the 6 PM cut-off; counts toward attendance once a Super Admin approves it.
+model ExtraTimeRequest {
+  id           String      @id @default(cuid())
+  employeeId   String
+  employee     Employee    @relation("ExtraTimeApplicant", fields: [employeeId], references: [id])
+  startAt      DateTime
+  endAt        DateTime
+  reason       String      @db.Text
+  status       LeaveStatus @default(PENDING)
+  reviewedById String?
+  reviewedBy   Employee?   @relation("ExtraTimeReviewer", fields: [reviewedById], references: [id])
+  reviewNote   String?     @db.Text
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([employeeId, startAt])
+  @@index([status])
+  @@index([startAt])
 }
 
 model MFProduct {

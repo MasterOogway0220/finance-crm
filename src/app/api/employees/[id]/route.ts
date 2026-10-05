@@ -262,12 +262,14 @@ export async function DELETE(
     await prisma.$transaction([
       prisma.brokerageUpload.updateMany({ where: { uploadedById: id }, data: { uploadedById: null } }),
       prisma.leaveApplication.updateMany({ where: { reviewedById: id }, data: { reviewedById: null } }),
+      prisma.extraTimeRequest.updateMany({ where: { reviewedById: id }, data: { reviewedById: null } }),
       prisma.mFBusiness.updateMany({ where: { referredById: id }, data: { referredById: null } }),
       prisma.notification.deleteMany({ where: { userId: id } }),
       prisma.activityLog.deleteMany({ where: { userId: id } }),
       prisma.leaveBalance.deleteMany({ where: { employeeId: id } }),
       prisma.leaveApplication.deleteMany({ where: { employeeId: id } }),
       prisma.employeeLoginLog.deleteMany({ where: { employeeId: id } }),
+      prisma.extraTimeRequest.deleteMany({ where: { employeeId: id } }),
       prisma.employee.delete({ where: { id } }),
     ])
 

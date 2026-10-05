@@ -6,25 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { countWorkingDays, summarizeAttendance, formatMinutes, type AttendanceSummaryRow } from '@/lib/attendance-summary'
-
-interface Session {
-  id: string
-  loginAt: string
-  logoutAt: string | null
-}
-
-interface AttendanceEntry {
-  date: string
-  employeeId: string
-  employeeName: string
-  department: string
-  designation: string
-  firstLogin: string
-  lastLogout: string | null
-  totalDurationMs: number
-  sessions: Session[]
-}
+import { countWorkingDays, summarizeAttendance, formatMinutes, type AttendanceSummaryRow, type AttendanceEntry } from '@/lib/attendance-summary'
+import { istDateKey } from '@/lib/work-hours'
 
 interface Employee {
   id: string
@@ -38,6 +21,14 @@ const DEPT_LABELS: Record<string, string> = {
   ADMIN: 'Admin',
 }
 
+const LOGOUT_TYPE_LABELS: Record<string, string> = {
+  SELF: 'Self',
+  AUTO: 'System (6 PM)',
+  IDLE: 'System (idle)',
+}
+
+const logoutTypeLabel = (type: string | null) => (type ? LOGOUT_TYPE_LABELS[type] ?? type : '—')
+
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({
   value: String(i + 1).padStart(2, '0'),
   label: new Date(0, i).toLocaleString('default', { month: 'long' }),
@@ -47,7 +38,7 @@ const YEARS = ['2024', '2025', '2026', '2027'].map((y) => ({ value: y, label: y 
 
 function formatTime(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
 }
 
 function formatDate(dateStr: string): string {
@@ -75,24 +66,30 @@ async function exportXLSX(data: AttendanceEntry[], detailed: boolean, monthSumma
   const XLSX = await import('xlsx')
   const daysById = new Map(summarizeAttendance(data, 0).map((r) => [r.employeeId, r.loggedInDays]))
   const rows = detailed
-    ? data.flatMap((entry) =>
-        entry.sessions.map((s, idx) => ({
+    ? data.flatMap((entry) => {
+        const dayRow = (s: AttendanceEntry['sessions'][number] | null, idx: number) => ({
           Employee: entry.employeeName,
           Department: DEPT_LABELS[entry.department] ?? entry.department,
           Date: entry.date,
-          'Session #': idx + 1,
-          'Login Time': formatTime(s.loginAt),
-          'Logout Time': formatTime(s.logoutAt),
-          Duration: sessionDuration(s.loginAt, s.logoutAt),
+          'Session #': s ? idx + 1 : '—',
+          'Login Time': formatTime(s?.loginAt ?? null),
+          'Logout Time': formatTime(s?.logoutAt ?? null),
+          'Logout Type': logoutTypeLabel(s?.logoutType ?? null),
+          Duration: s ? sessionDuration(s.loginAt, s.logoutAt) : '—',
+          'Extra Time (approved, day)': durationStr(entry.extraMs),
           'Logged-in Days (excl. Sat/Sun)': daysById.get(entry.employeeId) ?? 0,
-        })),
-      )
+        })
+        // A day with only approved extra time has no sessions but still gets a row.
+        return entry.sessions.length ? entry.sessions.map(dayRow) : [dayRow(null, 0)]
+      })
     : data.map((entry) => ({
         Employee: entry.employeeName,
         Department: DEPT_LABELS[entry.department] ?? entry.department,
         Date: entry.date,
         'First Login': formatTime(entry.firstLogin),
         'Last Logout': formatTime(entry.lastLogout),
+        'Logout Type': logoutTypeLabel(entry.lastLogoutType),
+        'Extra Time (approved)': durationStr(entry.extraMs),
         'Total Work Time': durationStr(entry.totalDurationMs),
         'Logged-in Days (excl. Sat/Sun)': daysById.get(entry.employeeId) ?? 0,
       }))
@@ -125,7 +122,7 @@ export default function LoginHistoryPage() {
   const [filterType, setFilterType] = useState<'month' | 'date'>('month')
   const [filterMonth, setFilterMonth] = useState(String(today.getMonth() + 1).padStart(2, '0'))
   const [filterYear, setFilterYear] = useState(String(today.getFullYear()))
-  const [filterDate, setFilterDate] = useState(today.toISOString().slice(0, 10))
+  const [filterDate, setFilterDate] = useState(istDateKey(today))
 
   // View toggles
   const [detailed, setDetailed] = useState(false)
@@ -371,6 +368,8 @@ export default function LoginHistoryPage() {
                   <th className="px-5 py-3 text-left">Date</th>
                   <th className="px-5 py-3 text-left">First Login</th>
                   <th className="px-5 py-3 text-left">Last Logout</th>
+                  <th className="px-5 py-3 text-left">Logout Type</th>
+                  <th className="px-5 py-3 text-left">Extra Time</th>
                   <th className="px-5 py-3 text-left">Total Work Time</th>
                   <th className="px-5 py-3 text-left">Logged-in Days</th>
                   {detailed && <th className="px-5 py-3 text-left w-10"></th>}
@@ -380,6 +379,7 @@ export default function LoginHistoryPage() {
                 {data.map((entry) => {
                   const rowKey = `${entry.employeeId}_${entry.date}`
                   const isExpanded = expandedRows.has(rowKey)
+                  const hasOpenSession = entry.sessions.some((s) => !s.logoutAt)
 
                   return (
                     <Fragment key={rowKey}>
@@ -406,17 +406,23 @@ export default function LoginHistoryPage() {
                               <LogOut className="h-3.5 w-3.5 text-orange-500" />
                               {formatTime(entry.lastLogout)}
                             </span>
-                          ) : (
+                          ) : hasOpenSession ? (
                             <span className="inline-flex items-center gap-1 text-green-600 font-medium">
                               <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
                               Active
                             </span>
+                          ) : (
+                            <span className="text-gray-400">—</span>
                           )}
                         </td>
+                        <td className="px-5 py-3 text-gray-700">
+                          {hasOpenSession ? '—' : logoutTypeLabel(entry.lastLogoutType)}
+                        </td>
+                        <td className="px-5 py-3 text-gray-700">{durationStr(entry.extraMs)}</td>
                         <td className="px-5 py-3">
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
                             <Clock className="h-3 w-3" />
-                            {entry.lastLogout === null && entry.totalDurationMs === 0
+                            {hasOpenSession && entry.totalDurationMs === 0
                               ? 'In progress'
                               : durationStr(entry.totalDurationMs)}
                           </span>
@@ -446,7 +452,7 @@ export default function LoginHistoryPage() {
                       {/* Detailed sessions */}
                       {detailed && isExpanded && (
                         <tr className="bg-blue-50/20">
-                          <td colSpan={8} className="px-8 py-3">
+                          <td colSpan={10} className="px-8 py-3">
                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
                               Sessions ({entry.sessions.length})
                             </p>
@@ -479,6 +485,9 @@ export default function LoginHistoryPage() {
                                         <LogOut className="h-3.5 w-3.5 text-orange-500" />
                                         {formatTime(session.logoutAt)}
                                       </span>
+                                    )}
+                                    {!isActive && (
+                                      <span className="text-xs text-gray-500">{logoutTypeLabel(session.logoutType)}</span>
                                     )}
                                     {!isActive && (
                                       <span className="ml-auto text-xs text-gray-400 font-medium">

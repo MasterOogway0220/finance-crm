@@ -2,6 +2,8 @@ import { auth, getActiveRole } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { canViewAdmin, isHrViewer } from '@/lib/roles'
+import { closeExpiredLoginLogs } from '@/lib/login-log'
+import { groupAttendance } from '@/lib/attendance-summary'
 
 // GET /api/admin/attendance — login/logoff history grouped by employee & date
 // ?month=2026-03 (required unless date is provided)
@@ -48,89 +50,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Provide date or month parameter' }, { status: 400 })
     }
 
-    const where: Record<string, unknown> = {
-      loginAt: { gte: from, lte: to },
-    }
-    if (employeeId) where.employeeId = employeeId
+    // Close sessions left open past their 6 PM cut-off before reading.
+    await closeExpiredLoginLogs()
 
-    const logs = await prisma.employeeLoginLog.findMany({
-      where,
-      include: {
-        employee: { select: { id: true, name: true, department: true, designation: true } },
-      },
-      orderBy: { loginAt: 'asc' },
-    })
+    const employeeFilter = employeeId ? { employeeId } : {}
+    const employeeSelect = { select: { id: true, name: true, department: true, designation: true } }
 
-    // Fetch all active employees for filter dropdown
-    const employees = await prisma.employee.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
-    })
+    const [logs, extras, employees] = await Promise.all([
+      prisma.employeeLoginLog.findMany({
+        where: { loginAt: { gte: from, lte: to }, ...employeeFilter },
+        include: { employee: employeeSelect },
+        orderBy: { loginAt: 'asc' },
+      }),
+      prisma.extraTimeRequest.findMany({
+        where: { status: 'APPROVED', startAt: { gte: from, lte: to }, ...employeeFilter },
+        include: { employee: employeeSelect },
+      }),
+      // All active employees for the filter dropdown
+      prisma.employee.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+    ])
 
-    // Group by employee + date (IST)
-    const grouped: Record<string, {
-      date: string
-      employeeId: string
-      employeeName: string
-      department: string
-      designation: string
-      firstLogin: string
-      lastLogout: string | null
-      totalDurationMs: number
-      sessions: { id: string; loginAt: string; logoutAt: string | null }[]
-    }> = {}
-
-    for (const log of logs) {
-      // Convert loginAt to IST date string
-      const istLogin = new Date(log.loginAt.getTime() + istOffsetMs)
-      const dateKey = `${istLogin.getUTCFullYear()}-${String(istLogin.getUTCMonth() + 1).padStart(2, '0')}-${String(istLogin.getUTCDate()).padStart(2, '0')}`
-      const key = `${log.employeeId}_${dateKey}`
-
-      if (!grouped[key]) {
-        grouped[key] = {
-          date: dateKey,
-          employeeId: log.employee.id,
-          employeeName: log.employee.name,
-          department: log.employee.department,
-          designation: log.employee.designation,
-          firstLogin: log.loginAt.toISOString(),
-          lastLogout: log.logoutAt?.toISOString() ?? null,
-          totalDurationMs: 0,
-          sessions: [],
-        }
-      }
-
-      const entry = grouped[key]
-
-      // Update last logout (latest logoutAt for the day)
-      if (log.logoutAt) {
-        if (!entry.lastLogout || new Date(log.logoutAt) > new Date(entry.lastLogout)) {
-          entry.lastLogout = log.logoutAt.toISOString()
-        }
-      } else {
-        // If there's an active session (no logout), mark as null (still working)
-        entry.lastLogout = null
-      }
-
-      // Accumulate duration
-      if (log.logoutAt) {
-        entry.totalDurationMs += log.logoutAt.getTime() - log.loginAt.getTime()
-      }
-
-      entry.sessions.push({
-        id: log.id,
-        loginAt: log.loginAt.toISOString(),
-        logoutAt: log.logoutAt?.toISOString() ?? null,
-      })
-    }
-
-    // Sort by date desc, then employee name
-    const data = Object.values(grouped).sort((a, b) => {
-      const dateCompare = b.date.localeCompare(a.date)
-      if (dateCompare !== 0) return dateCompare
-      return a.employeeName.localeCompare(b.employeeName)
-    })
+    // Grouped by employee + IST date, approved extra time included in the totals
+    const data = groupAttendance(logs, extras)
 
     return NextResponse.json({ success: true, data, employees })
   } catch (error) {
