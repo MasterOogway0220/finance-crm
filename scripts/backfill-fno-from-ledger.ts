@@ -8,12 +8,16 @@
  *   RELABEL  CRM FNO row, ledger has no F&O for it      → back to CASH (cash file sent as F&O)
  *   REVIEW   anything else                              → reported, never touched
  *
+ * --cash-dates d1,d2: also restore those days' CASH to the ledger's cash+SLB, raising a
+ * short row or adding a missing client — never lowering one (a higher CRM figure is
+ * reported for review instead).
+ *
  * Plus any stored "FB<code>" row (BSE F&O marker left on) is re-pointed at its client.
  * Day totals only grow by ADD; SPLIT/RELABEL move money between segments. Each changed day
  * gets a NEW active version carrying every other row as-is — older versions stay, so the
  * change is reversible from the Brokerage log.
  *
- *   npx tsx scripts/backfill-fno-from-ledger.ts "<ledger.xls>" [--from 2026-04-01] [--apply]
+ *   npx tsx scripts/backfill-fno-from-ledger.ts "<ledger.xls>" [--from 2026-04-01] [--cash-dates 2026-08-27] [--apply]
  */
 import 'dotenv/config'
 import { readFileSync } from 'fs'
@@ -29,6 +33,7 @@ const flag = (n: string) => { const i = args.indexOf(`--${n}`); return i === -1 
 const APPLY = args.includes('--apply')
 // Jan–Mar were imported as monthly lumps that already include F&O.
 const FROM = flag('from') ?? '2026-04-01'
+const CASH_DATES = new Set((flag('cash-dates') ?? '').split(',').filter(Boolean))
 const BRANCH = 'Mumbai'  // the ledger is the Mumbai entity's (18999, Z/M vouchers)
 const EPS = 1
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -80,12 +85,12 @@ async function main() {
   type Plan = { date: string; uploadDate: Date; oldIds: string[]; nextVersion: number; details: DetailRow[]; before: number; after: number; notes: string[] }
   const plans: Plan[] = []
   const review: string[] = []
-  const tally = { ADD: 0, SPLIT: 0, RELABEL: 0, REMAP: 0 }
+  const tally = { ADD: 0, SPLIT: 0, RELABEL: 0, REMAP: 0, CASH: 0 }
 
   // Dates with CRM FNO rows but no ledger F&O also need a look (RELABEL).
   const fnoDates = new Set(allDetails.filter((d) => d.segment === 'FNO').map((d) => uploads.find((u) => u.id === d.brokerageId)!.uploadDate.toISOString().slice(0, 10)))
   const fbDates = new Set(allDetails.filter((d) => d.clientCode !== stripFB(d.clientCode)).map((d) => uploads.find((u) => u.id === d.brokerageId)!.uploadDate.toISOString().slice(0, 10)))
-  const candidates = [...new Set([...dates.filter((d) => ledger.get(d)!.fno.size > 0), ...fnoDates, ...fbDates])].sort()
+  const candidates = [...new Set([...dates.filter((d) => ledger.get(d)!.fno.size > 0), ...fnoDates, ...fbDates, ...CASH_DATES])].sort()
 
   for (const date of candidates) {
     const L = ledger.get(date) ?? { cs: new Map(), fno: new Map() }
@@ -111,6 +116,21 @@ async function main() {
     }
 
     const find = (code: string, seg: string) => rows.find((r) => r.clientCode === code && r.segment === seg)
+
+    if (CASH_DATES.has(date)) {
+      for (const [code, cs] of L.cs) {
+        const cash = find(code, 'CASH')
+        if (!cash) {
+          const cl = codeToClient.get(code)
+          rows.push({ clientCode: code, clientId: cl?.id ?? null, operatorId: cl?.operatorId ?? UNASSIGNED_OPERATOR, amount: r2(cs), segment: 'CASH' })
+          notes.push(`CASH+ ${code} ${r2(cs)}${cl ? '' : ' (UNASSIGNED)'}`); tally.CASH++; changed = true
+        } else if (cs - cash.amount > EPS) {
+          notes.push(`CASH↑ ${code} ${r2(cash.amount)}→${r2(cs)}`); cash.amount = r2(cs); tally.CASH++; changed = true
+        } else if (cash.amount - cs > EPS) {
+          review.push(`${date} ${code}: CRM cash ${r2(cash.amount)} above ledger ${r2(cs)} — left alone`)
+        }
+      }
+    }
 
     // RELABEL: FNO row the ledger says is cash
     for (const r of rows.filter((x) => x.segment === 'FNO')) {
@@ -154,7 +174,7 @@ async function main() {
   }
 
   for (const p of plans) console.log(`${p.date}  v${p.nextVersion}  ${r2(p.before)} → ${r2(p.after)}  (+${r2(p.after - p.before)})  ${p.notes.join('; ')}`)
-  console.log(`\n${plans.length} day(s) to change. ADD ${tally.ADD}, SPLIT ${tally.SPLIT}, RELABEL ${tally.RELABEL}, REMAP ${tally.REMAP}. Net added: ₹${r2(plans.reduce((s, p) => s + p.after - p.before, 0))}`)
+  console.log(`\n${plans.length} day(s) to change. ADD ${tally.ADD}, SPLIT ${tally.SPLIT}, RELABEL ${tally.RELABEL}, REMAP ${tally.REMAP}, CASH ${tally.CASH}. Net added: ₹${r2(plans.reduce((s, p) => s + p.after - p.before, 0))}`)
   if (review.length) console.log(`\nREVIEW (not touched):\n  ${review.join('\n  ')}`)
 
   if (!APPLY) { console.log('\nDry run — nothing written. Re-run with --apply.'); return }
@@ -179,7 +199,7 @@ async function main() {
   await prisma.activityLog.create({
     data: {
       userId: admin!.id, action: 'UPLOAD', module: 'BROKERAGE',
-      details: `F&O reconcile from till-date ledger: ${plans.length} day(s), ADD ${tally.ADD}, SPLIT ${tally.SPLIT}, RELABEL ${tally.RELABEL}, REMAP ${tally.REMAP}`,
+      details: `F&O reconcile from till-date ledger: ${plans.length} day(s), ADD ${tally.ADD}, SPLIT ${tally.SPLIT}, RELABEL ${tally.RELABEL}, REMAP ${tally.REMAP}, CASH ${tally.CASH}`,
     },
   })
   console.log('Done.')
