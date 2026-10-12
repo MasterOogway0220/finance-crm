@@ -17,6 +17,11 @@ describe('extractClientCodeFromNarration', () => {
     expect(extractClientCodeFromNarration('f18v212')).toBe('18V212')
   })
 
+  it('strips the glued BSE F&O marker FB', () => {
+    expect(extractClientCodeFromNarration('FB91382619')).toBe('91382619')
+    expect(extractClientCodeFromNarration('FB18S504')).toBe('18S504')
+  })
+
   it('leaves a voucher-only narration alone rather than inventing a code', () => {
     expect(extractClientCodeFromNarration('F/58581903')).toBe('F/58581903')
   })
