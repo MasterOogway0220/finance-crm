@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import * as XLSX from 'xlsx'
 import { extractClientCodeFromNarration, parseCellDateKey } from './brokerage-code'
 
 describe('extractClientCodeFromNarration', () => {
@@ -48,5 +49,30 @@ describe('parseCellDateKey', () => {
     expect(parseCellDateKey(null)).toBeNull()
     expect(parseCellDateKey('Opening Balance')).toBeNull()
     expect(parseCellDateKey('4-Xyz-26')).toBeNull()
+  })
+
+  describe('on an IST server', () => {
+    const prevTz = process.env.TZ
+    afterEach(() => { process.env.TZ = prevTz })
+
+    // A ledger with real date cells, written and read back exactly as the upload route does.
+    const readBack = (bookType: XLSX.BookType, cellDates: boolean) => {
+      process.env.TZ = 'Asia/Kolkata'
+      const ws = XLSX.utils.aoa_to_sheet([['Date'], [46238], [46239]])
+      ws.A2.t = ws.A3.t = 'n'
+      ws.A2.z = ws.A3.z = 'd-mmm-yy'
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'S')
+      const buf = XLSX.write(wb, { type: 'array', bookType })
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(XLSX.read(buf, { type: 'array', cellDates }).Sheets.S, { header: 1 })
+      return rows.slice(1).map((r) => parseCellDateKey(r[0]))
+    }
+
+    it('files date cells on their own day, not the day before', () => {
+      for (const bookType of ['xlsx', 'biff8'] as const) {
+        expect(readBack(bookType, false)).toEqual(['2026-08-04', '2026-08-05'])
+        expect(readBack(bookType, true)).toEqual(['2026-08-04', '2026-08-05'])
+      }
+    })
   })
 })

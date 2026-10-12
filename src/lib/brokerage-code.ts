@@ -33,7 +33,13 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
 export function parseCellDateKey(val: unknown): string | null {
   if (val == null || val === '') return null
   if (val instanceof Date && !isNaN(val.getTime())) {
-    return `${val.getUTCFullYear()}-${pad2(val.getUTCMonth() + 1)}-${pad2(val.getUTCDate())}`
+    // SheetJS cellDates builds a date cell at *local* midnight (minus a few seconds of
+    // historical-offset drift), so on an IST server 4-Aug arrives as 2026-08-03T18:29:59Z
+    // and reading its UTC day filed every row of a multi-date ledger one day early.
+    // Nudging by 12h and reading the local day lands on the intended day for both that
+    // shape and a plain UTC-midnight Date, in any timezone within ±12h.
+    const d = new Date(val.getTime() + 12 * 3600 * 1000)
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
   }
   const s = String(val).trim()
   if (!s) return null

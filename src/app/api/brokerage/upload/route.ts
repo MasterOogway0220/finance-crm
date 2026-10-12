@@ -87,9 +87,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid branch' }, { status: 400 })
     }
 
-    // Parse xlsx/csv with SheetJS
+    // Parse xlsx/csv with SheetJS. No cellDates: date cells stay Excel serials, which
+    // parseCellDateKey turns into a day key without touching the server's timezone.
     const arrayBuffer = await file.arrayBuffer()
-    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true })
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' })
     const sheetName = workbook.SheetNames[0]
     const sheet = workbook.Sheets[sheetName]
     const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 }) as string[][]
