@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       // Hybrid attribution — see src/lib/brokerage-attribution.ts.
       const detailsWhere: import('@prisma/client').Prisma.BrokerageDetailWhereInput = {
         ...(operatorId ? brokerageOperatorFilter(operatorId, reportMonth, reportYear) : {}),
-        brokerage: { uploadDate: { gte: monthStart, lte: monthEnd } },
+        brokerage: { isActive: true, uploadDate: { gte: monthStart, lte: monthEnd } },
       }
 
       const details = await prisma.brokerageDetail.findMany({

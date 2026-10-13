@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         ? prisma.brokerageDetail.findMany({
             where: {
               operatorId: { in: operatorIds },
-              brokerage: { uploadDate: { gte: yearStart, lte: pastEndDate } },
+              brokerage: { isActive: true, uploadDate: { gte: yearStart, lte: pastEndDate } },
             },
             select: { amount: true, operatorId: true, brokerage: { select: { uploadDate: true } } },
           })
@@ -111,6 +111,7 @@ export async function GET(request: NextRequest) {
             where: {
               ...brokerageOperatorFilter(operatorIds, curMonthIdx + 1, year),
               brokerage: {
+                isActive: true,
                 uploadDate: {
                   gte: new Date(year, curMonthIdx, 1),
                   lte: new Date(year, curMonthIdx + 1, 0, 23, 59, 59, 999),
